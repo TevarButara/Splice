@@ -1,33 +1,65 @@
-*.png !text !filter !merge !diff
-*.jpg !text !filter !merge !diff
-*.jpeg !text !filter !merge !diff
-*.gif !text !filter !merge !diff
-*.bmp !text !filter !merge !diff
-*.tga !text !filter !merge !diff
-*.tif !text !filter !merge !diff
-*.tiff !text !filter !merge !diff
-*.psd !text !filter !merge !diff
-*.exr !text !filter !merge !diff
-*.hdr !text !filter !merge !diff
-*.fbx !text !filter !merge !diff
-*.obj !text !filter !merge !diff
-*.blend !text !filter !merge !diff
-*.dae !text !filter !merge !diff
-*.3ds !text !filter !merge !diff
-*.max !text !filter !merge !diff
-*.wav !text !filter !merge !diff
-*.mp3 !text !filter !merge !diff
-*.ogg !text !filter !merge !diff
-*.aif !text !filter !merge !diff
-*.aiff !text !filter !merge !diff
-*.mp4 !text !filter !merge !diff
-*.mov !text !filter !merge !diff
-*.ttf !text !filter !merge !diff
-*.otf !text !filter !merge !diff
-*.unitypackage !text !filter !merge !diff
-*.dll !text !filter !merge !diff
-*.a !text !filter !merge !diff
-*.so !text !filter !merge !diff
-*.bundle !text !filter !merge !diff
-*.cubemap !text !filter !merge !diff
-*.wlt !text !filter !merge !diff
+# Auto-detect text files, normalize line endings to LF on checkin.
+* text=auto eol=lf
+
+# Source & config stay as normal text in git (diffable/mergeable).
+*.cs        text diff=csharp
+*.shader    text
+*.shadergraph text
+*.cginc     text
+*.hlsl      text
+*.json      text
+*.txt       text
+*.md        text
+*.asmdef    text
+*.inputactions text
+
+# Unity YAML assets are text — keep diffs/merges working.
+*.unity     text
+*.prefab    text
+*.asset     text
+*.mat       text
+*.controller text
+*.anim      text
+*.meta      text
+
+# ---- Binary assets: stored as normal git blobs (NOT LFS), no EOL conversion ----
+# `binary` = -text -diff -merge. Fine on GitHub free while files stay well under 100MB.
+# Images
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.bmp   binary
+*.tga   binary
+*.tif   binary
+*.tiff  binary
+*.psd   binary
+*.exr   binary
+*.hdr   binary
+# 3D models
+*.fbx   binary
+*.obj   binary
+*.blend binary
+*.dae   binary
+*.3ds   binary
+*.max   binary
+# Audio
+*.wav   binary
+*.mp3   binary
+*.ogg   binary
+*.aif   binary
+*.aiff  binary
+# Video
+*.mp4   binary
+*.mov   binary
+# Fonts
+*.ttf   binary
+*.otf   binary
+# Other binaries
+*.unitypackage binary
+*.dll   binary
+*.a     binary
+*.so    binary
+*.bundle binary
+*.cubemap binary
+*.wlt   binary

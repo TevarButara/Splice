@@ -39,4 +39,10 @@ ExportedObj/
 [Aa]ssets/[Aa]ssetStoreTools*
 Assets/Plugins/Editor/JetBrains*
 
+# Android build (regenerated)
+.gradle/
+
+# Addressables build output (regenerated ตอน build — ข้อ B)
+[Aa]ssets/[Ss]treamingAssets/aa*
+
 .DS_Store
