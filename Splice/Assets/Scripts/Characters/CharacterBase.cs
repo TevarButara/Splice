@@ -42,12 +42,20 @@ namespace Splice.Characters
             if (currentHealth.Value == 0)
             {
                 OnDeath?.Invoke(this);
-                if (NetworkObject.IsSpawned)
-                {
-                    // In-scene placed objects (e.g. a Fort/Tower dropped into the scene, not runtime-Instantiate'd)
-                    // must not be destroyed on despawn per Netcode's guidance — only runtime-spawned ones should be.
-                    NetworkObject.Despawn(destroy: NetworkObject.IsSceneObject != true);
-                }
+                HandleDeath();
+            }
+        }
+
+        // What happens to the object once HP hits 0. Default: remove it from the world. Overridable so
+        // special characters (e.g. the Fort core) can stay in the scene as a destroyed husk for a death
+        // animation. `IsDead` is already true here regardless of whether the object is despawned.
+        protected virtual void HandleDeath()
+        {
+            if (NetworkObject.IsSpawned)
+            {
+                // In-scene placed objects (e.g. a Fort/Tower dropped into the scene, not runtime-Instantiate'd)
+                // must not be destroyed on despawn per Netcode's guidance — only runtime-spawned ones should be.
+                NetworkObject.Despawn(destroy: NetworkObject.IsSceneObject != true);
             }
         }
     }

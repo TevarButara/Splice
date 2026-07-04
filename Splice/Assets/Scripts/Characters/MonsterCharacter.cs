@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Splice.Combat;
 using Splice.Data;
 using UnityEngine;
 
@@ -17,9 +18,18 @@ namespace Splice.Characters
         [SerializeField] private MonsterDefinitionSO definition;
         [Tooltip("ระยะ (XZ) ที่ถือว่า 'ถึง' waypoint แล้วเลื่อนไปจุดถัดไป")]
         [SerializeField] private float waypointArriveRadius = 0.15f;
+        [Tooltip("ติ๊กเพื่อโชว์วงระยะโจมตีตลอดเวลา (ไม่ต้องเลือกก่อน) — ช่วยกะระยะ. เป็น Gizmo (Scene view เสมอ, Game view ต้องเปิดปุ่ม Gizmos)")]
+        [SerializeField] private bool alwaysShowRange;
+
+        [Header("Separation (กันมอนกองทับกันตรง Fort)")]
+        [Tooltip("รัศมี (XZ) ที่เริ่มดันออกจากมอนชนิดเดียวกัน — ~2x รัศมีตัวมอน. 0 = ปิด separation")]
+        [SerializeField] private float separationRadius = 1f;
+        [Tooltip("แรงดันแยก เทียบกับความเร็วเดินหน้า (<1 = เดินหน้าชนะแต่ยังกระจายตัว)")]
+        [SerializeField] private float separationStrength = 0.6f;
 
         private LanePath path;
         private int waypointIndex;
+        private float baseGroundY;   // fallback ground level (path start) — used only if no map point is available
         private TowerCharacter currentTarget;
         private float attackTimer;
 
@@ -34,7 +44,11 @@ namespace Splice.Characters
         {
             path = lanePath;
             waypointIndex = 0;
-            if (path != null && path.Count > 0) transform.position = path.Start;
+            if (path != null && path.Count > 0)
+            {
+                transform.position = path.Start;
+                baseGroundY = path.Start.y;
+            }
         }
 
         public override void OnNetworkSpawn()
@@ -58,52 +72,106 @@ namespace Splice.Characters
         {
             if (!IsServer || IsDead || definition == null) return;
 
+            // Game over → freeze everything (this monster and any still marching in): no moving, no damage.
+            // Two independent signals so a mis-wired RaidManager can't leave monsters drifting/floating:
+            //  - the raid was decided by any path (timer / elimination / fort), and
+            //  - the Fort core is dead (checked directly — the husk stays in the scene, so IsDead is stable).
+            if (RaidManager.Instance != null && RaidManager.Instance.IsOver) return;
+            if (FortCore.Instance != null && FortCore.Instance.IsDead) return;
+
             Advance();
             TryAttack();
         }
 
-        // Move along the lane at moveSpeed, advancing to the next waypoint once close enough.
-        // Past the final waypoint the monster steers straight at the Fort core until it's within its own
-        // attackRange — so units with different reach stop at the right distance and always land hits.
+        // Advance along the lane, with two behaviours layered on the waypoint march:
+        //  - Separation: nudge away from nearby same-type monsters so a crowd spreads into a ring around
+        //    the Fort instead of stacking on its centre.
+        //  - Height: Ground types hug the ground (the target point's y); Flying types hover flightHeight
+        //    above it. The ground reference is always a map point (waypoint/Fort), never our own y — so a
+        //    flyer can't ratchet its own altitude upward every frame.
+        // Once the Fort is within attackRange the monster stops advancing (holds + shoots) — but separation
+        // still runs, so even a stalled crowd keeps spacing out.
         private void Advance()
         {
             if (path == null) return;
 
-            // Consume every waypoint we're already on top of (XZ only, so the monster's pivot height
-            // and any parent-transform float error can't stop it from registering arrival — the exact
-            // Vector3 == check used to leave it stuck pressing into a waypoint forever).
-            while (waypointIndex < path.Count && HorizontalDistance(transform.position, path.GetPoint(waypointIndex)) <= waypointArriveRadius)
-            {
-                waypointIndex++;
-            }
-
-            if (waypointIndex >= path.Count)
-            {
-                StepTowardFort();
-                return;
-            }
-
-            StepToward(path.GetPoint(waypointIndex));
-        }
-
-        // Close the last gap onto the Fort. Uses the exact same InRange check TryAttack does, so the
-        // monster stops precisely where it can attack — no walking-past, no stopping just short.
-        private void StepTowardFort()
-        {
             var fort = FortCore.Instance;
-            if (fort == null || fort.IsDead || InRange(fort)) return;
-            StepToward(fort.transform.position);
-        }
+            var holding = fort != null && !fort.IsDead && InRange(fort);
+            var pos = transform.position;
 
-        private void StepToward(Vector3 target)
-        {
+            // Horizontal destination (XZ) — identical for Ground and Flying: both walk the same waypoints.
+            Vector3 targetXZ;
+            if (holding)
+            {
+                targetXZ = pos; // hold horizontal position, just keep shooting
+            }
+            else
+            {
+                // Consume every waypoint we're already on top of (XZ only, so pivot height / float error
+                // can't stop arrival from registering — the old exact-Vector3 check left units stuck).
+                while (waypointIndex < path.Count && HorizontalDistance(pos, path.GetPoint(waypointIndex)) <= waypointArriveRadius)
+                {
+                    waypointIndex++;
+                }
+
+                if (waypointIndex >= path.Count)
+                    targetXZ = fort != null && !fort.IsDead ? fort.transform.position : pos;
+                else
+                    targetXZ = path.GetPoint(waypointIndex);
+            }
+
             var step = definition.moveSpeed * Time.deltaTime;
-            var next = Vector3.MoveTowards(transform.position, target, step);
 
-            var heading = next - transform.position;
+            // Horizontal move toward the target (XZ) plus a separation nudge from neighbours.
+            var flatTarget = new Vector3(targetXZ.x, pos.y, targetXZ.z);
+            var moved = Vector3.MoveTowards(pos, flatTarget, step) + SeparationOffset() * step;
+
+            var heading = new Vector3(moved.x - pos.x, 0f, moved.z - pos.z);
             if (heading.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(heading);
 
-            transform.position = next;
+            // Height = a stable GROUND reference + a fixed flight offset. The reference is always a map
+            // point (waypoint/Fort/path end), never our own y — otherwise a flyer would add flightHeight
+            // on top of its already-raised position every frame and climb forever.
+            var groundY = GroundReferenceY(fort, holding);
+            var desiredY = definition.movement == MonsterMovement.Flying ? groundY + definition.flightHeight : groundY;
+            moved.y = Mathf.MoveTowards(pos.y, desiredY, step);
+
+            transform.position = moved;
+        }
+
+        // Ground level to sit on / hover above this frame — taken from map points only (never our altitude):
+        // the waypoint we're heading to, else the Fort, else the path's end, else the spawn ground.
+        private float GroundReferenceY(FortCore fort, bool holding)
+        {
+            if (!holding && waypointIndex < path.Count) return path.GetPoint(waypointIndex).y;
+            if (fort != null && !fort.IsDead) return fort.transform.position.y;
+            if (path.Count > 0) return path.GetPoint(path.Count - 1).y;
+            return baseGroundY;
+        }
+
+        // Sum of pushes away from nearby monsters of the SAME movement type (XZ only), clamped so a big
+        // crowd can't fling anyone. This is what keeps units from overlapping on the Fort.
+        private Vector3 SeparationOffset()
+        {
+            if (separationRadius <= 0f || definition == null) return Vector3.zero;
+
+            var push = Vector3.zero;
+            var pos = transform.position;
+            for (var i = 0; i < active.Count; i++)
+            {
+                var other = active[i];
+                if (other == this || other.IsDead || other.definition == null) continue;
+                if (other.definition.movement != definition.movement) continue;
+
+                var offset = other.transform.position - pos;
+                offset.y = 0f;
+                var distance = offset.magnitude;
+                if (distance < 0.0001f || distance > separationRadius) continue;
+
+                push -= offset / distance * (1f - distance / separationRadius);
+            }
+
+            return Vector3.ClampMagnitude(push, 1f) * separationStrength;
         }
 
         private static float HorizontalDistance(Vector3 a, Vector3 b)
@@ -135,6 +203,23 @@ namespace Splice.Characters
         private bool InRange(TowerCharacter target)
         {
             return Vector3.Distance(transform.position, target.transform.position) <= definition.attackRange;
+        }
+
+        // Scene-view range ring. Orange = invader range (distinct from towers' red). Shown when selected,
+        // or all the time when alwaysShowRange is ticked.
+        private void OnDrawGizmos()
+        {
+            if (alwaysShowRange) DrawRangeGizmo();
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!alwaysShowRange) DrawRangeGizmo();
+        }
+
+        private void DrawRangeGizmo()
+        {
+            if (definition != null) RangeGizmo.DrawFlatCircle(transform.position, definition.attackRange, new Color(1f, 0.5f, 0f));
         }
     }
 }

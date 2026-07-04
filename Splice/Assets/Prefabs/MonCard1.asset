@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 188bbc57e92844906b43d89604d383d4, type: 3}
-  m_Name: Card mon1
+  m_Name: MonCard1
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.CardDefinitionSO
   cardId: 1
   displayName: monster lv1

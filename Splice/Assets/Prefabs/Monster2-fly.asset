@@ -10,15 +10,18 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c6c6aa457c2ec41ddabcceac1c7428fb, type: 3}
-  m_Name: Monster
+  m_Name: Monster2-fly
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.MonsterDefinitionSO
-  monsterId: 1
-  displayName: KK
-  maxHealth: 300
-  attackDamage: 20
-  attackCooldown: 1
-  attackRange: 2
-  moveSpeed: 70
-  goldCost: 1
+  monsterId: 2
+  displayName: Wing Dark
+  maxHealth: 500
+  attackDamage: 40
+  attackCooldown: 3
+  attackRange: 60
+  moveSpeed: 30
+  movement: 1
+  flightHeight: 10
+  buildTimeSeconds: 4
+  goldCost: 2
   icon: {fileID: 0}
-  prefab: {fileID: 7101478614847017184, guid: f3950d079c8c54482a00564b74b0ef15, type: 3}
+  prefab: {fileID: 1361003668886046295, guid: 5670488fa59fe554dbe97d3843ed9679, type: 3}

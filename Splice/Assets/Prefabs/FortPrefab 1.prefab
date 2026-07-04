@@ -105,9 +105,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 806263905270810187}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.98955, y: 2.25, z: 16.7}
-  m_LocalScale: {x: 2.7059, y: 2.7059, z: 2.7059}
+  m_LocalScale: {x: 36.52424, y: 36.52424, z: 36.52424}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 6066277939588129095}
@@ -146,7 +146,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 9b2def155828243948b8011e5b469272, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -205,8 +205,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 3080888306
-  InScenePlacedSourceGlobalObjectIdHash: 1344196132
+  GlobalObjectIdHash: 1410308705
+  InScenePlacedSourceGlobalObjectIdHash: 2700082897
   DeferredDespawnTick: 0
   Ownership: 1
   AlwaysReplicateAsRoot: 0
@@ -279,6 +279,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Characters.FortCore
   ShowTopMostFoldoutHeaderGroup: 1
   definition: {fileID: 11400000, guid: f8b715661effd4b85865ade4555a2da9, type: 2}
+  alwaysShowRange: 1
 --- !u!1 &5045268788244162446
 GameObject:
   m_ObjectHideFlags: 0
@@ -316,8 +317,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: -0.4262833, y: -0.042610645}
-  m_SizeDelta: {x: 1.9141, y: 4.0446}
+  m_AnchoredPosition: {x: -0.18942, y: 0.38125}
+  m_SizeDelta: {x: 3.2484, y: 1.6569}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!223 &2646139655735918129
 Canvas:

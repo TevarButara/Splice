@@ -17,7 +17,7 @@ GameObject:
   - component: {fileID: 922018295422615220}
   - component: {fileID: 3384359443979980957}
   m_Layer: 0
-  m_Name: SphereMonster
+  m_Name: Monster1-ground
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -71,7 +71,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 65161033030e7499f92ff59a655d5f1d, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -128,7 +128,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2737551025
+  GlobalObjectIdHash: 3947154956
   InScenePlacedSourceGlobalObjectIdHash: 3947154956
   DeferredDespawnTick: 0
   Ownership: 1
@@ -202,6 +202,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Characters.MonsterCharacter
   ShowTopMostFoldoutHeaderGroup: 1
   definition: {fileID: 11400000, guid: b7cd52537941049e8a88655e18772ae5, type: 2}
+  waypointArriveRadius: 0.15
+  alwaysShowRange: 1
+  separationRadius: 5.7
+  separationStrength: 0.15
 --- !u!54 &3384359443979980957
 Rigidbody:
   m_ObjectHideFlags: 0

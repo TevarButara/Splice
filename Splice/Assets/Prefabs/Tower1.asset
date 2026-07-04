@@ -16,6 +16,9 @@ MonoBehaviour:
   displayName: MagicTw
   maxHealth: 500
   attackDamage: 30
-  attackRange: 70
+  attackRange: 65.8
   attackCooldown: 1
+  goldCost: 0
+  nextTier: {fileID: 0}
+  upgradeCost: 0
   prefab: {fileID: 3852106906963705302, guid: b4c8e11788f2542099ea173011cb5b79, type: 3}

@@ -16,5 +16,13 @@ namespace Splice.Characters
             if (Instance == this) Instance = null;
             base.OnNetworkDespawn();
         }
+
+        // The core is the match objective: when it dies the raid ends (RaidManager observes IsDead), but we
+        // KEEP the object in the scene so a destroyed/husk animation can play. So — unlike every other
+        // character — it does NOT despawn on death.
+        protected override void HandleDeath()
+        {
+            // Intentionally left blank: no despawn. The husk stays; IsDead is already true.
+        }
     }
 }

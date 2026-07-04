@@ -10,12 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 08c604481e56e4ce9b3fc3df70da1111, type: 3}
-  m_Name: FortMiner
+  m_Name: FortCore
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.TowerDefinitionSO
   towerId: 1
   displayName: Fort1
   maxHealth: 3000
   attackDamage: 60
-  attackRange: 40
+  attackRange: 124.2
   attackCooldown: 3
+  goldCost: 0
+  nextTier: {fileID: 0}
+  upgradeCost: 0
   prefab: {fileID: 3943975192675100451, guid: d2ce4551ac4b541ff8b0f7b8ef52fa3b, type: 3}

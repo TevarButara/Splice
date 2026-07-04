@@ -11,6 +11,8 @@ namespace Splice.Characters
         public static IReadOnlyList<TowerCharacter> Active => active;
 
         [SerializeField] private TowerDefinitionSO definition;
+        [Tooltip("ติ๊กเพื่อโชว์วงระยะโจมตีตลอดเวลา (ไม่ต้องเลือกก่อน) — ช่วยกะระยะตอนจัดวาง. เป็น Gizmo (Scene view เสมอ, Game view ต้องเปิดปุ่ม Gizmos)")]
+        [SerializeField] private bool alwaysShowRange;
 
         // Exposed so the server-side interaction flow (TowerDeploymentManager) can read cost/tier data
         // when computing repair/demolish/upgrade gold.
@@ -62,6 +64,23 @@ namespace Splice.Characters
         private bool InRange(MonsterCharacter target)
         {
             return Vector3.Distance(transform.position, target.transform.position) <= definition.attackRange;
+        }
+
+        // Scene-view range ring (also inherited by FortCore). Red = defender range. Shown when selected,
+        // or all the time when alwaysShowRange is ticked — so you can gauge reach while placing.
+        private void OnDrawGizmos()
+        {
+            if (alwaysShowRange) DrawRangeGizmo();
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!alwaysShowRange) DrawRangeGizmo();
+        }
+
+        private void DrawRangeGizmo()
+        {
+            if (definition != null) RangeGizmo.DrawFlatCircle(transform.position, definition.attackRange, Color.red);
         }
     }
 }

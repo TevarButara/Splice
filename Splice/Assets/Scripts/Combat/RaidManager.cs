@@ -45,20 +45,48 @@ namespace Splice.Combat
         private readonly NetworkVariable<float> remainingSeconds = new(
             0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        // One raid per match (1:1). Exposed so units (e.g. MonsterCharacter) can freeze when the match ends
+        // without each holding a serialized reference. Mirrors FortCore.Instance.
+        public static RaidManager Instance { get; private set; }
+
         public RaidOutcome Outcome => outcome.Value;
         public RaidEndReason EndReason => endReason.Value;
         public float RemainingSeconds => remainingSeconds.Value;
 
+        // True once the raid has been decided by any path — readable on server and clients.
+        public bool IsOver => outcome.Value != RaidOutcome.InProgress;
+
+        // Becomes true once the Fort has actually spawned and is alive; lets us tell "Fort not spawned yet"
+        // apart from "Fort destroyed" when polling.
+        private bool fortSeen;
+
         public override void OnNetworkSpawn()
         {
+            Instance = this;
             if (!IsServer) return;
             remainingSeconds.Value = matchDurationSeconds;
-            if (FortCore.Instance != null) FortCore.Instance.OnDeath += HandleFortDestroyed;
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            if (Instance == this) Instance = null;
         }
 
         private void Update()
         {
             if (!IsServer || outcome.Value != RaidOutcome.InProgress) return;
+
+            // Fort destroyed = invaders win. Polled (not event-subscribed) so it's robust to scene spawn
+            // order — the Fort may spawn after this manager, and on death it despawns (Instance → null).
+            if (FortCore.Instance != null && !FortCore.Instance.IsDead)
+            {
+                fortSeen = true;
+            }
+            else if (fortSeen)
+            {
+                EndRaid(RaidOutcome.MonstersWin, RaidEndReason.FortDestroyed);
+                return;
+            }
 
             remainingSeconds.Value = Mathf.Max(0f, remainingSeconds.Value - Time.deltaTime);
             if (remainingSeconds.Value <= 0f)
@@ -106,11 +134,6 @@ namespace Splice.Combat
                 if (!monsters[i].IsDead) count++;
             }
             return count;
-        }
-
-        private void HandleFortDestroyed(CharacterBase _)
-        {
-            EndRaid(RaidOutcome.MonstersWin, RaidEndReason.FortDestroyed);
         }
 
         private void EndRaid(RaidOutcome result, RaidEndReason reason)
