@@ -15,8 +15,8 @@ MonoBehaviour:
   minerId: 1
   displayName: Miner1
   maxHealth: 500
-  moveSpeed: 300
+  moveSpeed: 50
   carryCapacity: 20
   mineDurationSeconds: 2
-  arrivalRadius: 0.5
+  arrivalRadius: 5
   prefab: {fileID: 4108774582508652352, guid: ea91dddde8c2445faaeb9717de79cee7, type: 3}

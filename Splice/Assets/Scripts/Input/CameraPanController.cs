@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -30,6 +31,9 @@ namespace Splice.Input
         private Vector2 lastPointer;
         private bool dragging;
         private bool returningHome;
+        private bool wasPressed;
+
+        private static readonly List<RaycastResult> uiHits = new();
 
         // Fort placement guard reads this: true when the camera sits at (near) the base.
         public bool IsAtHome =>
@@ -85,20 +89,29 @@ namespace Splice.Input
             transform.position = p;
         }
 
-        // Pointer movement since last frame while a press is held. A drag that begins over UI is ignored so panning
-        // never fights the card/tower buttons. The first frame of a press only seeds lastPointer (no movement).
+        // Pointer movement since last frame while a press is held. A drag that BEGINS over UI is ignored so
+        // panning never fights the card/tower buttons; the first frame of a press only seeds lastPointer.
+        // "New press" is tracked from our own isPressed edge (not wasPressedThisFrame, which is flaky for
+        // touch), and the over-UI test is a fresh raycast (not EventSystem's cached per-pointer state, which
+        // could stick "true" after tapping a button that flips interactable/active mid-press — that left
+        // panning dead until a scene reload, sometimes even past it).
         private bool TryGetDragDelta(out Vector2 delta)
         {
             delta = Vector2.zero;
-            if (!TryGetPointer(out var position, out var pressedThisFrame))
+
+            var isPressed = TryGetPointer(out var position);
+            var justPressed = isPressed && !wasPressed;
+            wasPressed = isPressed;
+
+            if (!isPressed)
             {
                 dragging = false;
                 return false;
             }
 
-            if (pressedThisFrame)
+            if (justPressed)
             {
-                if (IsPointerOverUI()) return false; // started over UI -> not a pan
+                if (IsOverUI(position)) { dragging = false; return false; } // started over UI -> not a pan
                 dragging = true;
                 lastPointer = position;
                 return false;
@@ -111,13 +124,12 @@ namespace Splice.Input
             return delta != Vector2.zero;
         }
 
-        private static bool TryGetPointer(out Vector2 position, out bool pressedThisFrame)
+        private static bool TryGetPointer(out Vector2 position)
         {
             var touchscreen = Touchscreen.current;
             if (touchscreen != null && touchscreen.primaryTouch.press.isPressed)
             {
                 position = touchscreen.primaryTouch.position.ReadValue();
-                pressedThisFrame = touchscreen.primaryTouch.press.wasPressedThisFrame;
                 return true;
             }
 
@@ -125,24 +137,23 @@ namespace Splice.Input
             if (mouse != null && mouse.leftButton.isPressed)
             {
                 position = mouse.position.ReadValue();
-                pressedThisFrame = mouse.leftButton.wasPressedThisFrame;
                 return true;
             }
 
             position = default;
-            pressedThisFrame = false;
             return false;
         }
 
-        private static bool IsPointerOverUI()
+        // Fresh UI hit-test at a screen point — stateless, so it can never get stuck reporting "over UI".
+        private static bool IsOverUI(Vector2 screenPosition)
         {
-            if (EventSystem.current == null) return false;
-            var touchscreen = Touchscreen.current;
-            if (touchscreen != null && touchscreen.primaryTouch.press.isPressed)
-            {
-                return EventSystem.current.IsPointerOverGameObject(touchscreen.primaryTouch.touchId.ReadValue());
-            }
-            return EventSystem.current.IsPointerOverGameObject();
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null) return false;
+
+            var pointerData = new PointerEventData(eventSystem) { position = screenPosition };
+            uiHits.Clear();
+            eventSystem.RaycastAll(pointerData, uiHits);
+            return uiHits.Count > 0;
         }
     }
 }

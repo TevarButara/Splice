@@ -15,9 +15,9 @@ MonoBehaviour:
   towerId: 1
   displayName: Fort1
   maxHealth: 3000
-  attackDamage: 60
+  attackDamage: 300
   attackRange: 124.2
-  attackCooldown: 3
+  attackCooldown: 2
   goldCost: 0
   nextTier: {fileID: 0}
   upgradeCost: 0

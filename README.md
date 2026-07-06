@@ -76,7 +76,7 @@ ProjectSettings/ProjectVersion.txt
 - **Health bar** (ทำซ้ำสำหรับ Fort/Tower/Monster prefab ทั้ง 3): เพิ่ม child GameObject → Canvas (Render Mode = **World Space**, scale ให้เล็กพอ เช่น 0.01) → Image ลูก (Image Type = **Filled**, Fill Method = Horizontal) เป็น fill bar → แอด `HealthBarDisplay` (`Assets/Scripts/UI/HealthBarDisplay.cs`) บน root ของ Canvas นั้น → ผูก field `fillImage` เข้ากับ Image ที่สร้าง (`character`/`billboardCamera` ปล่อยว่างได้ เพราะ script auto-find จาก `GetComponentInParent<CharacterBase>()` และ `Camera.main`) → วาง Canvas ให้ลอยเหนือหัวโมเดล
 - **Scene managers**: วาง GameObject (จะรวมไว้ตัวเดียวหรือแยกก็ได้) ใส่ `RaidManager`, `DraftManager`, `DeploymentManager`, `DeployInputController`
 - **Economy — GoldController**: วาง GameObject ใส่ `NetworkObject` + `GoldController` (`Assets/Scripts/Combat/GoldController.cs`) ตั้ง `team = Invaders` และ `startingGold` ตามต้องการ — ตัวนี้คือยอดทองของทีม ไม่มี regen (ทองมาจาก miner เท่านั้น) — โหมด 1:1 วาง 1 ตัวต่อทีม (ตอนนี้ทำฝั่ง Invaders ก่อน)
-- **Economy — MinerBase (ฐานส่งทอง)**: วาง Empty GameObject ตรงจุดที่อยากให้เป็นฐานของทีม (เช่น ใกล้ fort) → `MinerBase` (`Assets/Scripts/Combat/MinerBase.cs`) ตั้ง `team = Invaders` — miner จะวิ่งกลับมาที่ตำแหน่งนี้เพื่อฝากทอง **ต้องวางบนพื้นที่ NavMesh เดินถึงได้**
+- **Economy — MinerBase (ฐานส่งทอง)**: วาง Empty GameObject ตรงจุดที่อยากให้เป็นฐานของทีม (เช่น ใกล้ fort) → `MinerBase` (`Assets/Scripts/Combat/MinerBase.cs`) ตั้ง `team = Invaders` — miner จะวิ่งกลับมาที่ตำแหน่งนี้เพื่อฝากทอง **ต้องวางบนพื้นที่ NavMesh เดินถึงได้**. ตั้ง `depositRadius` = ระยะที่ miner เข้ามาถึงแล้วฝากทองได้เลย (ไม่ต้องชนจุดกลาง กันแย่งจุดเดียว) — เห็นเป็น **วงเขียว** ใน Scene view; **ต้องกว้างกว่า `arrivalRadius` ของ miner** (default 2.5 พอ)
 - **Economy — GoldNode (บ่อทอง)**: วาง primitive หลายอันบนแผนที่ → `NetworkObject` + `NetworkTransform` (ถ้าอยากให้ client เห็น) + **Collider** (primitive มีให้อยู่แล้ว — ใช้วัดว่า miner ถึงบ่อ) + `GoldNode` (`Assets/Scripts/Combat/GoldNode.cs`) ตั้ง `totalGold` — วางกระจายให้บางบ่อไกลจากฐาน (ยิ่งไกล เที่ยวไป-กลับยิ่งนาน income ยิ่งช้า). miner ถือว่า "ถึง" เมื่อชนผิว collider ของบ่อ (ไม่ต้องถึงจุดกลาง) จึงไม่ต้องตั้ง `arrivalRadius` ใหญ่ตามขนาดบ่อ
 - **Economy — Miner prefab**: primitive → `NetworkObject` + `NetworkTransform` + **`NavMeshAgent`** + `MinerCharacter` (`Assets/Scripts/Characters/MinerCharacter.cs`) ตั้ง `team = Invaders` + ผูก `definition` เป็น `MinerDefinitionSO` → save เป็น prefab. วางลง scene ตรงๆ 1 ตัวเป็น miner ตั้งต้นของทีม (วงจร: ไปบ่อ → ขุดเต็ม `carryCapacity` (ใช้เวลา `mineDurationSeconds`) → วิ่งกลับ MinerBase → ทองเข้าทีม) — ต้อง **Bake NavMesh** เหมือน monster ไม่งั้น miner เดินไม่ได้
 - **Camera**: ตั้งกล้องมองลงมาที่ scene, ลาก camera ตัวนี้ไปที่ field `raycastCamera` ของ `DeployInputController`
@@ -191,7 +191,7 @@ ProjectSettings/ProjectVersion.txt
    - `towerDatabase` → `TowerDatabaseSO` ตัวเดียวกับ `TowerDeploymentManager`
    - `placementPreview` → GameObject `TowerRangePreview` ข้างบน (เว้นว่าง = ไม่โชว์ preview, ยังวางป้อมได้ปกติ)
 
-### 6.4 🟢 ประเภทการเดินของ monster (Ground/Flying) + separation กันกองทับ
+### 6.4 ประเภทการเดินของ monster (Ground/Flying) + separation กันกองทับ
 
 **ภาพรวม:** monster มี 2 แบบ ตั้งที่ `MonsterDefinitionSO` — **ทั้งสองแบบเดินตาม waypoint ของ `LanePath` เส้นเดียวกัน (XZ เหมือนกันเป๊ะ)** ต่างแค่ความสูง:
 - **Ground** — ติดพื้น (y อิงจุด waypoint/Fort ที่เดินไป → พื้นอยู่ตรงไหนก็ติดตรงนั้น)
@@ -205,10 +205,28 @@ ProjectSettings/ProjectVersion.txt
 - (option) จูน `separationRadius` / `separationStrength` บน **Monster prefab** (`MonsterCharacter`) — ค่า default 1.0 / 0.6 ใช้ได้เลย; อยากให้เว้นห่างขึ้นเพิ่ม radius, ปิด separation ตั้ง radius = 0
 - **เงื่อนไข "ติดพื้น" ที่ต้องมี:** วาง waypoint ของ `LanePath` (และ Fort) ให้อยู่บนพื้นจริง — เพราะ Ground monster อิงความสูงจากจุดพวกนี้ (ไม่ได้ raycast หาพื้นเอง)
 
+### 6.5 🟢 เจ้าของบ่อทอง (Gold Node ownership) — กัน miner ข้ามฝั่ง
+
+แก้ปัญหา miner วิ่งข้ามไปขุดบ่อฝั่งศัตรู. `GoldNode` มี field ใหม่ **`owner`** 3 แบบ:
+- **Invaders** — เฉพาะ miner ฝั่ง Invader ขุดได้
+- **Defenders** — เฉพาะ miner ฝั่ง Fort ขุดได้
+- **Neutral** — บ่อกลาง **ทั้งสองฝั่งขุดแย่งกันได้** (จุดปะทะเชิงเศรษฐกิจ — miner สองฝั่งไปเจอกันตรงนี้ได้)
+
+miner จะ **ข้ามบ่อของฝั่งศัตรูเสมอ** (ไม่เลือกเป็นเป้า) → ไม่วิ่งข้ามฝั่งอีก. บ่อ Neutral cap การกระจายแยกต่อทีม (แต่ละฝั่งเอา miner ไปได้ถึง `minersPerNode` ของตัวเอง)
+
+**วิธีประกอบใน Unity:**
+- ที่ **GoldNode แต่ละบ่อ** ตั้ง `owner`:
+  - บ่อฝั่ง Invader → `Invaders`, บ่อฝั่ง Fort → `Defenders`, บ่อกลางที่อยากให้แย่งกัน → `Neutral`
+  - ⚠️ ค่า default = **Neutral** — บ่อเก่าที่ไม่ได้ตั้งจะกลายเป็นบ่อกลางทันที (ทั้งสองฝั่งขุดได้) ถ้าอยากแยกฝั่งชัดต้องไล่ตั้งให้ครบ
+- วางบ่อให้สมดุลสองฝั่ง (จำนวน/ระยะจากฐานพอกัน) เพื่อ balance income
+
+**ผลต่อ gameplay:** เศรษฐกิจแยกฝั่งชัดขึ้น (income แต่ละฝั่งอิงบ่อของตัวเอง + บ่อกลางที่แย่งได้). win condition เดิม (invader ตกรอบเมื่อไม่มี miner+ทอง0+ไม่มีมอน) ยังทำงานถูก. "สงครามเศรษฐกิจ" (ฆ่า miner ตัด income) ย้ายไปเกิดที่บ่อ Neutral กับการดันหน่วยเข้าโซนขุดของศัตรู
+
 ### 7. ทดสอบ
 - [ ] Play scene `Bootstrap` → `GameBootstrap` (mode PvE) จะ `StartHost()` ให้อัตโนมัติ
 - [ ] เลือกฝั่ง: เริ่มเกมเห็น Panel เลือก Fort/Monster → กดฝั่งหนึ่ง → camera โดดไป viewpoint ฝั่งนั้น, controller/UI ฝั่งนั้นเปิด อีกฝั่งปิด, Panel หาย
 - [ ] เช็คว่า miner เดินไป GoldNode → ขุดจนเต็ม → วิ่งกลับ MinerBase → `GoldDisplay` เพิ่มตอนถึงฐาน (ทองมาจาก miner เท่านั้น ไม่มี regen, ทองเข้าเฉพาะตอนถึงฐาน)
+- [ ] 🟢 ทดสอบเจ้าของบ่อ (ข้อ 6.5): ตั้งบ่อ `owner=Invaders`/`Defenders`/`Neutral` → miner **ไม่ข้ามไปบ่อฝั่งศัตรู** (ขุดเฉพาะบ่อทีมตัวเอง + บ่อ Neutral); บ่อ Neutral มี miner สองฝั่งมาแย่งได้; miner กระจายบ่อใกล้ๆ ตาม `minersPerNode` พอบ่อใกล้หมดค่อยไปบ่อไกล
 - [ ] ทดสอบ deploy monster: tap/click บน lane marker → gold ลด, monster spawn ที่จุดเริ่ม `LanePath` แล้ว **เดินตาม waypoint ไปเรื่อยๆ ไม่หยุด** จนถึง Fort (ไม่ติดซอกแบบ NavMesh)
 - [ ] ทดสอบ deploy ผ่านกระท่อม (flow ใหม่ ข้อ 6.2):
   - กดกระท่อมของเลน → card UI ของเลนนั้นเปิด
@@ -218,8 +236,8 @@ ProjectSettings/ProjectVersion.txt
   - แต่ละเลนคิวแยกกัน (กดเลน 0 ไม่กระทบคิวเลน 1)
 - [ ] ทดสอบ advance-and-shoot: วางป้อมข้างเลน → monster เดินผ่านแล้ว **ยิงป้อมไปด้วยโดยไม่หยุดเดิน**, ถ้าโดนพอ ป้อมแตก
 - [ ] ทดสอบหยุดที่ระยะ Fort: monster เดินเข้าใกล้ Fort → **หยุดทันทีพอ Fort เข้าระยะ `attackRange`** แล้วยิง (ไม่เดินเข้าไปกองที่ตัว Fort)
-- [ ] 🟢 ทดสอบ separation (ข้อ 6.4): ปล่อยมอนหลายตัวเข้าไปที่ Fort → **กระจายเป็นวงไม่ซ้อนกองที่จุดเดียว**; เพิ่ม `separationRadius` แล้วเว้นห่างขึ้น
-- [ ] 🟢 ทดสอบ Ground vs Flying (ข้อ 6.4): มอน `movement=Ground` เดินติดพื้น; มอน `movement=Flying` ลอยสูง `flightHeight` เหนือพื้นตลอดทาง; ตัวบิน (attackRange ≥ flightHeight) เข้าตี Fort ได้
+- [ ] ทดสอบ separation (ข้อ 6.4): ปล่อยมอนหลายตัวเข้าไปที่ Fort → **กระจายเป็นวงไม่ซ้อนกองที่จุดเดียว**; เพิ่ม `separationRadius` แล้วเว้นห่างขึ้น
+- [ ] ทดสอบ Ground vs Flying (ข้อ 6.4): มอน `movement=Ground` เดินติดพื้น; มอน `movement=Flying` ลอยสูง `flightHeight` เหนือพื้นตลอดทาง; ตัวบิน (attackRange ≥ flightHeight) เข้าตี Fort ได้
 - [ ] ทดสอบ defender วางป้อม: `SelectTower(towerId)` แล้ว tap บน build zone → gold ฝั่ง Defenders ลด, ป้อม spawn ตรงตำแหน่ง, เริ่มยิง monster; ทองไม่พอ → console "Tower deploy rejected: Not enough gold"
 - [ ] ทดสอบเห็นระยะ (ข้อ 6.3): เลือก monster/tower ใน Scene view → เห็นวงระยะ (Gizmo); ติ๊ก `Always Show Range` → วงโชว์ตลอดโดยไม่ต้องเลือก; ในเกมกด `SelectTower` → วง preview ตามเคอร์เซอร์บน build zone → วางป้อม → วงหาย. ปรับ `attackRange` ใน SO แล้ววงเปลี่ยนขนาดตาม
 - [ ] ทดสอบเมนูป้อม (tap ป้อม → เมนูเด้ง):

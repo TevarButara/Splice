@@ -1,9 +1,18 @@
 using System.Collections.Generic;
+using Splice.Core;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace Splice.Combat
 {
+    // Which team's miners may work a node. Neutral = both (a contested deposit in the middle).
+    public enum GoldNodeOwner
+    {
+        Neutral,
+        Invaders,
+        Defenders
+    }
+
     // A finite gold deposit on the map (architecture 5.7). Miners walk here, mine until it is
     // depleted, then move on to the next-nearest node — so far-apart nodes mean slower income.
     public class GoldNode : NetworkBehaviour
@@ -12,6 +21,8 @@ namespace Splice.Combat
         public static IReadOnlyList<GoldNode> Active => active;
 
         [SerializeField] private int totalGold = 500;
+        [Tooltip("เจ้าของบ่อ: Invaders/Defenders = เฉพาะทีมนั้นขุดได้; Neutral = บ่อกลาง สองฝั่งขุดแย่งกันได้")]
+        [SerializeField] private GoldNodeOwner owner = GoldNodeOwner.Neutral;
 
         private readonly NetworkVariable<int> remaining = new(
             0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
@@ -21,6 +32,18 @@ namespace Splice.Combat
         public int Remaining => remaining.Value;
         public int TotalGold => totalGold;
         public bool IsDepleted => remaining.Value <= 0;
+        public GoldNodeOwner Owner => owner;
+
+        // A team may mine this node if it owns it, or if the node is Neutral (contested by both).
+        public bool CanBeMinedBy(Team team)
+        {
+            return owner switch
+            {
+                GoldNodeOwner.Invaders => team == Team.Invaders,
+                GoldNodeOwner.Defenders => team == Team.Defenders,
+                _ => true
+            };
+        }
 
         private void Awake()
         {

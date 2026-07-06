@@ -1,5 +1,6 @@
 using Splice.Combat;
 using TMPro;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -49,6 +50,13 @@ namespace Splice.UI
 
         private void ReloadScene()
         {
+            // A Netcode session survives a plain scene reload (the NetworkManager keeps listening), which
+            // leaves the reloaded scene's networked objects unspawned and the old server state (timer/gold/
+            // outcome/HP) stuck — GameBootstrap skips StartHost while already listening. Shut the session
+            // down first so the reload comes up with a fresh host and everything resets.
+            var net = NetworkManager.Singleton;
+            if (net != null && (net.IsListening || net.IsServer || net.IsClient)) net.Shutdown();
+
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
     }

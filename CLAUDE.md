@@ -21,7 +21,7 @@ Reverse Tower Defense + Roguelite Deckbuilder + Idle Meta. Mobile (iOS/Android),
 - **Server-authoritative ทุกอย่าง** ผ่าน Netcode for GameObjects — HP/ทอง/spawn คำนวณที่ server เท่านั้น, client ส่งได้แค่ intent (ServerRpc) และอ่านผลผ่าน `NetworkVariable`. Input controller = client intent ล้วน
 - **3 โหมด** (`GameBootstrap`): PvE = local host (ไม่มี network จริง) / PvBot / PvP = client ต่อ dedicated server. Bot เรียก ServerRpc เส้นทางเดียวกับผู้เล่น
 - **Data-driven** ด้วย ScriptableObject: `MonsterDefinitionSO` / `TowerDefinitionSO` / `MinerDefinitionSO` / `CardDefinitionSO` + database SO (`CardDatabaseSO`, `TowerDatabaseSO`) lookup ด้วย id
-- **เศรษฐกิจไม่มี regen** — ทองมาจาก miner (NavMesh) ขุด `GoldNode` → กลับ `MinerBase` → `GoldController` ต่อทีม (`GoldController.For(team)`)
+- **เศรษฐกิจไม่มี regen** — ทองมาจาก miner (NavMesh) ขุด `GoldNode` → กลับ `MinerBase` → `GoldController` ต่อทีม (`GoldController.For(team)`). `GoldNode.owner` = `Invaders`/`Defenders`/`Neutral` (บ่อกลางแย่งได้) — miner ขุดเฉพาะบ่อทีมตัวเอง+Neutral, เลือกบ่อใกล้สุดที่ยังมีที่ว่าง (`minersPerNode`) ไม่ข้ามฝั่ง
 - **มอนสเตอร์เดินตาม `LanePath` waypoint (ไม่ใช้ NavMesh)** ; miner ใช้ NavMesh. อย่าใส่ `NavMeshAgent` บน monster prefab. มอนหยุดพอ Fort เข้า `attackRange` (ไม่กองที่ core) + มี separation กันซ้อน + 2 แบบ `MonsterMovement` Ground/Flying (`flightHeight`)
 - **จบแมตช์ 1:1** (`RaidManager`): Fort แตก = Invader ชนะ / timer หมด หรือ invader ตกรอบ (ไม่มี miner + ทอง 0 + ไม่มี monster) = Fort ชนะ
 - Team = `Invaders` / `Defenders` (`Splice.Core.Team`)
