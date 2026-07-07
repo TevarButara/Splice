@@ -19,6 +19,8 @@ namespace Splice.Data
         public float attackCooldown;
         public float attackRange = 1f;
         public float moveSpeed = 2f;
+        [Tooltip("ความเร็วตอนบาดเจ็บ (HP ต่ำกว่า injuredHealthFraction ในตัวมอน) — 0 = ใช้ moveSpeed ปกติ")]
+        public float injuredMoveSpeed;
 
         [Header("Movement type")]
         [Tooltip("Ground = เดินติดพื้น / Flying = บินเหนือพื้น")]

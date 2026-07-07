@@ -1,3 +1,5 @@
+using Splice.Combat;
+using Splice.Core;
 using Splice.Data;
 using Splice.Network;
 using Splice.UI;
@@ -24,16 +26,24 @@ namespace Splice.Input
         [Header("Range preview")]
         [Tooltip("catalog สำหรับหา attackRange ของป้อมที่เลือก (client-side display เท่านั้น)")]
         [SerializeField] private TowerDatabaseSO towerDatabase;
-        [Tooltip("วงระยะ world-space ที่โชว์ตอนกำลังเลือกตำแหน่งวาง — วางจริงแล้วซ่อน. เว้นว่าง = ไม่โชว์ preview")]
+        [Tooltip("วงระยะ world-space ที่โชว์ตอนกำลังเลือกตำแหน่งวาง — snap ลงช่องกริด, วางจริงแล้วซ่อน. เว้นว่าง = ไม่โชว์ preview")]
         [SerializeField] private RangeIndicator placementPreview;
+        [SerializeField] private Color validColor = Color.green;
+        [SerializeField] private Color invalidColor = Color.red;
 
         private string selectedTowerId;
 
-        // A UI button picks which tower to place. Placement is inert until a tower is selected.
+        // A UI button/card picks which tower to place. Placement is inert until a tower is selected.
         public void SelectTower(string towerId)
         {
             selectedTowerId = towerId;
         }
+
+        // Read by TowerCardView to highlight the currently armed tower.
+        public string SelectedTowerId => selectedTowerId;
+
+        // Team whose gold pays for towers — lets a card show affordability without its own reference.
+        public Team DeployTeam => towerDeploymentManager != null ? towerDeploymentManager.DeployTeam : Team.Defenders;
 
         private void Update()
         {
@@ -56,17 +66,20 @@ namespace Splice.Input
             TryPlaceAt(screenPosition);
         }
 
-        // Follow the pointer across the build surface with the selected tower's range ring.
+        // Follow the pointer across the build surface: snap the range ring to the grid cell it points at and
+        // tint it green (placeable + affordable) or red. The server re-checks everything on the actual tap.
         private void UpdatePreview()
         {
-            if (placementPreview == null || raycastCamera == null) return;
+            if (placementPreview == null || raycastCamera == null || towerDeploymentManager == null) return;
 
             if (TryGetPointer(out var pointer))
             {
                 var ray = raycastCamera.ScreenPointToRay(pointer);
                 if (Physics.Raycast(ray, out var hit, float.MaxValue, buildLayerMask))
                 {
-                    placementPreview.Show(hit.point, SelectedRange());
+                    var placeable = towerDeploymentManager.TryGetBuildCell(hit.point, out var cell);
+                    var ok = placeable && IsAffordable();
+                    placementPreview.Show(cell, SelectedRange(), ok ? validColor : invalidColor);
                     return;
                 }
             }
@@ -79,6 +92,15 @@ namespace Splice.Input
             if (towerDatabase == null) return 0f;
             var definition = towerDatabase.GetById(selectedTowerId);
             return definition != null ? definition.attackRange : 0f;
+        }
+
+        private bool IsAffordable()
+        {
+            if (towerDatabase == null) return false;
+            var definition = towerDatabase.GetById(selectedTowerId);
+            if (definition == null) return false;
+            var bank = GoldController.For(towerDeploymentManager.DeployTeam);
+            return bank != null && bank.CurrentGold >= definition.goldCost;
         }
 
         // Current pointer position for the hover preview. Mouse first (editor tuning); on touch we only

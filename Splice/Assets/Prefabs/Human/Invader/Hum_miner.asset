@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d16df1a96e06c41ebb6c2bfa0b603bd6, type: 3}
+  m_Name: Hum_miner
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.MinerDefinitionSO
+  minerId: 1
+  displayName: Miner1
+  maxHealth: 500
+  moveSpeed: 50
+  carryCapacity: 20
+  mineDurationSeconds: 2
+  arrivalRadius: 5
+  prefab: {fileID: 4108774582508652352, guid: ea91dddde8c2445faaeb9717de79cee7, type: 3}

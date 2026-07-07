@@ -24,6 +24,59 @@ namespace Splice.Network
         [Tooltip("คืนเงินตอนทำลาย = floor(goldCost × HPเหลือ/maxHP × ค่านี้). 1 = คืนตามสัดส่วน HP เต็มที่")]
         [SerializeField] private float demolishRefundFactor = 1f;
 
+        [Header("Placement grid")]
+        [Tooltip("ขนาดช่องตาราง (world units) — ป้อม snap ลงกลางช่อง")]
+        [SerializeField] private float cellSize = 2f;
+        [Tooltip("จุดอ้างอิงกริด — ขยับให้แนวช่องตรงกับ build zone/เลน")]
+        [SerializeField] private Vector3 gridOrigin = Vector3.zero;
+        [Tooltip("layer ของพื้นที่วางได้ (build zone) — ศูนย์กลางช่องต้องอยู่เหนือ collider นี้ถึงวางได้")]
+        [SerializeField] private LayerMask buildLayerMask = ~0;
+
+        private const float RayUp = 100f; // downward probe height to confirm a cell sits over the build zone
+
+        public Team DeployTeam => deployTeam;
+
+        // Snap a world position to the centre of its grid cell (XZ; y is resolved later by the build-zone probe).
+        public Vector3 SnapToCell(Vector3 world)
+        {
+            var idx = CellIndex(world);
+            return new Vector3(idx.x * cellSize + gridOrigin.x, world.y, idx.y * cellSize + gridOrigin.z);
+        }
+
+        // Snap to a cell and confirm it's buildable: centre sits over the build zone AND no tower already
+        // occupies it. On success `cell` carries the ground height to spawn at. Shared by the server RPC
+        // (authority) and the client preview (green/red), so the rule lives in exactly one place.
+        public bool TryGetBuildCell(Vector3 world, out Vector3 cell)
+        {
+            cell = SnapToCell(world);
+            var probe = new Vector3(cell.x, cell.y + RayUp, cell.z);
+            if (!Physics.Raycast(probe, Vector3.down, out var hit, RayUp * 2f, buildLayerMask))
+                return false; // cell isn't over the build zone
+
+            cell.y = hit.point.y;
+            return !IsCellOccupied(cell);
+        }
+
+        private Vector2Int CellIndex(Vector3 world)
+        {
+            return new Vector2Int(
+                Mathf.RoundToInt((world.x - gridOrigin.x) / cellSize),
+                Mathf.RoundToInt((world.z - gridOrigin.z) / cellSize));
+        }
+
+        private bool IsCellOccupied(Vector3 cell)
+        {
+            var target = CellIndex(cell);
+            var towers = TowerCharacter.Active;
+            for (var i = 0; i < towers.Count; i++)
+            {
+                var tower = towers[i];
+                if (tower == null || tower.IsDead) continue;
+                if (CellIndex(tower.transform.position) == target) return true;
+            }
+            return false;
+        }
+
         [ServerRpc(RequireOwnership = false)]
         public void RequestDeployTowerServerRpc(FixedString32Bytes towerId, Vector3 position, ServerRpcParams rpcParams = default)
         {
@@ -36,9 +89,16 @@ namespace Splice.Network
                 return;
             }
 
+            // Grid rule: snap to a cell that sits over the build zone and isn't already taken.
+            if (!TryGetBuildCell(position, out var cell))
+            {
+                DeployRejectedClientRpc("Cannot build here", ToClient(clientId));
+                return;
+            }
+
             GoldController.For(deployTeam).TrySpend(tower.goldCost);
-            SpawnTower(tower, position, Quaternion.identity);
-            DeployAcceptedClientRpc(towerId, position);
+            SpawnTower(tower, cell, Quaternion.identity);
+            DeployAcceptedClientRpc(towerId, cell);
         }
 
         // Repair a damaged tower/Fort back to full HP. Cost scales with the fraction of HP lost and the
@@ -136,6 +196,45 @@ namespace Splice.Network
             var oldNetObj = tower.NetworkObject;
             oldNetObj.Despawn(destroy: oldNetObj.IsSceneObject != true);
             SpawnTower(next, position, rotation);
+        }
+
+        // Upgrade ONE stat of a tower (attack/HP/armor/range/targets). Cost grows each level
+        // (baseCost × growth^level). Separate from the tier chain — this keeps the same tower. Not the Fort.
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestUpgradeStatServerRpc(NetworkObjectReference towerRef, TowerStat stat, ServerRpcParams rpcParams = default)
+        {
+            var clientId = rpcParams.Receive.SenderClientId;
+
+            if (!TryResolveTower(towerRef, out var tower))
+            {
+                TowerActionRejectedClientRpc("Invalid tower", ToClient(clientId));
+                return;
+            }
+
+            if (tower is FortCore)
+            {
+                TowerActionRejectedClientRpc("Cannot upgrade the Fort", ToClient(clientId));
+                return;
+            }
+
+            var upgrade = tower.Definition.UpgradeFor(stat);
+            var level = tower.UpgradeLevel(stat);
+            if (upgrade.maxLevel <= 0 || level >= upgrade.maxLevel)
+            {
+                TowerActionRejectedClientRpc("Already max level", ToClient(clientId));
+                return;
+            }
+
+            var cost = upgrade.CostForLevel(level);
+            var bank = GoldController.For(deployTeam);
+            if (bank == null || bank.CurrentGold < cost)
+            {
+                TowerActionRejectedClientRpc("Not enough gold", ToClient(clientId));
+                return;
+            }
+
+            bank.TrySpend(cost);
+            tower.ApplyStatUpgrade(stat);
         }
 
         private bool TryResolveTower(NetworkObjectReference towerRef, out TowerCharacter tower)

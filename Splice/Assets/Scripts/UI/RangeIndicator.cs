@@ -23,6 +23,15 @@ namespace Splice.UI
             Hide();
         }
 
+        // Redraw the ring and tint it (e.g. green = placeable, red = blocked).
+        public void Show(Vector3 center, float radius, Color color)
+        {
+            Show(center, radius);
+            if (line == null) return;
+            line.startColor = color;
+            line.endColor = color;
+        }
+
         // Redraw the ring centred at `center` with the given world-space radius.
         public void Show(Vector3 center, float radius)
         {

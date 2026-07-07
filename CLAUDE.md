@@ -28,15 +28,15 @@ Reverse Tower Defense + Roguelite Deckbuilder + Idle Meta. Mobile (iOS/Android),
 
 ## แผนที่โค้ด (`Splice/Assets/Scripts/`, namespace `Splice.*`)
 - `Core/` — `GameBootstrap` (เลือกโหมด+เริ่ม network), `Team`, `PlayerProgression` (per-team level, placeholder สำหรับ card unlock gating)
-- `Characters/` — `CharacterBase` (HP), `MonsterCharacter`, `TowerCharacter`, `FortCore` (win/lose objective, extend TowerCharacter), `MinerCharacter`, `LanePath`, `TargetingUtility`, `RangeGizmo` (helper วาดวง attackRange ใน Scene view)
+- `Characters/` — `CharacterBase` (HP + armor ลดดาเมจ %), `MonsterCharacter` (เดินเลน + **stop-and-attack** หยุด/หันหน้า/ตี/เดินต่อ + animation ผ่าน `animator.CrossFade` replicate ด้วย NetworkVariable: Idle/Walk/Attack/Injured Walk/Death/Victory/Lose), `TowerCharacter` (build time + อัพเกรด per-stat: attack/HP/armor/range/targets + multi-target + tier chain), `FortCore` (win/lose objective, extend TowerCharacter), `MinerCharacter`, `LanePath`, `TargetingUtility`, `RangeGizmo` (helper วาดวง attackRange ใน Scene view)
 - `Combat/` — `GoldController`, `GoldNode`, `MinerBase`, `RaidManager`
-- `Network/` — `DeploymentManager` (invader spawn + build queue ต่อเลน: `RequestQueueMonsterServerRpc` คิว+นับถอยหลัง / `RequestDeployMonsterServerRpc` เกิดทันทีสำหรับ bot), `TowerDeploymentManager` (defender สร้าง/ซ่อม/อัพเกรด/ทำลายป้อม), `LaneMarker`
+- `Network/` — `DeploymentManager` (invader spawn + build queue ต่อเลน: `RequestQueueMonsterServerRpc` คิว+นับถอยหลัง / `RequestDeployMonsterServerRpc` เกิดทันทีสำหรับ bot), `TowerDeploymentManager` (defender สร้าง/ซ่อม/อัพเกรด/ทำลายป้อม — วางแบบ grid snap ช่องตาราง + เช็คทับ/เขต), `LaneMarker`
 - `Data/` — ScriptableObject definitions + databases
 - `Draft/` — `DraftManager` (server-seeded hand)
 - `Lair/` — `LairManager` (idle currency + PlayerPrefs save)
 - `Bot/` — `BotController`
 - `Input/` — `SoldierHut` (กระท่อมต่อเลน) + `SoldierHutInputController` (tap → เปิด card UI, flow deploy หลักของ invader), `DeployInputController` (legacy tap lane marker), `TowerPlacementInputController`, `TowerInteractionController`, `CameraPanController` (client intent เท่านั้น)
-- `UI/` — `LaneDeployPanel` + `MonsterCardView` (card UI สั่งเกิดมอน: เทา/stack/นับถอยหลัง), `RangeIndicator` (วงระยะ world-space ตอนวางป้อม), `GoldDisplay`, `RaidResultUI`, `MatchTimerDisplay`, `GoldNodeBarDisplay`, `SideSelectionController`, `HealthBarDisplay`
+- `UI/` — `LaneDeployPanel` + `MonsterCardView` (card UI สั่งเกิดมอน: เทา/stack/นับถอยหลัง), `TowerCardView` (card เลือกป้อมฝั่ง Fort: เทา/ไฮไลต์ที่เลือก), `TowerBuildBarDisplay` (แถบเวลาสร้างป้อม), `RangeIndicator` (วงระยะ world-space ตอนวางป้อม), `GoldDisplay`, `RaidResultUI`, `MatchTimerDisplay`, `GoldNodeBarDisplay`, `SideSelectionController`, `HealthBarDisplay`
 
 ## Convention
 - โค้ด/คอมเมนต์เขียนไทยผสมอังกฤษได้ (ตาม style เดิมในโปรเจกต์) — match ไฟล์รอบข้าง

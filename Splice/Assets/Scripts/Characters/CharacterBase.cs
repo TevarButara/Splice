@@ -15,9 +15,27 @@ namespace Splice.Characters
         private readonly NetworkVariable<int> maxHealth = new(
             0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        // Percentage damage reduction: incoming dmg × 100/(100+armor). Server-authoritative.
+        private readonly NetworkVariable<int> armor = new(
+            0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         public int CurrentHealth => currentHealth.Value;
         public int MaxHealth => maxHealth.Value;
+        public int Armor => armor.Value;
         public bool IsDead => currentHealth.Value <= 0;
+
+        protected void SetArmor(int value)
+        {
+            if (IsServer) armor.Value = Mathf.Max(0, value);
+        }
+
+        // Server-only: permanently raise max HP (e.g. an HP upgrade) and add the same amount to current HP.
+        public void RaiseMaxHealth(int delta)
+        {
+            if (!IsServer || IsDead || delta <= 0) return;
+            maxHealth.Value += delta;
+            currentHealth.Value += delta;
+        }
 
         protected void InitializeHealth(int max)
         {
@@ -38,7 +56,9 @@ namespace Splice.Characters
         {
             if (!IsServer || IsDead || amount <= 0) return;
 
-            currentHealth.Value = Mathf.Max(0, currentHealth.Value - amount);
+            // Armor mitigates by percentage; always at least 1 so armor can never fully negate a hit.
+            var mitigated = Mathf.Max(1, Mathf.RoundToInt(amount * 100f / (100 + Mathf.Max(0, armor.Value))));
+            currentHealth.Value = Mathf.Max(0, currentHealth.Value - mitigated);
             if (currentHealth.Value == 0)
             {
                 OnDeath?.Invoke(this);

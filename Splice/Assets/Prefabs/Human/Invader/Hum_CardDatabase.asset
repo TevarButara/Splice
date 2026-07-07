@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 74a1404fc6a3a473a85530938d7f8c3c, type: 3}
+  m_Name: Hum_CardDatabase
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.CardDatabaseSO
+  cards:
+  - {fileID: 11400000, guid: 0bfb864250f46475d9eae1afeb088955, type: 2}
+  - {fileID: 11400000, guid: fa6d42b675f79c2418ce71f0f0d34a73, type: 2}

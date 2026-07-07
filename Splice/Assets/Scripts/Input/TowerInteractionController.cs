@@ -1,4 +1,5 @@
 using Splice.Characters;
+using Splice.Data;
 using Splice.Network;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -52,10 +53,23 @@ namespace Splice.Input
             HideMenu();
         }
 
-        // Wire to the menu's Upgrade button.
+        // Wire to the menu's tier-Upgrade button (swaps to nextTier — a separate system from per-stat).
         public void UpgradeSelected()
         {
             if (selectedTower != null) towerDeploymentManager.RequestUpgradeTowerServerRpc(selectedTower.NetworkObject);
+            HideMenu();
+        }
+
+        // Wire each of these to its per-stat upgrade button (attack / HP / armor / range / targets).
+        public void UpgradeAttack() => UpgradeStat(TowerStat.Attack);
+        public void UpgradeHealth() => UpgradeStat(TowerStat.Health);
+        public void UpgradeArmor() => UpgradeStat(TowerStat.Armor);
+        public void UpgradeRange() => UpgradeStat(TowerStat.Range);
+        public void UpgradeTargets() => UpgradeStat(TowerStat.Targets);
+
+        private void UpgradeStat(TowerStat stat)
+        {
+            if (selectedTower != null) towerDeploymentManager.RequestUpgradeStatServerRpc(selectedTower.NetworkObject, stat);
             HideMenu();
         }
 

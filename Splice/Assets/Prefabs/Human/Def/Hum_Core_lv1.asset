@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 08c604481e56e4ce9b3fc3df70da1111, type: 3}
+  m_Name: Hum_Core_lv1
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.TowerDefinitionSO
+  towerId: 1
+  displayName: Fort1
+  maxHealth: 3000
+  attackDamage: 300
+  attackRange: 124.2
+  attackCooldown: 2
+  armor: 0
+  maxTargets: 1
+  buildTimeSeconds: 3
+  goldCost: 0
+  attackUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  healthUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  armorUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  rangeUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  targetsUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  nextTier: {fileID: 11400000, guid: 66031ab67399642cf9e38e0d497f2275, type: 2}
+  upgradeCost: 0
+  prefab: {fileID: 806263905270810187, guid: eef31f508501b433d8cdc33b228f302f, type: 3}
