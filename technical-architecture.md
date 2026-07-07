@@ -184,7 +184,7 @@ sequenceDiagram
 
 ---
 
-### 5.9 🟢 Presentation & Orientation
+### 5.9  Presentation & Orientation
 
 **Target orientation = Portrait (แนวตั้ง) ล็อกทุกโหมด** — เลือกตามหลักการเล่น:
 - เลนวิ่งตามแนวยาว (spawn → Fort) แมปกับจอสูงตรงๆ แบบ Clash Royale
@@ -199,7 +199,7 @@ sequenceDiagram
 - ⚠️ ห้ามวาง `SideSelectionController` ไว้บน Panel ที่มันต้องปิด/เปิด หรือบน GameObject ที่ inactive — `Start()` จะไม่รัน แล้ว UI เลือกฝั่งจะไม่โผล่ (วางบน GameObject ที่ active เสมอ เช่น manager กลาง); ต้องมี Canvas + EventSystem ในซีน
 - ขอบเขตปัจจุบัน: local เท่านั้น (PvE host คุมสองฝั่งอยู่แล้ว — นี่แค่เลือกว่า client นี้คุม/มองฝั่งไหน) PvP จริงจะ assign ฝั่งจาก server ทีหลัง
 
-**🟢 กล้อง Free-pan + กติกา deploy/build (ทั้งสองฝั่ง):**
+** กล้อง Free-pan + กติกา deploy/build (ทั้งสองฝั่ง):**
 - เลนยาวกว่าจอ + มุมกล้อง 3D ~50° (ตัวละครเห็นชัด) → **เห็นทั้งแมปในจอเดียวไม่ได้** จึงให้ **กล้อง free-pan** เลื่อนดูทั่วแมปด้วย **tap + slide** ทั้งฝั่ง Fort และ Invader
 - มีปุ่ม **Home** = quick กลับไปโฟกัสฐาน/บ้านตัวเอง กรณี pan ออกไปไกล
 - **Invader (deploy อิงเลน ไม่อิงตำแหน่งนิ้ว):** สั่ง deploy ได้**ทุกที่ที่กล้องอยู่** — กดเลือกมอน → เลือกเลน → ลงเลย → นั่งดูป้อมปะทะไกลๆ พร้อมสั่งลงมอนจากตรงนั้นได้เลย

@@ -45,7 +45,9 @@ namespace Splice.UI
         public void RequestDeploy(CardDefinitionSO card)
         {
             if (deploymentManager == null || card == null) return;
-            deploymentManager.RequestQueueMonsterServerRpc(new FixedString32Bytes(card.cardId), CurrentLaneId);
+            var id = deploymentManager.IdOf(card);
+            if (string.IsNullOrEmpty(id)) return;   // card not registered in any faction
+            deploymentManager.RequestQueueMonsterServerRpc(new FixedString32Bytes(id), CurrentLaneId);
         }
     }
 }

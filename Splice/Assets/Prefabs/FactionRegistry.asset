@@ -9,8 +9,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f5c63fa1e9bd1454e811c71708b56a93, type: 3}
-  m_Name: Hum_TowerDatabase
-  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.TowerDatabaseSO
-  towers:
-  - {fileID: 11400000, guid: 66031ab67399642cf9e38e0d497f2275, type: 2}
+  m_Script: {fileID: 11500000, guid: 674cca96ff008254483c953b5b7a7644, type: 3}
+  m_Name: FactionRegistry
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.FactionRegistrySO
+  factions:
+  - {fileID: 11400000, guid: cfef23523fcd2254fb59bed1f791569b, type: 2}

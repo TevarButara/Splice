@@ -36,6 +36,7 @@ namespace Splice.Data
     [CreateAssetMenu(fileName = "NewTower", menuName = "Splice/Tower Definition")]
     public class TowerDefinitionSO : ScriptableObject
     {
+        [Tooltip("id เฉพาะในเผ่าตัวเอง (local) — ไม่ต้อง unique ทั้งเกม. network id เต็ม = factionId/towerId ประกอบให้เองใน FactionRegistry")]
         public string towerId;
         public string displayName;
         public int maxHealth;

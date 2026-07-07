@@ -14,7 +14,7 @@ namespace Splice.Network
     // Clients send intent (towerId + position); the server validates gold and spawns.
     public class TowerDeploymentManager : NetworkBehaviour
     {
-        [SerializeField] private TowerDatabaseSO towerDatabase;
+        [SerializeField] private FactionRegistrySO registry;
         [SerializeField] private Team deployTeam = Team.Defenders;
 
         // TEMP: tunable factors live here for now. Part B (main balance config) will feed these instead of the Inspector.
@@ -35,6 +35,10 @@ namespace Splice.Network
         private const float RayUp = 100f; // downward probe height to confirm a cell sits over the build zone
 
         public Team DeployTeam => deployTeam;
+
+        // Composite id (factionId/towerId) ↔ definition — used by the tower card UI + placement preview.
+        public string IdOf(TowerDefinitionSO tower) => registry != null ? registry.IdOf(tower) : null;
+        public TowerDefinitionSO Resolve(string id) => registry != null ? registry.ResolveTower(id) : null;
 
         // Snap a world position to the centre of its grid cell (XZ; y is resolved later by the build-zone probe).
         public Vector3 SnapToCell(Vector3 world)
@@ -81,7 +85,7 @@ namespace Splice.Network
         public void RequestDeployTowerServerRpc(FixedString32Bytes towerId, Vector3 position, ServerRpcParams rpcParams = default)
         {
             var clientId = rpcParams.Receive.SenderClientId;
-            var tower = towerDatabase.GetById(towerId.ToString());
+            var tower = registry.ResolveTower(towerId.ToString());
 
             if (!ValidateDeploy(tower, out var reason))
             {

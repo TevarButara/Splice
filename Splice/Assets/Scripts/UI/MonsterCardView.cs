@@ -66,22 +66,24 @@ namespace Splice.UI
             if (nameLabel != null) nameLabel.text = card.displayName;
             if (costLabel != null) costLabel.text = card.goldCost.ToString();
 
-            var stack = panel.Deployment.GetQueuedCount(lane, card.cardId);
+            var cardId = panel.Deployment.IdOf(card);   // composite id: factionId/cardId
+
+            var stack = panel.Deployment.GetQueuedCount(lane, cardId);
             if (stackLabel != null)
             {
                 stackLabel.gameObject.SetActive(stack > 0);
                 stackLabel.text = $"x{stack}";
             }
 
-            UpdateCooldown(lane);
+            UpdateCooldown(lane, cardId);
         }
 
-        private void UpdateCooldown(int lane)
+        private void UpdateCooldown(int lane, string cardId)
         {
             var cooking = false;
 
             if (panel.Deployment.TryGetLaneHead(lane, out var headCardId, out var spawnAt)
-                && headCardId == card.cardId && spawnAt > 0.0)
+                && headCardId == cardId && spawnAt > 0.0)
             {
                 var now = NetworkManager.Singleton != null ? NetworkManager.Singleton.ServerTime.Time : 0.0;
                 var total = card.linkedMonster != null ? Mathf.Max(0.0001f, card.linkedMonster.buildTimeSeconds) : 0.0001f;

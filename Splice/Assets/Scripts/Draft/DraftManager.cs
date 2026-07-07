@@ -10,7 +10,7 @@ namespace Splice.Draft
     // Permanent unlocks come from the Lair meta and are applied to cardPool before drawing.
     public class DraftManager : NetworkBehaviour
     {
-        [SerializeField] private CardDatabaseSO cardDatabase;
+        [SerializeField] private FactionRegistrySO registry;
         [SerializeField] private int handSize = 4;
 
         private readonly NetworkList<FixedString32Bytes> currentHand = new();
@@ -27,12 +27,12 @@ namespace Splice.Draft
             if (!IsServer) return;
 
             currentHand.Clear();
-            var pool = new List<CardDefinitionSO>(cardDatabase.AllCards);
+            var pool = registry.AllCards();
 
             for (var i = 0; i < handSize && pool.Count > 0; i++)
             {
                 var index = Random.Range(0, pool.Count);
-                currentHand.Add(pool[index].cardId);
+                currentHand.Add(new FixedString32Bytes(registry.IdOf(pool[index])));   // composite id: factionId/cardId
                 pool.RemoveAt(index);
             }
         }

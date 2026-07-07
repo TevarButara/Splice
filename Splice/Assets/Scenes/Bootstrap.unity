@@ -517,7 +517,7 @@ GameObject:
   - component: {fileID: 39867852}
   - component: {fileID: 39867850}
   m_Layer: 0
-  m_Name: ==MONManager
+  m_Name: ==INV-Manager
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5296,6 +5296,71 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 80164605516597833, guid: eef31f508501b433d8cdc33b228f302f, type: 3}
   m_PrefabInstance: {fileID: 4735685021091041643}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &550203580
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -104.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -0.13
+      objectReference: {fileID: 0}
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -651.1
+      objectReference: {fileID: 0}
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 206807766217412256, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 690574931462591514, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: m_Name
+      value: Fordes_lv2
+      objectReference: {fileID: 0}
+    - target: {fileID: 8202365397657727403, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: GlobalObjectIdHash
+      value: 1428491340
+      objectReference: {fileID: 0}
+    - target: {fileID: 8202365397657727403, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+      propertyPath: InScenePlacedSourceGlobalObjectIdHash
+      value: 1009452595
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
 --- !u!1 &575409028
 GameObject:
   m_ObjectHideFlags: 0
@@ -7199,7 +7264,7 @@ GameObject:
   m_Component:
   - component: {fileID: 717645856}
   m_Layer: 0
-  m_Name: FORT
+  m_Name: TOWER
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7387,7 +7452,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Network.TowerDeploymentManager
   ShowTopMostFoldoutHeaderGroup: 1
-  towerDatabase: {fileID: 11400000, guid: 26ae6c7ad663040ee93eceb99f855aad, type: 2}
+  registry: {fileID: 0}
   deployTeam: 1
   repairFactor: 0.5
   demolishRefundFactor: 1
@@ -9731,7 +9796,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Draft.DraftManager
   ShowTopMostFoldoutHeaderGroup: 1
-  cardDatabase: {fileID: 11400000, guid: ec985e28a6ccc41d3a46f78d9fb9987c, type: 2}
+  registry: {fileID: 11400000, guid: 869b20b50330f7f47bb08bad1d23a25e, type: 2}
   handSize: 2
 --- !u!4 &996098438
 Transform:
@@ -10750,7 +10815,6 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   cameraPan: {fileID: 345162097}
-  towerDatabase: {fileID: 11400000, guid: 26ae6c7ad663040ee93eceb99f855aad, type: 2}
   placementPreview: {fileID: 1703768737}
   validColor: {r: 0, g: 1, b: 0, a: 1}
   invalidColor: {r: 1, g: 0, b: 0, a: 1}
@@ -11147,7 +11211,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Network.TowerDeploymentManager
   ShowTopMostFoldoutHeaderGroup: 1
-  towerDatabase: {fileID: 11400000, guid: 26ae6c7ad663040ee93eceb99f855aad, type: 2}
+  registry: {fileID: 11400000, guid: 869b20b50330f7f47bb08bad1d23a25e, type: 2}
   deployTeam: 1
   repairFactor: 0.5
   demolishRefundFactor: 1
@@ -14902,7 +14966,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Network.DeploymentManager
   ShowTopMostFoldoutHeaderGroup: 1
-  cardDatabase: {fileID: 11400000, guid: ec985e28a6ccc41d3a46f78d9fb9987c, type: 2}
+  registry: {fileID: 11400000, guid: 869b20b50330f7f47bb08bad1d23a25e, type: 2}
   deployTeam: 0
   lanePaths:
   - {fileID: 1658417586}
@@ -19367,3 +19431,4 @@ SceneRoots:
   - {fileID: 1375472838}
   - {fileID: 1507115552}
   - {fileID: 1864240499}
+  - {fileID: 550203580}

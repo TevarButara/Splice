@@ -39,7 +39,7 @@ namespace Splice.Network
     //                                     DeployInputController — no build time.
     public class DeploymentManager : NetworkBehaviour
     {
-        [SerializeField] private CardDatabaseSO cardDatabase;
+        [SerializeField] private FactionRegistrySO registry;
         [SerializeField] private Team deployTeam = Team.Invaders;
         [Tooltip("เส้นทางต่อเลนของ map นี้ — index = laneId. monster เกิดที่จุดเริ่มเส้นแล้วเดินตาม waypoint")]
         [SerializeField] private LanePath[] lanePaths;
@@ -48,6 +48,9 @@ namespace Splice.Network
         private readonly NetworkList<QueuedUnit> buildQueue = new();
 
         public Team DeployTeam => deployTeam;
+
+        // Composite id (factionId/cardId) for a card — card UI uses it to send deploy intent + match queue rows.
+        public string IdOf(CardDefinitionSO card) => registry != null ? registry.IdOf(card) : null;
 
         // ---------- UI read helpers (client-safe) ----------
 
@@ -86,7 +89,7 @@ namespace Splice.Network
         public void RequestQueueMonsterServerRpc(FixedString32Bytes cardId, int laneId, ServerRpcParams rpcParams = default)
         {
             var clientId = rpcParams.Receive.SenderClientId;
-            var card = cardDatabase.GetById(cardId.ToString());
+            var card = registry.ResolveCard(cardId.ToString());
 
             if (!ValidateDeploy(card, laneId, out var reason))
             {
@@ -124,7 +127,7 @@ namespace Splice.Network
 
                 if (now < head.SpawnAtServerTime) continue;
 
-                var card = cardDatabase.GetById(head.CardId.ToString());
+                var card = registry.ResolveCard(head.CardId.ToString());
                 buildQueue.RemoveAt(headIndex);
                 if (card != null && card.linkedMonster != null) SpawnMonster(card.linkedMonster, lane);
             }
@@ -141,7 +144,7 @@ namespace Splice.Network
 
         private float BuildTimeFor(FixedString32Bytes cardId)
         {
-            var card = cardDatabase.GetById(cardId.ToString());
+            var card = registry.ResolveCard(cardId.ToString());
             if (card == null || card.linkedMonster == null) return 0f;
             return Mathf.Max(0f, card.linkedMonster.buildTimeSeconds);
         }
@@ -152,7 +155,7 @@ namespace Splice.Network
         public void RequestDeployMonsterServerRpc(FixedString32Bytes cardId, int laneId, ServerRpcParams rpcParams = default)
         {
             var clientId = rpcParams.Receive.SenderClientId;
-            var card = cardDatabase.GetById(cardId.ToString());
+            var card = registry.ResolveCard(cardId.ToString());
 
             if (!ValidateDeploy(card, laneId, out var reason))
             {

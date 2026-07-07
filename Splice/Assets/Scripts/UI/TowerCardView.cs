@@ -33,7 +33,9 @@ namespace Splice.UI
         // Also wire this to the Button's OnClick in the Inspector if you prefer not to rely on Awake.
         public void OnClickSelect()
         {
-            if (placement != null && tower != null) placement.SelectTower(tower.towerId);
+            if (placement == null || tower == null) return;
+            var id = placement.IdOf(tower);
+            if (!string.IsNullOrEmpty(id)) placement.SelectTower(id);
         }
 
         private void Update()
@@ -47,7 +49,7 @@ namespace Splice.UI
             if (button != null) button.interactable = affordable;
             if (nameLabel != null) nameLabel.text = tower.displayName;
             if (costLabel != null) costLabel.text = tower.goldCost.ToString();
-            if (selectedHighlight != null) selectedHighlight.SetActive(placement.SelectedTowerId == tower.towerId);
+            if (selectedHighlight != null) selectedHighlight.SetActive(placement.SelectedTowerId == placement.IdOf(tower));
         }
     }
 }

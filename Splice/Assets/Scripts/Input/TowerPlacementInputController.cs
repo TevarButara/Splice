@@ -24,8 +24,6 @@ namespace Splice.Input
         [SerializeField] private CameraPanController cameraPan;
 
         [Header("Range preview")]
-        [Tooltip("catalog สำหรับหา attackRange ของป้อมที่เลือก (client-side display เท่านั้น)")]
-        [SerializeField] private TowerDatabaseSO towerDatabase;
         [Tooltip("วงระยะ world-space ที่โชว์ตอนกำลังเลือกตำแหน่งวาง — snap ลงช่องกริด, วางจริงแล้วซ่อน. เว้นว่าง = ไม่โชว์ preview")]
         [SerializeField] private RangeIndicator placementPreview;
         [SerializeField] private Color validColor = Color.green;
@@ -44,6 +42,9 @@ namespace Splice.Input
 
         // Team whose gold pays for towers — lets a card show affordability without its own reference.
         public Team DeployTeam => towerDeploymentManager != null ? towerDeploymentManager.DeployTeam : Team.Defenders;
+
+        // Composite id for a tower — TowerCardView uses it to arm the tower + highlight the selected card.
+        public string IdOf(TowerDefinitionSO tower) => towerDeploymentManager != null ? towerDeploymentManager.IdOf(tower) : null;
 
         private void Update()
         {
@@ -89,15 +90,13 @@ namespace Splice.Input
 
         private float SelectedRange()
         {
-            if (towerDatabase == null) return 0f;
-            var definition = towerDatabase.GetById(selectedTowerId);
+            var definition = towerDeploymentManager != null ? towerDeploymentManager.Resolve(selectedTowerId) : null;
             return definition != null ? definition.attackRange : 0f;
         }
 
         private bool IsAffordable()
         {
-            if (towerDatabase == null) return false;
-            var definition = towerDatabase.GetById(selectedTowerId);
+            var definition = towerDeploymentManager != null ? towerDeploymentManager.Resolve(selectedTowerId) : null;
             if (definition == null) return false;
             var bank = GoldController.For(towerDeploymentManager.DeployTeam);
             return bank != null && bank.CurrentGold >= definition.goldCost;
