@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 188bbc57e92844906b43d89604d383d4, type: 3}
+  m_Name: 2_card_golem_lv4
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.CardDefinitionSO
+  cardId: 4
+  displayName: Golem lv4
+  cardType: 0
+  goldCost: 15
+  requiredLevel: 1
+  linkedMonster: {fileID: 11400000, guid: 3dd364b961db77c48bb952ac525ac0f4, type: 2}
+  linkedMiner: {fileID: 0}
+  artwork: {fileID: 0}
+  description: 

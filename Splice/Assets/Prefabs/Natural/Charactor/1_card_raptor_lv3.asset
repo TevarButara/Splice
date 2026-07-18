@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 188bbc57e92844906b43d89604d383d4, type: 3}
+  m_Name: 1_card_raptor_lv3
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.CardDefinitionSO
+  cardId: 3
+  displayName: Raptor lv3
+  cardType: 0
+  goldCost: 10
+  requiredLevel: 1
+  linkedMonster: {fileID: 11400000, guid: b20b967b59646204da5b3ec2b581fd03, type: 2}
+  linkedMiner: {fileID: 0}
+  artwork: {fileID: 0}
+  description: 

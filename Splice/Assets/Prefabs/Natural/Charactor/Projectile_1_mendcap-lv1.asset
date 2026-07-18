@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf865d68022b14f4b94f8aaaab26552c, type: 3}
+  m_Name: Projectile_1_mendcap-lv1
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.ProjectileDefinitionSO
+  projectilePrefab: {fileID: 296538973387200349, guid: 74e1f35c63373a04183a02de73efe471, type: 3}
+  startSpeed: 12
+  endSpeed: 14
+  minFlightSeconds: 0.08
+  minHeight: 0.5
+  maxHeight: 2
+  maxLifetime: 6
+  launchEffect: {fileID: 0}
+  impactEffect: {fileID: 0}

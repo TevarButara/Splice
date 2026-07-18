@@ -13,6 +13,16 @@ namespace Splice.Data
 
         public IReadOnlyList<FactionSO> Factions => factions;
 
+        // หา FactionSO จาก factionId — ใช้ resolve เผ่าที่ผู้เล่นเลือก (ActiveFactionId) เพื่อดึง towers/cards
+        // ไปทำ palette แบบ dynamic ฯลฯ
+        public FactionSO GetFaction(string factionId)
+        {
+            if (string.IsNullOrEmpty(factionId)) return null;
+            foreach (var faction in factions)
+                if (faction != null && faction.factionId == factionId) return faction;
+            return null;
+        }
+
         private Dictionary<string, CardDefinitionSO> cardById;
         private Dictionary<CardDefinitionSO, string> idByCard;
         private Dictionary<string, TowerDefinitionSO> towerById;

@@ -5,6 +5,7 @@ using Splice.Data;
 using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Splice.Network
 {
@@ -15,7 +16,8 @@ namespace Splice.Network
     public class TowerDeploymentManager : NetworkBehaviour
     {
         [SerializeField] private FactionRegistrySO registry;
-        [SerializeField] private Team deployTeam = Team.Defenders;
+        [FormerlySerializedAs("deployTeam")]
+        [SerializeField] private RaidSide deploySide = RaidSide.Defender;
 
         // TEMP: tunable factors live here for now. Part B (main balance config) will feed these instead of the Inspector.
         [Header("Cost factors (จะย้ายเข้า main config — ข้อ B)")]
@@ -25,58 +27,35 @@ namespace Splice.Network
         [SerializeField] private float demolishRefundFactor = 1f;
 
         [Header("Placement grid")]
-        [Tooltip("ขนาดช่องตาราง (world units) — ป้อม snap ลงกลางช่อง")]
-        [SerializeField] private float cellSize = 2f;
-        [Tooltip("จุดอ้างอิงกริด — ขยับให้แนวช่องตรงกับ build zone/เลน")]
-        [SerializeField] private Vector3 gridOrigin = Vector3.zero;
-        [Tooltip("layer ของพื้นที่วางได้ (build zone) — ศูนย์กลางช่องต้องอยู่เหนือ collider นี้ถึงวางได้")]
-        [SerializeField] private LayerMask buildLayerMask = ~0;
+        [Tooltip("กติกา grid วางป้อม — แชร์โค้ดเดียวกับ Build Mode (BaseBuildManager) ผ่าน BuildGrid")]
+        [SerializeField] private BuildGrid grid = new();
 
-        private const float RayUp = 100f; // downward probe height to confirm a cell sits over the build zone
-
-        public Team DeployTeam => deployTeam;
+        public RaidSide DeploySide => deploySide;
 
         // Composite id (factionId/towerId) ↔ definition — used by the tower card UI + placement preview.
         public string IdOf(TowerDefinitionSO tower) => registry != null ? registry.IdOf(tower) : null;
         public TowerDefinitionSO Resolve(string id) => registry != null ? registry.ResolveTower(id) : null;
 
         // Snap a world position to the centre of its grid cell (XZ; y is resolved later by the build-zone probe).
-        public Vector3 SnapToCell(Vector3 world)
-        {
-            var idx = CellIndex(world);
-            return new Vector3(idx.x * cellSize + gridOrigin.x, world.y, idx.y * cellSize + gridOrigin.z);
-        }
+        public Vector3 SnapToCell(Vector3 world) => grid.SnapToCell(world);
 
         // Snap to a cell and confirm it's buildable: centre sits over the build zone AND no tower already
         // occupies it. On success `cell` carries the ground height to spawn at. Shared by the server RPC
         // (authority) and the client preview (green/red), so the rule lives in exactly one place.
         public bool TryGetBuildCell(Vector3 world, out Vector3 cell)
         {
-            cell = SnapToCell(world);
-            var probe = new Vector3(cell.x, cell.y + RayUp, cell.z);
-            if (!Physics.Raycast(probe, Vector3.down, out var hit, RayUp * 2f, buildLayerMask))
-                return false; // cell isn't over the build zone
-
-            cell.y = hit.point.y;
+            if (!grid.TryGetGroundCell(world, out cell)) return false;
             return !IsCellOccupied(cell);
-        }
-
-        private Vector2Int CellIndex(Vector3 world)
-        {
-            return new Vector2Int(
-                Mathf.RoundToInt((world.x - gridOrigin.x) / cellSize),
-                Mathf.RoundToInt((world.z - gridOrigin.z) / cellSize));
         }
 
         private bool IsCellOccupied(Vector3 cell)
         {
-            var target = CellIndex(cell);
             var towers = TowerCharacter.Active;
             for (var i = 0; i < towers.Count; i++)
             {
                 var tower = towers[i];
                 if (tower == null || tower.IsDead) continue;
-                if (CellIndex(tower.transform.position) == target) return true;
+                if (grid.SameCell(tower.transform.position, cell)) return true;
             }
             return false;
         }
@@ -100,7 +79,7 @@ namespace Splice.Network
                 return;
             }
 
-            GoldController.For(deployTeam).TrySpend(tower.goldCost);
+            GoldController.For(deploySide).TrySpend(tower.goldCost);
             SpawnTower(tower, cell, Quaternion.identity);
             DeployAcceptedClientRpc(towerId, cell);
         }
@@ -122,7 +101,7 @@ namespace Splice.Network
             if (missing <= 0) return; // already full — no-op, no cost
 
             var cost = Mathf.CeilToInt(tower.Definition.goldCost * ((float)missing / tower.MaxHealth) * repairFactor);
-            var bank = GoldController.For(deployTeam);
+            var bank = GoldController.For(deploySide);
             if (bank == null || bank.CurrentGold < cost)
             {
                 TowerActionRejectedClientRpc("Not enough gold", ToClient(clientId));
@@ -153,7 +132,7 @@ namespace Splice.Network
             }
 
             var refund = Mathf.FloorToInt(tower.Definition.goldCost * ((float)tower.CurrentHealth / tower.MaxHealth) * demolishRefundFactor);
-            if (refund > 0) GoldController.For(deployTeam)?.Add(refund);
+            if (refund > 0) GoldController.For(deploySide)?.Add(refund);
 
             var netObj = tower.NetworkObject;
             netObj.Despawn(destroy: netObj.IsSceneObject != true);
@@ -186,7 +165,7 @@ namespace Splice.Network
             }
 
             var cost = tower.Definition.upgradeCost;
-            var bank = GoldController.For(deployTeam);
+            var bank = GoldController.For(deploySide);
             if (bank == null || bank.CurrentGold < cost)
             {
                 TowerActionRejectedClientRpc("Not enough gold", ToClient(clientId));
@@ -230,7 +209,7 @@ namespace Splice.Network
             }
 
             var cost = upgrade.CostForLevel(level);
-            var bank = GoldController.For(deployTeam);
+            var bank = GoldController.For(deploySide);
             if (bank == null || bank.CurrentGold < cost)
             {
                 TowerActionRejectedClientRpc("Not enough gold", ToClient(clientId));
@@ -256,7 +235,7 @@ namespace Splice.Network
                 return false;
             }
 
-            var bank = GoldController.For(deployTeam);
+            var bank = GoldController.For(deploySide);
             if (bank == null)
             {
                 reason = "No gold controller for team";

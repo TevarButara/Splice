@@ -1,3 +1,4 @@
+using Splice.Base;
 using Splice.Combat;
 using TMPro;
 using Unity.Netcode;
@@ -13,6 +14,8 @@ namespace Splice.UI
         [SerializeField] private RaidManager raidManager;
         [SerializeField] private GameObject resultPanel;
         [SerializeField] private TMP_Text resultLabel;
+        [Tooltip("โชว์ loot ที่ได้จากการบุก (5.4) — เว้นว่างได้")]
+        [SerializeField] private TMP_Text lootLabel;
         [SerializeField] private Button playAgainButton;
 
         private void Awake()
@@ -37,13 +40,21 @@ namespace Splice.UI
             if (resultLabel != null) resultLabel.text = ResultText(outcome, raidManager.EndReason);
         }
 
+        // อ่าน loot ทุกเฟรมตอน panel โชว์ — กันปัญหาลำดับ event (RaidRewardController อาจ set ทีหลัง)
+        private void Update()
+        {
+            if (lootLabel == null) return;
+            var show = resultPanel != null && resultPanel.activeSelf && RaidContext.LastLootGained > 0;
+            lootLabel.text = show ? $"+{RaidContext.LastLootGained} ทอง" : string.Empty;
+        }
+
         private static string ResultText(RaidOutcome outcome, RaidEndReason reason)
         {
-            if (outcome == RaidOutcome.MonstersWin) return "Invaders Win!";
+            if (outcome == RaidOutcome.MonstersWin) return "Attackers Win!";
             return reason switch
             {
                 RaidEndReason.TimerExpired => "Fort Wins! (Time)",
-                RaidEndReason.InvaderEliminated => "Fort Wins! (Invader Eliminated)",
+                RaidEndReason.AttackerEliminated => "Fort Wins! (Attacker Eliminated)",
                 _ => "Fort Wins!"
             };
         }

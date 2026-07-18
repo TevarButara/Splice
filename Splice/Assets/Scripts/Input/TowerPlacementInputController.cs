@@ -40,8 +40,8 @@ namespace Splice.Input
         // Read by TowerCardView to highlight the currently armed tower.
         public string SelectedTowerId => selectedTowerId;
 
-        // Team whose gold pays for towers — lets a card show affordability without its own reference.
-        public Team DeployTeam => towerDeploymentManager != null ? towerDeploymentManager.DeployTeam : Team.Defenders;
+        // Side whose gold pays for towers — lets a card show affordability without its own reference.
+        public RaidSide DeploySide => towerDeploymentManager != null ? towerDeploymentManager.DeploySide : RaidSide.Defender;
 
         // Composite id for a tower — TowerCardView uses it to arm the tower + highlight the selected card.
         public string IdOf(TowerDefinitionSO tower) => towerDeploymentManager != null ? towerDeploymentManager.IdOf(tower) : null;
@@ -98,7 +98,7 @@ namespace Splice.Input
         {
             var definition = towerDeploymentManager != null ? towerDeploymentManager.Resolve(selectedTowerId) : null;
             if (definition == null) return false;
-            var bank = GoldController.For(towerDeploymentManager.DeployTeam);
+            var bank = GoldController.For(towerDeploymentManager.DeploySide);
             return bank != null && bank.CurrentGold >= definition.goldCost;
         }
 

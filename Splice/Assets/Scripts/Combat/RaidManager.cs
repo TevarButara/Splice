@@ -3,6 +3,7 @@ using Splice.Characters;
 using Splice.Core;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Splice.Combat
 {
@@ -19,20 +20,21 @@ namespace Splice.Combat
         None,
         FortDestroyed,
         TimerExpired,
-        InvaderEliminated
+        AttackerEliminated
     }
 
-    // 1:1 win/lose objective (architecture 5.6):
-    //   Invader wins  -> the Fort's core is destroyed.
-    //   Fort wins     -> the match timer runs out, OR the invader is eliminated
-    //                    (no miners left + gold at 0 + no units on the field — a state the invader
-    //                     can never recover from, since making a miner needs gold and gold needs a miner).
+    // Raid win/lose objective (architecture 5.6). "Attacker"/"Defender" = บทบาทต่อ raid (RaidSide) ไม่ใช่ตัวตนถาวร:
+    //   Attacker wins -> the Fort's core is destroyed.
+    //   Defender wins -> the match timer runs out, OR the attacker is eliminated
+    //                    (no miners left + gold at 0 + no units on the field — unrecoverable, since making a
+    //                     miner needs gold and gold needs a miner).
     // Server-authoritative; clients read outcome/reason/time via NetworkVariables.
     public class RaidManager : NetworkBehaviour
     {
         public event Action<RaidOutcome> OnRaidEnded;
 
-        [SerializeField] private Team invaderTeam = Team.Invaders;
+        [FormerlySerializedAs("invaderTeam")]
+        [SerializeField] private RaidSide attackerSide = RaidSide.Attacker;
         [Tooltip("ความยาวแมตช์ (วินาที) — Fort ชนะถ้ารอดจนหมดเวลา. 2-4 นาทีตามดีไซน์ session")]
         [SerializeField] private float matchDurationSeconds = 180f;
 
@@ -95,43 +97,44 @@ namespace Splice.Combat
                 return;
             }
 
-            if (IsInvaderEliminated())
+            if (IsAttackerEliminated())
             {
-                EndRaid(RaidOutcome.FortDefends, RaidEndReason.InvaderEliminated);
+                EndRaid(RaidOutcome.FortDefends, RaidEndReason.AttackerEliminated);
             }
         }
 
         // Invader can no longer threaten the fort: no miners, no gold, no units on the field.
         // Guard on the gold bank existing first — before the economy spawns, "no gold" is a false
         // positive, not a real elimination.
-        private bool IsInvaderEliminated()
+        private bool IsAttackerEliminated()
         {
-            var bank = GoldController.For(invaderTeam);
+            var bank = GoldController.For(attackerSide);
             if (bank == null || bank.CurrentGold > 0) return false;
 
-            if (CountAliveInvaderMiners() > 0) return false;
-            if (CountAliveMonsters() > 0) return false;
+            if (CountAliveAttackerMiners() > 0) return false;
+            if (CountAliveAttackerMonsters() > 0) return false;
             return true;
         }
 
-        private int CountAliveInvaderMiners()
+        private int CountAliveAttackerMiners()
         {
             var count = 0;
             var miners = MinerCharacter.Active;
             for (var i = 0; i < miners.Count; i++)
             {
-                if (miners[i].Team == invaderTeam && !miners[i].IsDead) count++;
+                if (miners[i].Side == attackerSide && !miners[i].IsDead) count++;
             }
             return count;
         }
 
-        private int CountAliveMonsters()
+        // นับเฉพาะมอนฝ่าย Attacker (ทัพผู้บุก) — garrison ฝ่าย Defender ไม่นับ ไม่งั้นจะกันการตกรอบผิดๆ
+        private int CountAliveAttackerMonsters()
         {
             var count = 0;
             var monsters = MonsterCharacter.Active;
             for (var i = 0; i < monsters.Count; i++)
             {
-                if (!monsters[i].IsDead) count++;
+                if (!monsters[i].IsDead && monsters[i].Side == attackerSide) count++;
             }
             return count;
         }

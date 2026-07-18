@@ -42,7 +42,7 @@ namespace Splice.UI
         {
             if (tower == null || placement == null) return;
 
-            var bank = GoldController.For(placement.DeployTeam);
+            var bank = GoldController.For(placement.DeploySide);
             var affordable = bank != null && bank.CurrentGold >= tower.goldCost;
 
             if (canvasGroup != null) canvasGroup.alpha = affordable ? 1f : 0.4f;

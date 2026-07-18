@@ -2,11 +2,24 @@ using System.Collections.Generic;
 using Splice.Combat;
 using Splice.Core;
 using Splice.Data;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Serialization;
 
 namespace Splice.Characters
 {
+    // Animation states of a miner — replicated so every client plays the right clip (parallel to MonsterAnim).
+    public enum MinerAnim
+    {
+        Idle,
+        Walk,
+        Farming,   // ขุด/เก็บเกี่ยว
+        Death,
+        Landing,   // เล่นตอน spawn
+        Dance      // เผื่อไว้
+    }
+
     // Economy unit (architecture 5.7): walks to the nearest gold node, mines a full load over time,
     // carries it back to the team's MinerBase, and only there deposits into GoldController — so the
     // round-trip distance directly gates income (far nodes = slower gold).
@@ -21,11 +34,26 @@ namespace Splice.Characters
         public static IReadOnlyList<MinerCharacter> Active => active;
 
         [SerializeField] private MinerDefinitionSO definition;
-        [SerializeField] private Team team = Team.Invaders;
+        [FormerlySerializedAs("team")]
+        [SerializeField] private RaidSide side = RaidSide.Attacker;
         [Tooltip("จำนวน miner สูงสุดต่อบ่อ ก่อนตัวถัดไปจะเด้งไปบ่อใกล้สุด 'ที่ยังมีที่ว่าง'. 1 = บ่อละ 1 ตัว (กระจายสุด). บ่อไกลจะถูกเลือกก็ต่อเมื่อบ่อใกล้กว่าหมด (depleted) เท่านั้น")]
         [SerializeField] private int minersPerNode = 1;
         [Tooltip("รัศมี snap ตำแหน่งบ่อลง NavMesh ก่อนเดินไป — pivot บ่อมักลอยเหนือพื้น. กว้างพอให้ครอบความสูง/ระยะห่างจากพื้นของบ่อ. snap ไม่ได้ในรัศมีนี้ = บ่ออยู่ไกล mesh เกิน จะถูกข้าม")]
         [SerializeField] private float nodeSnapRadius = 5f;
+
+        [Header("Animation")]
+        [Tooltip("Animator ของ miner — clip ชื่อตาม anim set. auto หา child ถ้าเว้น")]
+        [SerializeField] private Animator animator;
+        [Tooltip("ชื่อ state ใน Animator (กองกลาง — แก้ที่เดียว). เว้น = ใช้ชื่อ default (Idle/Walk/Farming/Death/Landing/Dance)")]
+        [SerializeField] private MinerAnimSetSO animSet;
+
+        private readonly NetworkVariable<MinerAnim> animState = new(
+            MinerAnim.Idle, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private bool landingStarted;
+        private float landingTimer;
+        private bool dying;
+        private float deathTimer;
 
         private NavMeshAgent agent;
         private MinerState state = MinerState.SeekingNode;
@@ -36,17 +64,18 @@ namespace Splice.Characters
         private float stuckTimer;
         private Vector3 nodeDestination;
 
-        public Team Team => team;
+        public RaidSide Side => side;
 
         private void Awake()
         {
             agent = GetComponent<NavMeshAgent>();
+            if (animator == null) animator = GetComponentInChildren<Animator>();
         }
 
-        public void Initialize(MinerDefinitionSO minerDefinition, Team owningTeam)
+        public void Initialize(MinerDefinitionSO minerDefinition, RaidSide owningSide)
         {
             definition = minerDefinition;
-            team = owningTeam;
+            side = owningSide;
             InitializeHealth(definition.maxHealth);
             ApplyDefinitionToAgent();
         }
@@ -54,6 +83,10 @@ namespace Splice.Characters
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
+
+            // ทุก instance (server + clients) เล่น animation ตามที่ server ตั้ง
+            animState.OnValueChanged += HandleAnimChanged;
+            PlayAnim(animState.Value);
 
             agent.enabled = IsServer;
             if (!IsServer) return;
@@ -65,8 +98,14 @@ namespace Splice.Characters
 
         public override void OnNetworkDespawn()
         {
+            animState.OnValueChanged -= HandleAnimChanged;
             active.Remove(this);
             base.OnNetworkDespawn();
+        }
+
+        // เก็บซากไว้ให้ Death clip เล่นก่อน — Update จัดการ despawn เอง (เหมือน MonsterCharacter)
+        protected override void HandleDeath()
+        {
         }
 
         private void ApplyDefinitionToAgent()
@@ -83,7 +122,38 @@ namespace Splice.Characters
 
         private void Update()
         {
-            if (!IsServer || IsDead || definition == null) return;
+            if (!IsServer || definition == null) return;
+
+            // Death sequence: หยุด agent, เล่นท่า Death, ค้าง deathAnimSeconds แล้ว despawn
+            if (dying)
+            {
+                deathTimer -= Time.deltaTime;
+                if (deathTimer <= 0f && NetworkObject.IsSpawned)
+                    NetworkObject.Despawn(destroy: NetworkObject.IsSceneObject != true);
+                return;
+            }
+            if (IsDead)
+            {
+                dying = true;
+                deathTimer = definition.deathAnimSeconds;
+                if (agent != null && agent.enabled && agent.isOnNavMesh) agent.isStopped = true;
+                SetAnim(MinerAnim.Death);
+                return;
+            }
+
+            // Spawn landing: เล่นท่า Landing ค้างที่จุดเกิด landingSeconds วิ ก่อนเริ่มขุด (agent ยังไม่มีปลายทาง = อยู่นิ่ง)
+            if (!landingStarted)
+            {
+                landingStarted = true;
+                landingTimer = Mathf.Max(0f, definition.landingSeconds);
+            }
+            if (landingTimer > 0f)
+            {
+                landingTimer -= Time.deltaTime;
+                SetAnim(MinerAnim.Landing);
+                return;
+            }
+
             if (!EnsureOnNavMesh()) return;
 
             switch (state)
@@ -92,6 +162,52 @@ namespace Splice.Characters
                 case MinerState.Mining: TickMining(); break;
                 case MinerState.Returning: TickReturning(); break;
             }
+
+            UpdateAnim();
+        }
+
+        // ---------- Animation ----------
+
+        // เลือกท่าตามสถานะงาน: ขุด = Farming / กำลังเดิน = Walk / อยู่นิ่ง = Idle
+        private void UpdateAnim()
+        {
+            if (state == MinerState.Mining) { SetAnim(MinerAnim.Farming); return; }
+            var moving = agent != null && agent.enabled && agent.velocity.sqrMagnitude > 0.02f;
+            SetAnim(moving ? MinerAnim.Walk : MinerAnim.Idle);
+        }
+
+        private void SetAnim(MinerAnim value)
+        {
+            if (!IsServer || animState.Value == value) return;
+            animState.Value = value;
+            PlayAnim(value);               // server เล่นทันที, clients ตามผ่าน OnValueChanged
+        }
+
+        private void HandleAnimChanged(MinerAnim previous, MinerAnim current)
+        {
+            if (!IsServer) PlayAnim(current);
+        }
+
+        private void PlayAnim(MinerAnim value)
+        {
+            AnimatorUtil.SafeCrossFade(animator, StateName(value), 0.1f);
+        }
+
+        // ชื่อ state จากกองกลาง animSet (fallback ชื่อ default ถ้าไม่ assign / ช่องว่าง)
+        private string StateName(MinerAnim value)
+        {
+            var fallback = value.ToString();   // Idle/Walk/Farming/Death/Landing/Dance ตรงชื่อ enum
+            if (animSet == null) return fallback;
+            var name = value switch
+            {
+                MinerAnim.Walk => animSet.walk,
+                MinerAnim.Farming => animSet.farming,
+                MinerAnim.Death => animSet.death,
+                MinerAnim.Landing => animSet.landing,
+                MinerAnim.Dance => animSet.dance,
+                _ => animSet.idle
+            };
+            return string.IsNullOrWhiteSpace(name) ? fallback : name;
         }
 
         // NavMeshAgent APIs (remainingDistance / SetDestination / velocity) throw if the agent isn't on the
@@ -174,7 +290,7 @@ namespace Splice.Characters
 
         private void TickReturning()
         {
-            var home = MinerBase.For(team);
+            var home = MinerBase.For(side);
             if (home == null) return; // base not wired — hold cargo until one exists
 
             if (!baseRouteIssued)
@@ -190,7 +306,7 @@ namespace Splice.Characters
             toHome.y = 0f;
             if (toHome.magnitude > home.DepositRadius) return;
 
-            var bank = GoldController.For(team);
+            var bank = GoldController.For(side);
             if (bank != null) bank.Add(carrying);
             carrying = 0;
             targetNode = null;
@@ -214,7 +330,7 @@ namespace Splice.Characters
             for (var i = 0; i < nodes.Count; i++)
             {
                 var node = nodes[i];
-                if (node.IsDepleted || !node.CanBeMinedBy(team)) continue;
+                if (node.IsDepleted || !node.CanBeMinedBy(side)) continue;
 
                 var distance = Vector3.Distance(transform.position, node.transform.position);
 
@@ -243,7 +359,7 @@ namespace Splice.Characters
             for (var i = 0; i < active.Count; i++)
             {
                 var other = active[i];
-                if (other == this || other.IsDead || other.team != team || other.state == MinerState.Returning) continue;
+                if (other == this || other.IsDead || other.side != side || other.state == MinerState.Returning) continue;
                 if (other.targetNode == node) count++;
             }
             return count;

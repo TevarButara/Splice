@@ -18,7 +18,10 @@ MonoBehaviour:
   icon: {fileID: 0}
   color: {r: 1, g: 1, b: 1, a: 1}
   cards:
-  - {fileID: 0}
+  - {fileID: 11400000, guid: 95b91e6814a136a42a5aca23df97cfe7, type: 2}
+  - {fileID: 11400000, guid: e2dfbdf754e3f6349b03cdf56c9bff7d, type: 2}
+  - {fileID: 11400000, guid: 101356e28a2986147b8a5c428e9c6aea, type: 2}
+  - {fileID: 11400000, guid: 4c18604bf1338164abb3e39ad32efda5, type: 2}
   minerCards:
   - {fileID: 11400000, guid: 3e2279bd0764dc845bcbcd6a45198a03, type: 2}
   towers: []

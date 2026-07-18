@@ -52,9 +52,9 @@ namespace Splice.UI
         {
             if (card == null || deployment == null) return;
 
-            var bank = GoldController.For(deployment.DeployTeam);
+            var bank = GoldController.For(deployment.DeploySide);
             var gold = bank != null ? bank.CurrentGold : 0;
-            var level = PlayerProgression.LevelFor(deployment.DeployTeam);
+            var level = PlayerProgression.LevelFor(deployment.DeploySide);
 
             var unlocked = level >= card.requiredLevel;
             var usable = unlocked && gold >= card.goldCost;

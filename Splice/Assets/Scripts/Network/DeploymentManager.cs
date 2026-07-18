@@ -5,6 +5,7 @@ using Splice.Data;
 using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Splice.Network
 {
@@ -40,14 +41,17 @@ namespace Splice.Network
     public class DeploymentManager : NetworkBehaviour
     {
         [SerializeField] private FactionRegistrySO registry;
-        [SerializeField] private Team deployTeam = Team.Invaders;
+        [FormerlySerializedAs("deployTeam")]
+        [SerializeField] private RaidSide deploySide = RaidSide.Attacker;
         [Tooltip("เส้นทางต่อเลนของ map นี้ — index = laneId. monster เกิดที่จุดเริ่มเส้นแล้วเดินตาม waypoint")]
         [SerializeField] private LanePath[] lanePaths;
+        [Tooltip("กระจายจุดเกิดมอนด้านข้าง (ตั้งฉากแนวเลน, สุ่ม ±ค่านี้) — กันมอนเกิดซ้อนจุดเดียวจน separation ด้านข้างไม่มี 'seed' ให้ดันแยกตอนเดิน (มอนเดินซ้อนเป็นแถวเดียว). 0 = เกิดกลางเลนเป๊ะ")]
+        [SerializeField] private float laneSpawnSpread = 0.75f;
 
         // FIFO build orders across all lanes; filter by LaneId. Server writes, everyone reads.
         private readonly NetworkList<QueuedUnit> buildQueue = new();
 
-        public Team DeployTeam => deployTeam;
+        public RaidSide DeploySide => deploySide;
 
         // Composite id (factionId/cardId) for a card — card UI uses it to send deploy intent + match queue rows.
         public string IdOf(CardDefinitionSO card) => registry != null ? registry.IdOf(card) : null;
@@ -99,7 +103,7 @@ namespace Splice.Network
 
             // Charge at queue time so stacking N copies costs N up front — running out of gold is exactly
             // what greys the card out for the next tap.
-            GoldController.For(deployTeam).TrySpend(card.goldCost);
+            GoldController.For(deploySide).TrySpend(card.goldCost);
             buildQueue.Add(new QueuedUnit { LaneId = laneId, CardId = cardId, SpawnAtServerTime = 0.0 });
         }
 
@@ -163,7 +167,7 @@ namespace Splice.Network
                 return;
             }
 
-            GoldController.For(deployTeam).TrySpend(card.goldCost);
+            GoldController.For(deploySide).TrySpend(card.goldCost);
             SpawnMonster(card.linkedMonster, laneId);
             DeployAcceptedClientRpc(cardId, laneId);
         }
@@ -182,13 +186,13 @@ namespace Splice.Network
                 return false;
             }
 
-            if (card.requiredLevel > PlayerProgression.LevelFor(deployTeam))
+            if (card.requiredLevel > PlayerProgression.LevelFor(deploySide))
             {
                 reason = "Level too low";
                 return false;
             }
 
-            var bank = GoldController.For(deployTeam);
+            var bank = GoldController.For(deploySide);
             if (bank == null)
             {
                 reason = "No gold controller for team";
@@ -210,7 +214,21 @@ namespace Splice.Network
             var lane = lanePaths[laneId];
             var instance = Instantiate(definition.prefab, lane.Start, Quaternion.identity);
             instance.GetComponent<NetworkObject>().Spawn();
+            // Initialize ตั้ง position = lane.Start (เป๊ะจุดเดียว) → หลังจากนั้นค่อยเขี่ยด้านข้างแบบสุ่ม
+            // ให้แต่ละตัวไม่อยู่บนเส้นกลางเป๊ะ → separation ด้านข้างมี offset ให้ทำงานตอนเดิน (ไม่ซ้อนเป็นแถวเดียว)
             instance.GetComponent<MonsterCharacter>().Initialize(definition, lane);
+            if (laneSpawnSpread > 0f)
+                instance.transform.position += LaneLateral(lane) * Random.Range(-laneSpawnSpread, laneSpawnSpread);
+        }
+
+        // ทิศตั้งฉากแนวเลน (ระนาบ XZ) ที่จุดเริ่ม — ใช้เขี่ยจุดเกิดออกด้านข้าง
+        private static Vector3 LaneLateral(LanePath lane)
+        {
+            var dir = lane.Count >= 2 ? lane.GetPoint(1) - lane.GetPoint(0) : Vector3.forward;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.0001f) dir = Vector3.forward;
+            var lateral = Vector3.Cross(dir.normalized, Vector3.up);
+            return lateral.sqrMagnitude > 0.0001f ? lateral.normalized : Vector3.right;
         }
 
         [ClientRpc]

@@ -5,12 +5,13 @@ using UnityEngine;
 
 namespace Splice.Combat
 {
-    // Which team's miners may work a node. Neutral = both (a contested deposit in the middle).
+    // Which raid side's miners may work a node. Neutral = both (a contested deposit in the middle).
+    // ลำดับค่าคงเดิม (Neutral=0, Attacker=1, Defender=2) — scene ที่ serialize owner ไว้ไม่พัง.
     public enum GoldNodeOwner
     {
         Neutral,
-        Invaders,
-        Defenders
+        Attacker,
+        Defender
     }
 
     // A finite gold deposit on the map (architecture 5.7). Miners walk here, mine until it is
@@ -21,7 +22,7 @@ namespace Splice.Combat
         public static IReadOnlyList<GoldNode> Active => active;
 
         [SerializeField] private int totalGold = 500;
-        [Tooltip("เจ้าของบ่อ: Invaders/Defenders = เฉพาะทีมนั้นขุดได้; Neutral = บ่อกลาง สองฝั่งขุดแย่งกันได้")]
+        [Tooltip("เจ้าของบ่อ: Attacker/Defender = เฉพาะฝั่งนั้นขุดได้; Neutral = บ่อกลาง สองฝั่งขุดแย่งกันได้")]
         [SerializeField] private GoldNodeOwner owner = GoldNodeOwner.Neutral;
 
         private readonly NetworkVariable<int> remaining = new(
@@ -34,13 +35,13 @@ namespace Splice.Combat
         public bool IsDepleted => remaining.Value <= 0;
         public GoldNodeOwner Owner => owner;
 
-        // A team may mine this node if it owns it, or if the node is Neutral (contested by both).
-        public bool CanBeMinedBy(Team team)
+        // A side may mine this node if it owns it, or if the node is Neutral (contested by both).
+        public bool CanBeMinedBy(RaidSide side)
         {
             return owner switch
             {
-                GoldNodeOwner.Invaders => team == Team.Invaders,
-                GoldNodeOwner.Defenders => team == Team.Defenders,
+                GoldNodeOwner.Attacker => side == RaidSide.Attacker,
+                GoldNodeOwner.Defender => side == RaidSide.Defender,
                 _ => true
             };
         }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Splice.Combat;
 using Splice.Data;
 using Unity.Netcode;
 using UnityEngine;
@@ -65,11 +66,21 @@ namespace Splice.Characters
         [SerializeField] private TowerDefinitionSO definition;
         [Tooltip("ติ๊กเพื่อโชว์วงระยะโจมตีตลอดเวลา (ไม่ต้องเลือกก่อน) — ช่วยกะระยะตอนจัดวาง. เป็น Gizmo (Scene view เสมอ, Game view ต้องเปิดปุ่ม Gizmos)")]
         [SerializeField] private bool alwaysShowRange;
+        [Tooltip("ป้อมปืน (เล็ง+อนิเมชันยิง+ภาพกระสุน) — เว้นได้: ถ้าไม่มีจะลงดาเมจทันทีแบบไม่มีภาพ (auto หาใน object เดียวกัน)")]
+        [SerializeField] private TurretController turret;
 
         // Exposed so the server-side interaction flow (TowerDeploymentManager) can read cost/tier data.
         public TowerDefinitionSO Definition => definition;
 
         private float attackTimer;
+
+        // โหมด Projectile: ดาเมจไม่ลงตอนยิง แต่ตั้งเวลาไว้ให้ตรงกับตอนกระสุนถึงเป้า (server-only).
+        // เป้าตาย/หายก่อนถึง = ยิงพลาด (whiff) ไม่ลงดาเมจ.
+        private struct PendingHit { public MonsterCharacter target; public float timeLeft; public int damage; }
+        private readonly List<PendingHit> pendingHits = new();
+
+        // เป้าที่จะยิงในชอตนี้ (reuse; server single-thread)
+        private static readonly List<CharacterBase> volleyTargets = new();
 
         // Counts down after placement; the tower is placed & attackable but can't fire until it hits 0.
         private readonly NetworkVariable<float> buildRemaining = new(
@@ -93,6 +104,12 @@ namespace Splice.Characters
 
         public int UpgradeLevel(TowerStat stat) => upgradeLevels.Value.Get(stat);
 
+        private void Awake()
+        {
+            // Auto-wire the turret if it wasn't dragged in (usually sits on the same tower object).
+            if (turret == null) turret = GetComponent<TurretController>();
+        }
+
         public void Initialize(TowerDefinitionSO towerDefinition)
         {
             definition = towerDefinition;
@@ -103,6 +120,13 @@ namespace Splice.Characters
                 upgradeLevels.Value = default;
                 SetArmor(definition.armor);
             }
+        }
+
+        // Server-only: ข้ามเวลาก่อสร้าง — ใช้ตอน spawn จาก snapshot ฐาน (RaidSnapshotLoader, architecture 5.10)
+        // ที่ป้อมซึ่งจัดไว้แล้วต้องพร้อมยิงทันที ไม่ใช่เริ่มก่อสร้างใหม่
+        public void SkipConstruction()
+        {
+            if (IsServer) buildRemaining.Value = 0f;
         }
 
         // Server-only: bump a stat's level and apply the ones that live in CharacterBase (HP, armor).
@@ -150,6 +174,17 @@ namespace Splice.Characters
         {
             if (!IsServer || IsDead || definition == null) return;
 
+            // Projectile-mode damage lands on impact — run the scheduled hits regardless of build/cooldown
+            // so shots already in flight still resolve.
+            TickPendingHits(Time.deltaTime);
+
+            // จบแมตช์แล้ว → หยุดยิง + หยุดเล็ง (ป้อมค้างท่า ไม่โจมตีต่อ) เหมือนที่ monster หยุดสู้
+            if (IsMatchOver())
+            {
+                turret?.SetAimTarget(null);
+                return;
+            }
+
             // Still under construction: tick the build timer down and hold fire until it's finished.
             if (buildRemaining.Value > 0f)
             {
@@ -158,37 +193,90 @@ namespace Splice.Characters
             }
 
             attackTimer += Time.deltaTime;
-            if (attackTimer < definition.attackCooldown) return;
 
-            // Fire at up to EffectiveMaxTargets nearest monsters in range; only spend the cooldown when we
-            // actually hit something (otherwise stay primed so a monster entering range is shot at once).
-            if (FireAtNearest() > 0) attackTimer = 0f;
-            else attackTimer = definition.attackCooldown;
+            // Nearest-first list of monsters in range (used for both aiming and the volley).
+            CollectTargetsInRange(fireBuffer);
+            var primary = fireBuffer.Count > 0 ? fireBuffer[0] : null;
+
+            // Keep the turret tracking the primary target every frame (even during cooldown).
+            if (turret != null) turret.SetAimTarget(primary);
+
+            if (attackTimer < definition.attackCooldown) return;
+            if (primary == null) { attackTimer = definition.attackCooldown; return; } // stay primed for a new arrival
+            if (turret != null && !turret.ReadyToFire(primary)) return;                // hold only if Hold-Fire is on
+
+            FireVolley();
+            attackTimer = 0f;
         }
 
-        private int FireAtNearest()
+        // Fill `buffer` with living monsters within EffectiveRange, nearest first.
+        private void CollectTargetsInRange(List<MonsterCharacter> buffer)
         {
             var range = EffectiveRange;
             var pos = transform.position;
 
-            fireBuffer.Clear();
+            buffer.Clear();
             var monsters = MonsterCharacter.Active;
             for (var i = 0; i < monsters.Count; i++)
             {
                 var monster = monsters[i];
                 if (monster.IsDead) continue;
-                if (Vector3.Distance(pos, monster.transform.position) <= range) fireBuffer.Add(monster);
+                if (Vector3.Distance(pos, monster.transform.position) <= range) buffer.Add(monster);
             }
-            if (fireBuffer.Count == 0) return 0;
 
-            fireBuffer.Sort((a, b) =>
+            buffer.Sort((a, b) =>
                 (a.transform.position - pos).sqrMagnitude.CompareTo((b.transform.position - pos).sqrMagnitude));
+        }
 
+        // Fire at up to EffectiveMaxTargets nearest monsters (already collected in fireBuffer).
+        //  - No turret / Direct mode: damage lands immediately (turret shows the beam).
+        //  - Projectile mode: damage is scheduled for when the shot arrives (travel time), so a monster can
+        //    dodge death by dying first (whiff). The turret spawns the cosmetic projectiles on every client.
+        private void FireVolley()
+        {
             var damage = EffectiveDamage;
             var hits = Mathf.Min(EffectiveMaxTargets, fireBuffer.Count);
-            for (var i = 0; i < hits; i++) fireBuffer[i].ApplyDamage(damage);
-            return hits;
+            if (hits <= 0) return;
+
+            var projectileMode = turret != null && turret.Mode == TurretFireMode.Projectile;
+
+            volleyTargets.Clear();
+            for (var i = 0; i < hits; i++)
+            {
+                var target = fireBuffer[i];
+                volleyTargets.Add(target);
+
+                if (projectileMode)
+                    pendingHits.Add(new PendingHit
+                    {
+                        target = target,
+                        timeLeft = turret.TravelTimeTo(target.transform.position),
+                        damage = damage
+                    });
+                else
+                    target.ApplyDamage(damage, this); // no turret / Direct = instant (this = ผู้ตี → มอน aggro ได้)
+            }
+
+            if (turret != null) turret.Fire(volleyTargets);
         }
+
+        private void TickPendingHits(float dt)
+        {
+            for (var i = pendingHits.Count - 1; i >= 0; i--)
+            {
+                var hit = pendingHits[i];
+                hit.timeLeft -= dt;
+                if (hit.timeLeft > 0f) { pendingHits[i] = hit; continue; }
+
+                if (hit.target != null && !hit.target.IsDead) hit.target.ApplyDamage(hit.damage, this);
+                pendingHits.RemoveAt(i);
+            }
+        }
+
+        // แมตช์จบเมื่อ RaidManager ประกาศจบ หรือ Fort แตก — ป้อมหยุดยิงเหมือนที่ monster หยุดสู้ (สอดคล้อง IsMatchOver ใน MonsterCharacter)
+        private static bool IsMatchOver() =>
+            (RaidManager.Instance != null && RaidManager.Instance.IsOver) ||
+            (FortCore.Instance != null && FortCore.Instance.IsDead);
 
         // Scene-view range ring (also inherited by FortCore). Red = defender range; reflects upgrades at runtime.
         // Shown when selected, or all the time when alwaysShowRange is ticked.

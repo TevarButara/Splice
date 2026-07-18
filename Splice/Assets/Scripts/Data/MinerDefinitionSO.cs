@@ -16,6 +16,12 @@ namespace Splice.Data
         [Tooltip("เวลาขุด (วินาที) กว่าจะเต็ม carryCapacity")]
         public float mineDurationSeconds = 2f;
 
+        [Header("Animation timing")]
+        [Tooltip("เวลาเล่นท่า Landing ตอน spawn (วินาที). 0 = ไม่มี เริ่มทำงานทันที")]
+        public float landingSeconds = 0f;
+        [Tooltip("เวลาโชว์ท่า Death ก่อนหายไป (วินาที). 0 = หายทันที")]
+        public float deathAnimSeconds = 0f;
+
         [Tooltip("เวลา 'สร้าง' (วินาที) หลังกดซื้อการ์ดจนโผล่ที่ spawn point — คิวทีละตัวเหมือนมอน")]
         public float buildTimeSeconds = 3f;
 

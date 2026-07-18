@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c6c6aa457c2ec41ddabcceac1c7428fb, type: 3}
+  m_Name: 1_SO_mendcap_lv1
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.MonsterDefinitionSO
+  monsterId: 4
+  displayName: Mendcap lv1
+  maxHealth: 800
+  attackDamage: 30
+  attackCooldown: 3
+  attackRange: 4
+  moveSpeed: 2
+  role: 1
+  spell: {fileID: 11400000, guid: f9b56ea8d430bc248a1936979d8a9283, type: 2}
+  projectile: {fileID: 11400000, guid: c009fcc497fb7544785c330c562a0eb2, type: 2}
+  footprint: 2
+  defenseCapacityCost: 2
+  injuredMoveSpeed: 1
+  waypointArriveRadius: 0.15
+  fortHoldDistance: 2
+  roadsideEngageSeconds: 5
+  injuredHealthFraction: 0.3
+  turnSpeedDegPerSec: 4
+  separationRadius: 30
+  separationStrength: 0.2
+  settleDeadzone: 0.01
+  attackDurationSeconds: 2
+  deathAnimSeconds: 3
+  landingSeconds: 2
+  spellCastSeconds: 2
+  movement: 0
+  flightHeight: 0
+  buildTimeSeconds: 1
+  goldCost: 15
+  icon: {fileID: 0}
+  prefab: {fileID: 7114109506353519949, guid: d1f6d0e6ba07e4c4daa292fa936024a6, type: 3}

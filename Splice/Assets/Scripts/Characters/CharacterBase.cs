@@ -19,9 +19,16 @@ namespace Splice.Characters
         private readonly NetworkVariable<int> armor = new(
             0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        // Absorb pool from a supporter's Shield spell — soaks damage before HP, expires after a duration.
+        // Replicated so UI can show it. (architecture 5.8+)
+        private readonly NetworkVariable<int> shield = new(
+            0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private float shieldExpiry;
+
         public int CurrentHealth => currentHealth.Value;
         public int MaxHealth => maxHealth.Value;
         public int Armor => armor.Value;
+        public int Shield => shield.Value;
         public bool IsDead => currentHealth.Value <= 0;
 
         protected void SetArmor(int value)
@@ -52,19 +59,53 @@ namespace Splice.Characters
             currentHealth.Value = Mathf.Min(maxHealth.Value, currentHealth.Value + amount);
         }
 
-        public void ApplyDamage(int amount)
+        // Server-only: grant/refresh an absorb shield. Refresh + strongest (take the max, don't stack additively).
+        public void ApplyShield(int amount, float duration)
+        {
+            if (!IsServer || IsDead || amount <= 0) return;
+            shield.Value = Mathf.Max(shield.Value, amount);
+            shieldExpiry = Time.time + duration;
+        }
+
+        // Server-only: expire the shield once its duration is up. Subclasses with an Update tick this.
+        protected void TickShield()
+        {
+            if (!IsServer) return;
+            if (shield.Value > 0 && Time.time >= shieldExpiry) shield.Value = 0;
+        }
+
+        public void ApplyDamage(int amount) => ApplyDamage(amount, null);
+
+        // `source` = ผู้โจมตี (เว้น null ได้). ใช้ให้เป้ารู้ว่าใครตี (เช่น monster aggro ป้อมที่ยิงมัน).
+        public void ApplyDamage(int amount, CharacterBase source)
         {
             if (!IsServer || IsDead || amount <= 0) return;
 
             // Armor mitigates by percentage; always at least 1 so armor can never fully negate a hit.
             var mitigated = Mathf.Max(1, Mathf.RoundToInt(amount * 100f / (100 + Mathf.Max(0, armor.Value))));
+
+            // Shield absorbs first (it CAN fully block — that's its job, unlike armor).
+            if (shield.Value > 0)
+            {
+                var absorbed = Mathf.Min(shield.Value, mitigated);
+                shield.Value -= absorbed;
+                mitigated -= absorbed;
+                if (mitigated <= 0) { if (source != null) OnDamagedBy(source); return; }
+            }
+
             currentHealth.Value = Mathf.Max(0, currentHealth.Value - mitigated);
             if (currentHealth.Value == 0)
             {
                 OnDeath?.Invoke(this);
                 HandleDeath();
+                return;
             }
+
+            if (source != null) OnDamagedBy(source);   // ยังไม่ตาย → แจ้ง hook (server-only path)
         }
+
+        // Server-only hook: ถูกโจมตีโดย `source` และยังไม่ตาย. subclass override เพื่อ react (เช่น aggro).
+        protected virtual void OnDamagedBy(CharacterBase source) { }
 
         // What happens to the object once HP hits 0. Default: remove it from the world. Overridable so
         // special characters (e.g. the Fort core) can stay in the scene as a destroyed husk for a death

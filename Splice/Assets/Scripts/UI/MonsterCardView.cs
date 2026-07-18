@@ -50,12 +50,12 @@ namespace Splice.UI
         {
             if (card == null || panel == null || panel.Deployment == null) return;
 
-            var team = panel.Deployment.DeployTeam;
+            var side = panel.Deployment.DeploySide;
             var lane = panel.CurrentLaneId;
 
-            var bank = GoldController.For(team);
+            var bank = GoldController.For(side);
             var gold = bank != null ? bank.CurrentGold : 0;
-            var level = PlayerProgression.LevelFor(team);
+            var level = PlayerProgression.LevelFor(side);
 
             var unlocked = level >= card.requiredLevel;
             var usable = unlocked && gold >= card.goldCost;

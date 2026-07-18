@@ -53,6 +53,12 @@ namespace Splice.Data
         [Tooltip("ทองที่ใช้วางป้อมนี้ (ฝั่ง Fort/Defender) — ใช้เป็นฐานคำนวณค่าซ่อม/คืนเงินตอนทำลายด้วย")]
         public int goldCost;
 
+        [Tooltip("ขนาด footprint (world units) ที่ป้อมนี้กินบน grid ตอนจัดผังเมือง — grid จะปรับขนาดช่องตามค่านี้ (dynamic)")]
+        public float footprint = 2f;
+
+        [Tooltip("กิน DefenseCapacity เท่าไหร่ — เพดานฝ่ายรับผูกกับ base level ไม่ใช่เงิน (กัน defense snowball, architecture §5.10)")]
+        public int defenseCapacityCost = 1;
+
         [Header("Per-stat upgrades (อัพแยกทีละสเตตัส)")]
         public StatUpgrade attackUpgrade;
         public StatUpgrade healthUpgrade;

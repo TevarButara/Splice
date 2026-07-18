@@ -2,34 +2,44 @@ using System.Collections.Generic;
 using Splice.Core;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Splice.Combat
 {
-    // Per-team gold balance, server-authoritative (architecture 5.7). Replaces the old mana timer:
+    // Per-side gold balance, server-authoritative (architecture 5.7). Replaces the old mana timer:
     // there is no passive regen — income comes only from MinerCharacter depositing mined gold.
     public class GoldController : NetworkBehaviour
     {
-        private static readonly Dictionary<Team, GoldController> byTeam = new();
-        public static GoldController For(Team team) => byTeam.GetValueOrDefault(team);
+        private static readonly Dictionary<RaidSide, GoldController> bySide = new();
+        public static GoldController For(RaidSide side) => bySide.GetValueOrDefault(side);
 
-        [SerializeField] private Team team = Team.Invaders;
+        [FormerlySerializedAs("team")]
+        [SerializeField] private RaidSide side = RaidSide.Attacker;
         [SerializeField] private int startingGold = 50;
 
         private readonly NetworkVariable<int> currentGold = new(
             0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
-        public Team Team => team;
+        public RaidSide Side => side;
         public int CurrentGold => currentGold.Value;
 
         public override void OnNetworkSpawn()
         {
-            byTeam[team] = this;
+            bySide[side] = this;
             if (IsServer) currentGold.Value = startingGold;
         }
 
         public override void OnNetworkDespawn()
         {
-            if (byTeam.TryGetValue(team, out var existing) && existing == this) byTeam.Remove(team);
+            if (bySide.TryGetValue(side, out var existing) && existing == this) bySide.Remove(side);
+        }
+
+        // Server-only: ตั้งยอดทองตรงๆ แทนที่ค่าเดิม — ใช้ตอนโหลด snapshot ฐาน (RaidSnapshotLoader,
+        // architecture 5.10) ที่ทองคลังของฐานต้องมาแทน startingGold
+        public void SetBalance(int amount)
+        {
+            if (!IsServer) return;
+            currentGold.Value = Mathf.Max(0, amount);
         }
 
         public void Add(int amount)

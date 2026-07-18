@@ -14,14 +14,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.TowerDefinitionSO
   towerId: 1
   displayName: Fort1
-  maxHealth: 3000
-  attackDamage: 300
-  attackRange: 124.2
+  maxHealth: 30000
+  attackDamage: 50
+  attackRange: 6.42
   attackCooldown: 2
   armor: 0
   maxTargets: 1
   buildTimeSeconds: 3
   goldCost: 0
+  footprint: 2
+  defenseCapacityCost: 1
   attackUpgrade:
     amountPerLevel: 0
     maxLevel: 0

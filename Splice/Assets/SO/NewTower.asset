@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 08c604481e56e4ce9b3fc3df70da1111, type: 3}
+  m_Name: NewTower
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.TowerDefinitionSO
+  towerId: 
+  displayName: 
+  maxHealth: 0
+  attackDamage: 0
+  attackRange: 0
+  attackCooldown: 0
+  armor: 0
+  maxTargets: 1
+  buildTimeSeconds: 3
+  goldCost: 0
+  attackUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  healthUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  armorUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  rangeUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  targetsUpgrade:
+    amountPerLevel: 0
+    maxLevel: 0
+    baseCost: 0
+    costGrowthPerLevel: 0
+  nextTier: {fileID: 0}
+  upgradeCost: 0
+  prefab: {fileID: 0}

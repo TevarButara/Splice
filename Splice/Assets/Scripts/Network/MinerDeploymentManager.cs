@@ -5,6 +5,7 @@ using Splice.Data;
 using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Splice.Network
 {
@@ -32,13 +33,14 @@ namespace Splice.Network
     public class MinerDeploymentManager : NetworkBehaviour
     {
         [SerializeField] private FactionRegistrySO registry;
-        [SerializeField] private Team deployTeam = Team.Invaders;
+        [FormerlySerializedAs("deployTeam")]
+        [SerializeField] private RaidSide deploySide = RaidSide.Attacker;
         [Tooltip("จุดเกิด miner บนแมป (ของทีมนี้) — เว้นว่าง = เกิดที่ตำแหน่ง manager นี้")]
         [SerializeField] private Transform spawnPoint;
 
         private readonly NetworkList<QueuedMiner> buildQueue = new();
 
-        public Team DeployTeam => deployTeam;
+        public RaidSide DeploySide => deploySide;
 
         // Composite id (factionId/cardId) — the miner card UI uses it to send intent + match queue rows.
         public string IdOf(CardDefinitionSO card) => registry != null ? registry.IdOf(card) : null;
@@ -83,7 +85,7 @@ namespace Splice.Network
             }
 
             // Charge up front so stacking N costs N — running out of gold greys the card for the next tap.
-            GoldController.For(deployTeam).TrySpend(card.goldCost);
+            GoldController.For(deploySide).TrySpend(card.goldCost);
             buildQueue.Add(new QueuedMiner { CardId = cardId, SpawnAtServerTime = 0.0 });
         }
 
@@ -123,7 +125,7 @@ namespace Splice.Network
             var pos = spawnPoint != null ? spawnPoint.position : transform.position;
             var instance = Instantiate(definition.prefab, pos, Quaternion.identity);
             instance.GetComponent<NetworkObject>().Spawn();
-            instance.GetComponent<MinerCharacter>().Initialize(definition, deployTeam);
+            instance.GetComponent<MinerCharacter>().Initialize(definition, deploySide);
         }
 
         private bool Validate(CardDefinitionSO card, out string reason)
@@ -134,13 +136,13 @@ namespace Splice.Network
                 return false;
             }
 
-            if (card.requiredLevel > PlayerProgression.LevelFor(deployTeam))
+            if (card.requiredLevel > PlayerProgression.LevelFor(deploySide))
             {
                 reason = "Level too low";
                 return false;
             }
 
-            var bank = GoldController.For(deployTeam);
+            var bank = GoldController.For(deploySide);
             if (bank == null)
             {
                 reason = "No gold controller for team";

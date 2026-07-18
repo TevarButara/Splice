@@ -2,6 +2,8 @@
 
 **หลักการจัดลำดับ:** พิสูจน์ว่า "core loop สนุกไหม" ให้เร็วที่สุด ก่อนลงทุนกับอาร์ต/คอนเทนต์/multiplayer ที่ใช้เวลาเยอะและแก้ทีหลังยาก
 
+> **v0.2 (2026-07-10):** ปรับ Role Model — **Invader เล่นสดเป็นแกน / Defender เป็น async base-building รวมร่างกับ Lair** (ดู technical-architecture §1.1, §5.10) — ขั้นที่ 5 เปลี่ยนจาก "Lair Meta" เป็น "Player Base + Async Raid"
+
 ---
 
 ## ขั้นที่ 0: เตรียมเครื่องมือ (สัปดาห์นี้)
@@ -117,12 +119,18 @@
 
 ---
 
-## ขั้นที่ 5: Lair Meta System (เดือนที่ 3)
+## ขั้นที่ 5: Player Base + Async Raid (Lair = Fort) (เดือนที่ 3)
 
-- [ ] Idle resource generation
+ลำดับ coding (เสร็จทีละขั้น เทส/อนุมัติก่อนไปต่อ):
+- [x] **5.1 Data foundation** — `BaseLayout`/`ArmyPreset` (serializable) + `PlayerBaseStore` (save/load local, **แยกต่อ faction**) + `RaidSnapshotLoader` (spawn ฝั่งตั้งรับจาก snapshot) *(โค้ดเสร็จ รอประกอบ Editor)*
+- [x] **5.2 Build Mode** — จัดผังเมืองนอกแมตช์ (grid เดียวกับ TowerDeploymentManager ผ่าน `BuildGrid`) + `BaseBuildPiece` วางป้อม/มอน → save เป็น `BaseLayout` *(โค้ดเสร็จ)*
+- [x] **5.3 Garrison** — มอนเฝ้าเมือง (hold position ตื่นเมื่อศัตรูเข้าระยะ) + monster-vs-monster (`MonsterCharacter.side`) + spawn ตอน raid *(โค้ดเสร็จ)*
+- **(แทรก v0.2.1)** faction = loadout สลับได้ (1 บัญชีหลายเผ่า) + โมเดล B (1 เมือง/เผ่า, cap 3) + `RaidSide` rename + กติกากัน exploit (architecture §1.1/§5.10)
+- [x] **5.4 Raid flow** — เลือกเป้าหมายจาก list (ฐาน bot generate) → โหลด snapshot → เล่น → คิด loot กลับ *(โค้ดเสร็จ: `RaidTargetProvider`/`RaidContext`/`RaidRewardController` + attacker≠defender + Looted กัน replay-farm; raid ผู้เล่นจริง+server-side = Phase 2)*
+- [~] **5.5 Economy** — **build economy (checkout: `PlayerWallet` meta gold + จ่ายตอน commit + refund) ✅** + 🔴 **DefenseCapacity เพดานฝ่ายรับผูก base level (กัน defense snowball) ✅ โครงแล้ว**; เหลือ idle income + โดนปล้น % + offline accrual + ซื้อขยายพื้นที่ + ระบบ base level-up จริง + matchmaking-by-strength/loot scaling
 - [ ] ระบบฟักไข่/คราฟต์มอนสเตอร์ (โปร่งใส ไม่ปิดบัง odds)
 - [ ] อัพเกรดถาวร + cosmetic slot (เผื่อ skin ระบบทีหลัง)
-- [ ] UI เบื้องต้น (ไม่ต้องสวยที่สุด แค่ใช้งานได้)
+- [ ] World map เสมือน + เขตจังหวัด (หลัง loop ปล้นพิสูจน์แล้วว่าสนุก)
 
 ---
 

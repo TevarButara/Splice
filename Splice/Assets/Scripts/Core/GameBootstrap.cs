@@ -45,6 +45,16 @@ namespace Splice.Core
             }
         }
 
+        // ปิด network ตอนออก play (กด Stop) — บังคับให้ UnityTransport คืน UDP socket ทันที ไม่งั้นพอร์ต 7777
+        // จะค้างในโปรเซส editor จนกว่าจะปิด/รีโหลด domain → รอบ Play ถัดไป bind ซ้ำไม่ได้.
+        // ใช้ OnApplicationQuit (ยิงตอนหยุด play) ไม่ใช่ OnDestroy — กัน shutdown หลุดตอนสลับซีนระหว่างเกม
+        private void OnApplicationQuit()
+        {
+            var netManager = NetworkManager.Singleton;
+            if (netManager != null && (netManager.IsListening || netManager.IsServer || netManager.IsClient))
+                netManager.Shutdown();
+        }
+
         private void ConfigureTransport(NetworkManager netManager)
         {
             var transport = netManager.GetComponent<UnityTransport>();

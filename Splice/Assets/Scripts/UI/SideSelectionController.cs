@@ -2,6 +2,10 @@ using UnityEngine;
 
 namespace Splice.UI
 {
+    // ⚠️ DEPRECATED (v0.2): โมเดลใหม่ (architecture §1.1) ไม่มีฝั่งถาวร Fort/Monster แล้ว — ผู้เล่นเลือก "faction"
+    //    แล้วเข้าเมืองตัวเอง (ดู FactionSelectionController). เก็บคลาสนี้ไว้เป็น "เครื่องมือ dev/test" สลับดูสองฝั่ง
+    //    ใน Editor เท่านั้น (Attacker/Defender เป็นบทบาทต่อ raid ไม่ใช่ตัวเลือกของผู้เล่น). อย่าใช้เป็น entry ผู้เล่นจริง.
+    //
     // Start-of-match "which side are you?" picker (architecture 5.6/5.9). The map is built reverse — the two
     // sides sit at opposite ends, each with its OWN camera — so choosing a side both routes the player's input
     // to that side AND switches to that side's camera. Purely client-side/presentation: in PvE the host drives
