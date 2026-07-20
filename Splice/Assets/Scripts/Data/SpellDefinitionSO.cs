@@ -44,6 +44,14 @@ namespace Splice.Data
         [Tooltip("โล่อยู่ได้กี่วินาที")]
         public float shieldDuration = 5f;
 
+        [Header("FX (prefab, เว้นว่างได้ — เล่นครั้งเดียวแล้วหายเอง)")]
+        [Tooltip("effect ตอนร่ายเวท — เกิดที่ตัว supporter (เช่น วงเวทใต้เท้า/ประกายรอบตัว)")]
+        public GameObject castEffect;
+        [Tooltip("effect ที่ตัวเป้าตอนได้รับผล — เกิดที่พวกทุกตัวที่โดนสเปล (heal/shield/buff)")]
+        public GameObject targetEffect;
+        [Tooltip("ให้ effect ทั้งสองเกาะติดตัว (เป็นลูกของ transform) แทนวางค้างที่จุดเกิด — เหมาะกับตัวที่ขยับ")]
+        public bool attachEffectToTarget = true;
+
         [Header("Buff/เสริมพลัง (effect = Buff — refresh + เอาแรงสุด)")]
         [Tooltip("คูณพลังโจมตี (1 = ไม่เปลี่ยน, 1.5 = +50%)")]
         public float attackMultiplier = 1f;

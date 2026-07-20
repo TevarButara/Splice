@@ -122,7 +122,7 @@ White background, no text, no weapons.
 
 ---
 
-# 2) MONSTERS — มอนสเตอร์ 14 ตัว (ถูก → แพง) × 5 level (พัฒนาการ)
+# 2) MONSTERS — มอนสเตอร์ 19 ตัว (ถูก → แพง) × 5 level (พัฒนาการ)
 
 > ทุกตัว: **1 ภาพ = ตาราง 4 แถว × 5 คอลัมน์** — แถว = หน้า/หลัง/ซ้าย/ขวา, คอลัมน์ = **level 1→5 (พัฒนาการ: โตขึ้น + เกราะ/หนาม/ออร่าเพิ่ม แต่ยังเป็นตัวเดียวกัน silhouette เดิม)**. **ยืน T-pose ทุกช่อง**, **ไม่มีอาวุธ** (จะทำใส่ทีหลัง), หน้าตาน่ารักเป็นมิตร
 
@@ -463,6 +463,133 @@ Full body visible, white background, no weapons, no text.
 
 ---
 
+## 🎭 ชุดที่ 2 — "กวนๆ" (Goofy Set) · Monster 15-19
+
+> ชุดใหม่แยกจากของเดิม เน้น **น่ารัก + กวน/ทะเล้น** และ **silhouette ต่างกันชัดทุกตัว** (ครึ่งบก / พืช / แมลง / ตัวแบกเปลือก / ก้อนเมือก) — เห็นเงาก็แยกออก. ยัง Natural palette + T-pose มือเปล่า ตามกฎเดิม (STYLE BLOCK คุมทั้ง rig-friendly + no-aura ให้แล้ว)
+
+### Monster 15 — Derp Toad (คางคกยิ้มกว้าง) `T1 ถูกสุด`
+```
+[STYLE BLOCK]
+Evolution turnaround sheet of ONE cute GOOFY chibi toad monster: a pudgy round
+toad with a HUGELY oversized silly grin (its defining feature — a big wide
+goofy smiling mouth almost as wide as its body) and big derpy half-lidded eyes,
+a long springy tongue poking out one side, smooth spotty green-and-cream skin,
+tiny stubby limbs, a little lilypad cap on its head. Playful and dopey looking.
+Grid layout, 4 rows x 5 columns, evenly spaced, no overlapping. Each COLUMN is
+the SAME toad at evolution level 1 to 5 left to right, growing slightly bigger
+and goofier each level:
+level 1 a small toad with a tiny lilypad cap and a cheeky grin;
+level 2 a bigger lilypad hat, a reed necklace, tongue lolling out;
+level 3 a lilypad cloak, cheek warts that look like freckles, a flower behind the ear;
+level 4 a layered lilypad poncho, a cattail reed on its back, puffed cheeks;
+level 5 a grand lilypad-and-reed getup with a flower crown, the widest goofiest
+grin of all and a curled springy tongue.
+Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
+sides, legs straight and slightly apart, facing forward, goofy happy expression.
+Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left side,
+row 4 right side. Same character in all views. Full body visible, white
+background, no weapons, no text.
+```
+
+### Monster 16 — Chompy Sprout (ต้นกินแมลงจอมงับ) `T2`
+```
+[STYLE BLOCK]
+Evolution turnaround sheet of ONE cute GOOFY chibi walking Venus-flytrap plant
+monster: its HEAD is a big rounded flytrap mouth (its defining feature — chunky
+cartoon jaws with soft rounded teeth and two derpy googly eyes sitting inside/on
+top of the trap), a chubby little green bulb body, short leafy vine arms and two
+stubby root legs, a small potted-dirt base clump under its feet. Mischievous,
+always looks like it wants to chomp something. Grid layout, 4 rows x 5 columns,
+evenly spaced, no overlapping. Each COLUMN is the SAME plant at evolution level
+1 to 5 left to right, growing bigger and toothier each level:
+level 1 a small sprout with a little trap-mouth and one leaf;
+level 2 a bigger trap with more rounded teeth, a second pair of leaves;
+level 3 leafy shoulder fronds, tiny thorns on the vines, a flower bud on top;
+level 4 a chunkier double-layered trap, vine bracers, a blooming flower crest;
+level 5 a grand toothy flytrap with a big blossom crown, thicker vines and a
+bark-collar around the neck.
+Standing in a strict T-POSE in EVERY cell: leafy vine arms spread straight out
+to the sides, root legs straight, facing forward, cheeky hungry expression.
+Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left side,
+row 4 right side. Same character in all views. Full body visible, white
+background, no weapons, no text.
+```
+
+### Monster 17 — Fuzz Bumble (ผึ้งตุ้ยนุ้ยปีกจิ๋ว) `T3`
+```
+[STYLE BLOCK]
+Evolution turnaround sheet of ONE cute GOOFY chibi bumblebee monster: a very
+round fuzzy ball-shaped bee (its defining feature — an almost perfectly round
+chubby striped fuzzy body) with COMICALLY TINY wings far too small to actually
+fly, big innocent confused eyes, a tiny stinger, short stubby arms and legs,
+soft yellow-and-brown fuzz with leafy-green stripe accents. Perpetually looks
+puzzled and adorable. Grid layout, 4 rows x 5 columns, evenly spaced, no
+overlapping. Each COLUMN is the SAME bee at evolution level 1 to 5 left to right,
+growing rounder and fluffier each level:
+level 1 a tiny round bee with tiny stub wings and a confused look;
+level 2 fluffier fuzz, a little pollen basket on its back;
+level 3 a leaf collar, a flower stuck on its head, slightly bigger (still tiny) wings;
+level 4 a honey-pot satchel, layered fuzz, pollen dusting on the cheeks;
+level 5 a grand fuzzy bumble with a flower crown, a big honey-pot backpack and
+a striped scarf — wings still hilariously tiny.
+Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
+sides, tiny wings behind, legs straight, facing forward, puzzled cute expression.
+Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left side,
+row 4 right side. Same character in all views. Full body visible, white
+background, no weapons, no text.
+```
+
+### Monster 18 — Stump Hermit (ตัวจิ๋วแบกตอไม้) `T4`
+```
+[STYLE BLOCK]
+Evolution turnaround sheet of ONE cute GOOFY chibi little forest critter that
+lives inside a hollow TREE-STUMP shell like a hermit crab (its defining feature
+— it carries/wears a chunky round tree-stump on its back/body and pokes its head
+and stubby limbs out of it). The critter itself is a small round fuzzy brown
+creature with big shy-but-cheeky eyes and tiny paws; the stump shell has moss,
+tiny mushrooms and bark rings. Grid layout, 4 rows x 5 columns, evenly spaced,
+no overlapping. Each COLUMN is the SAME critter at evolution level 1 to 5 left
+to right, its stump shell growing bigger and more overgrown each level:
+level 1 a small critter in a tiny bare stump shell;
+level 2 moss patches and one mushroom grow on the stump;
+level 3 a leaf sprout on top of the stump, a pebble ring, more mushrooms;
+level 4 a mini bush growing from the stump, bark armor plates on the shell;
+level 5 a grand mossy stump-fortress shell with a little tree, glowing mushrooms
+and flowers growing all over it, critter peeking out with a cheeky grin.
+Standing in a strict T-POSE in EVERY cell: little arms spread straight out to
+the sides from the stump, stubby legs straight, facing forward, cheeky shy
+expression. Each ROW is a view of the same level: row 1 front, row 2 back,
+row 3 left side, row 4 right side. Same character in all views. Full body
+visible, white background, no weapons, no text.
+```
+
+### Monster 19 — Gloop Blob (ก้อนเมือกป่าจอมป่วน) `T5 แพงสุด`
+```
+[STYLE BLOCK]
+Evolution turnaround sheet of ONE cute GOOFY chibi forest SLIME/ooze monster: a
+big wobbly translucent gel blob (its defining feature — a soft jelly-like
+semi-transparent green body with tiny leaves, pebbles, berries and bubbles
+suspended INSIDE it), a wide goofy grinning face on the front, two big derpy
+eyes, little nub arms and a rounded blobby base instead of feet. Looks squishy,
+bouncy and mischievous. Grid layout, 4 rows x 5 columns, evenly spaced, no
+overlapping. Each COLUMN is the SAME slime at evolution level 1 to 5 left to
+right, growing bigger and with more stuff floating inside each level:
+level 1 a small clear-green blob with a couple tiny leaves inside;
+level 2 bigger, a few pebbles and a berry suspended inside, a leaf on top;
+level 3 a mossy rim around its base, small mushrooms floating inside, chubby nub arms;
+level 4 a bark-chunk "crown" half-sunk on its head, more forest bits inside,
+a wider grin;
+level 5 a huge wobbly blob titan with a whole tiny floating garden inside
+(leaves, flowers, pebbles, a mini sapling) and a big goofy toothy grin.
+Standing in a strict T-POSE in EVERY cell: nub arms spread out to the sides,
+blobby base flat on the ground, facing forward, goofy mischievous expression.
+Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left side,
+row 4 right side. Same character in all views. Full body visible, white
+background, no weapons, no text.
+```
+
+---
+
 # 3) FENCES — รั้ว 3 แบบ (ถูก → แพง)
 
 > **1 ภาพ = ตาราง 4 แถว × 3 คอลัมน์** — คอลัมน์ = แบบที่ 1→3 (ถูก→แพง), แถว = หน้า/หลัง/ซ้าย/ขวา. รั้วเป็น "ท่อนตรง 1 segment" (จะเอาไปต่อเรียงเป็นแนวยาวในเกม)
@@ -592,6 +719,11 @@ Level 1: [L1]. Level 5: [L5]. (levels in between grow gradually.)
 | 12 | Mendcap Mystic | glowing heal staff (คทาเห็ดเยียวยา) | ไม้เท้าเห็ดเล็กเรืองอ่อน → คทาเห็ดโคมใหญ่ สปอร์เยียวยาสีเขียว-ทองลอย |
 | 13 | Wardroot Sprite | rune-branch guardian staff (คทากิ่งไม้รูน) | กิ่งไม้รูนเล็ก → คทากิ่งไม้แกนหัวใจไม้ แผ่นเปลือกไม้-รูนป้องกันลอยรอบ |
 | 14 | Aura Fox | spirit-orb focus wand (คทาลูกแก้ววิญญาณ) | คทาลูกแก้วเล็กเรืองอ่อน → คทาลูกแก้ววิญญาณใหญ่ ออร่าเสริมพลัง+ลางแสงลอย |
+| 15 | Derp Toad | 🦷 **worn/body — สู้ด้วยลิ้น+งับ** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
+| 16 | Chompy Sprout | 🦷 **worn/body — งับด้วยหัวกินแมลง** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
+| 17 | Fuzz Bumble | 🦷 **worn/body — พุ่งชน/เหล็กใน** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
+| 18 | Stump Hermit | 🦷 **worn/body — กระแทกด้วยเปลือกตอไม้** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
+| 19 | Gloop Blob | 🦷 **worn/body — ตบ/กระแทกด้วยเมือก** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
 
 ## 6B) โล่คู่มอน (Monster Shields) — 1 ภาพ/มอน (×5 level)
 

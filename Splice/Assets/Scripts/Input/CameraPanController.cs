@@ -28,12 +28,24 @@ namespace Splice.Input
         [SerializeField] private float homeReturnSpeed = 10f;
 
         [Header("Zoom (pinch มือถือ / scroll ใน editor)")]
-        [Tooltip("world units ที่ dolly เข้า/ออก ต่อ 1 หน่วย pinch/scroll")]
+        [Tooltip("[Perspective] world units ที่ dolly เข้า/ออก ต่อ 1 หน่วย pinch/scroll")]
         [SerializeField] private float zoomSpeed = 0.01f;
-        [Tooltip("ความสูงกล้องต่ำสุด (zoom เข้าใกล้สุด)")]
+        [Tooltip("[Perspective] ความสูงกล้องต่ำสุด (zoom เข้าใกล้สุด)")]
         [SerializeField] private float minHeight = 5f;
-        [Tooltip("ความสูงกล้องสูงสุด (zoom ออกดูภาพรวมเมือง)")]
+        [Tooltip("[Perspective] ความสูงกล้องสูงสุด (zoom ออกดูภาพรวมเมือง)")]
         [SerializeField] private float maxHeight = 30f;
+
+        [Header("Zoom (Orthographic) — ใช้เมื่อกล้องตั้งเป็น Ortho")]
+        [Tooltip("[Ortho] ซูมกี่ % ต่อ 1 คลิก scroll (0.2 = 20% ต่อคลิก) — ซูมแบบสัดส่วน ความรู้สึกคงที่ทุกระดับ. ช้าไปให้เพิ่ม")]
+        [SerializeField] private float orthoZoomStep = 0.2f;
+        [Tooltip("ลากนิ้ว pinch กี่ % ของความสูงจอ = 1 คลิก (0.15 = ลาก 15% ของจอ เท่ากับ scroll 1 คลิก). เล็ก = pinch ไวขึ้น")]
+        [SerializeField] private float pinchScreenFraction = 0.15f;
+        [Tooltip("[Ortho] size ต่ำสุด (ซูมเข้าใกล้สุด) — ยิ่งเล็กยิ่งซูมเข้า")]
+        [SerializeField] private float minOrthoSize = 3f;
+        [Tooltip("[Ortho] size สูงสุด (ซูมออกดูภาพรวม)")]
+        [SerializeField] private float maxOrthoSize = 20f;
+        [Tooltip("[Ortho] ตัวคูณความไวการลาก — 1 = ลากแล้วจุดใต้นิ้วอยู่กับที่พอดี (1:1 grab the map)")]
+        [SerializeField] private float orthoPanMultiplier = 1f;
 
         [Header("Tilt (ปุ่มสลับมุมมอง บน ↔ เอียง)")]
         [Tooltip("มุมก้ม X ตอนกดปุ่มเอียง (องศา) เช่น 55")]
@@ -171,7 +183,13 @@ namespace Splice.Input
             forward.Normalize();
 
             // Drag the finger right -> the map slides right -> the camera moves left (natural "grab the map" feel).
-            var move = (-dragDelta.x * right - dragDelta.y * forward) * panSpeed;
+            // Ortho: world-units-ต่อ-pixel ขึ้นกับ orthographicSize ล้วนๆ → คำนวณจริงเพื่อให้จุดใต้นิ้วอยู่กับที่
+            // ทุกระดับซูม (ไม่งั้นซูมเข้าแล้วลากไวเกิน / ซูมออกแล้วลากช้าเกิน)
+            var unitsPerPixel = IsOrtho
+                ? (2f * Cam.orthographicSize / Mathf.Max(1, Screen.height)) * orthoPanMultiplier
+                : panSpeed;
+
+            var move = (-dragDelta.x * right - dragDelta.y * forward) * unitsPerPixel;
             var p = transform.position + move;
             if (panBounds != null)
             {
@@ -193,7 +211,9 @@ namespace Splice.Input
                 if (t0.press.isPressed && t1.press.isPressed)
                 {
                     var dist = Vector2.Distance(t0.position.ReadValue(), t1.position.ReadValue());
-                    if (pinching) Zoom((dist - lastPinchDistance) * zoomSpeed);
+                    // pinch delta เป็น "พิกเซล" → แปลงเป็นหน่วยคลิก (เทียบสัดส่วนความสูงจอ) ให้เท่ากับ scroll
+                    if (pinching)
+                        Zoom((dist - lastPinchDistance) / Mathf.Max(1f, Screen.height * pinchScreenFraction));
                     pinching = true;
                     lastPinchDistance = dist;
                     dragging = false;
@@ -205,19 +225,41 @@ namespace Splice.Input
             var mouse = Mouse.current;
             if (mouse != null)
             {
+                // scroll คืนค่าไม่เท่ากันแต่ละแพลตฟอร์ม (บางที ±1, บางที ±120 ต่อคลิก) → normalize เป็น "คลิก"
                 var scroll = mouse.scroll.ReadValue().y;
-                if (Mathf.Abs(scroll) > 0.01f) Zoom(scroll * zoomSpeed);
+                if (Mathf.Abs(scroll) > 0.01f) Zoom(Mathf.Abs(scroll) >= 10f ? scroll / 120f : scroll);
             }
             return false;
         }
 
-        private void Zoom(float amount)
+        // notches = จำนวน "คลิก" ที่ normalize มาแล้วจากทั้ง pinch และ scroll (บวก = ซูมเข้า)
+        private void Zoom(float notches)
         {
-            var target = transform.position + transform.forward * amount;
+            // Ortho: ขยับกล้องเข้า-ออกไม่มีผลกับขนาดภาพเลย → ย่อ/ขยาย orthographicSize แทน (size เล็ก = ซูมเข้า)
+            // ใช้การคูณ (exponential) ไม่ใช่บวก → ซูมเข้า/ออกรู้สึกเร็วเท่ากันทุกระดับ + ไม่มีทางติดลบ
+            if (IsOrtho)
+            {
+                var factor = Mathf.Pow(1f - Mathf.Clamp(orthoZoomStep, 0.01f, 0.9f), notches);
+                Cam.orthographicSize = Mathf.Clamp(Cam.orthographicSize * factor, minOrthoSize, maxOrthoSize);
+                return;
+            }
+
+            var target = transform.position + transform.forward * (notches * zoomSpeed);
             // clamp ความสูงแทนการ reject — ไม่งั้นถ้ากล้องเริ่มนอกช่วง min/max จะ zoom ไม่ได้เลย
             target.y = Mathf.Clamp(target.y, minHeight, maxHeight);
             transform.position = target;
         }
+
+        private Camera Cam
+        {
+            get
+            {
+                if (cam == null) cam = GetComponent<Camera>();
+                return cam;
+            }
+        }
+
+        private bool IsOrtho => Cam != null && Cam.orthographic;
 
         // Pointer movement since last frame while a press is held. A drag that BEGINS over UI is ignored so
         // panning never fights the card/tower buttons; the first frame of a press only seeds lastPointer.

@@ -99,6 +99,8 @@ namespace Splice.Characters
         private struct PendingHit { public CharacterBase target; public float timeLeft; public int damage; }
         private readonly List<PendingHit> pendingHits = new();
 
+        private static readonly List<ulong> castFxTargets = new();   // reuse — เป้าที่โดนสเปล ส่งให้ client เล่น FX
+
         private bool HasProjectile => definition != null && definition.projectile != null && definition.projectile.ProjectilePrefab != null;
         private Vector3 MuzzlePos => muzzle != null ? muzzle.position : transform.position;
 
@@ -587,10 +589,13 @@ namespace Splice.Characters
             if (spell == null) return;
             var pos = transform.position;
 
+            // เก็บ id ของเป้าที่โดนสเปล → ส่งไปให้ทุก client เล่น FX (ดาเมจ/ผลจริงคิดที่ server เท่านั้น)
+            castFxTargets.Clear();
+
             if (spell.targeting == SpellTargeting.SingleAlly)
             {
                 var target = PickSingleAlly(spell, pos);
-                if (target != null) ApplySpell(spell, target);
+                if (target != null) { ApplySpell(spell, target); castFxTargets.Add(NetId(target)); }
             }
             else
             {
@@ -598,10 +603,33 @@ namespace Splice.Characters
                 {
                     var ally = active[i];
                     if (ally.IsDead || ally.side != side) continue;
-                    if (Vector3.Distance(pos, ally.transform.position) <= spell.radius) ApplySpell(spell, ally);
+                    if (Vector3.Distance(pos, ally.transform.position) > spell.radius) continue;
+                    ApplySpell(spell, ally);
+                    castFxTargets.Add(NetId(ally));
                 }
             }
-            // TODO: cast VFX ผ่าน ClientRpc (ภายหลัง)
+
+            CastFxClientRpc(castFxTargets.ToArray());
+        }
+
+        // FX ตอนร่ายเวท: ที่ตัวผู้ร่าย + ที่เป้าทุกตัวที่โดนสเปล (cosmetic ล้วน)
+        [ClientRpc]
+        private void CastFxClientRpc(ulong[] targetIds)
+        {
+            var spell = definition != null ? definition.spell : null;
+            if (spell == null) return;
+
+            if (spell.attachEffectToTarget) OneShotEffect.SpawnAttached(spell.castEffect, transform);
+            else OneShotEffect.Spawn(spell.castEffect, transform.position, transform.rotation);
+
+            if (spell.targetEffect == null) return;
+            foreach (var id in targetIds)
+            {
+                var tf = Resolve(id);
+                if (tf == null) continue;
+                if (spell.attachEffectToTarget) OneShotEffect.SpawnAttached(spell.targetEffect, tf);
+                else OneShotEffect.Spawn(spell.targetEffect, tf.position, tf.rotation);
+            }
         }
 
         // เป้าเดี่ยว: Heal = ตัวเลือดน้อยสุดที่บาดเจ็บ / อื่นๆ = ตัวที่ใกล้สุด (รวมตัวเองได้)

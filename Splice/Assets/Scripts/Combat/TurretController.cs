@@ -121,8 +121,8 @@ namespace Splice.Combat
                 beam.SetPosition(1, point);
                 beamTimer = definition != null ? definition.beamFlashSeconds : 0.05f;
             }
-            if (definition != null && definition.directImpactEffect != null)
-                Instantiate(definition.directImpactEffect, point, Quaternion.identity);
+            if (definition != null)
+                OneShotEffect.Spawn(definition.directImpactEffect, point, Quaternion.identity);   // หายเองเมื่อเล่นจบ
         }
 
         // ---------- ทุก instance: หมุน turret เข้าหาเป้า (local) ----------

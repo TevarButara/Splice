@@ -19,7 +19,6 @@ MonoBehaviour:
   turnSpeedDegPerSec: 360
   aimToleranceDeg: 7
   returnToRestWhenIdle: 0
-  fireClip: fire
   projectilePrefab: {fileID: 296538973387200349, guid: 74e1f35c63373a04183a02de73efe471, type: 3}
   startSpeed: 6
   endSpeed: 15
@@ -28,6 +27,6 @@ MonoBehaviour:
   maxHeight: 3
   maxLifetime: 12
   launchEffect: {fileID: 0}
-  impactEffect: {fileID: 0}
+  impactEffect: {fileID: 2054803858064431036, guid: 500c1d6ddd48f2c4092af85e4e941eb2, type: 3}
   beamFlashSeconds: 0.05
   directImpactEffect: {fileID: 0}

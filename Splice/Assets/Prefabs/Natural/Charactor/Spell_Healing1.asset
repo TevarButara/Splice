@@ -21,6 +21,9 @@ MonoBehaviour:
   healAmount: 250
   shieldAmount: 30
   shieldDuration: 5
+  castEffect: {fileID: 7852059613287517110, guid: 501ea7b945430b249bc23b10463584b3, type: 3}
+  targetEffect: {fileID: 0}
+  attachEffectToTarget: 1
   attackMultiplier: 1
   moveSpeedMultiplier: 1
   attackSpeedMultiplier: 1

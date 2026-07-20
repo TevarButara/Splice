@@ -57,7 +57,7 @@ namespace Splice.Combat
             flying = true;
             body.position = from;
 
-            if (def != null && def.LaunchEffect != null) Instantiate(def.LaunchEffect, from, body.rotation);
+            if (def != null) OneShotEffect.Spawn(def.LaunchEffect, from, body.rotation);   // หายเองเมื่อเล่นจบ
             if (headParticle != null) headParticle.Play();
             if (trailParticle != null) trailParticle.Play();
         }
@@ -100,7 +100,7 @@ namespace Splice.Combat
         private void Impact()
         {
             flying = false;
-            if (def != null && def.ImpactEffect != null) Instantiate(def.ImpactEffect, body.position, Quaternion.identity);
+            if (def != null) OneShotEffect.Spawn(def.ImpactEffect, body.position, Quaternion.identity);   // หายเองเมื่อเล่นจบ
             if (trailParticle != null) trailParticle.Stop();
             Destroy(body.gameObject);   // ทำลายทั้งก้อน (เผื่อ script อยู่บน child)
         }
