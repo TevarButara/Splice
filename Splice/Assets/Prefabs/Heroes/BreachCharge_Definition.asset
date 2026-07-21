@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b930d5a413314987a6b7544a46a7f39c, type: 3}
+  m_Name: BreachCharge_Definition
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.HeroAbilityDefinitionSO
+  abilityId: breach_charge
+  displayName: Breach Charge
+  description: 
+  icon: {fileID: 0}
+  castRange: 7
+  effectRadius: 2.5
+  damage: 200
+  cooldownSeconds: 1
+  castEffectPrefab: {fileID: 2918079810098078142, guid: 4dcb4c4ad1efd4c43bd3226cd86f98d9, type: 3}
+  castEffectLifetime: 2

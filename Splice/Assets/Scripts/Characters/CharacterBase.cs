@@ -51,6 +51,15 @@ namespace Splice.Characters
             currentHealth.Value = max;
         }
 
+        // Server-only resurrection hook for special characters that intentionally remain spawned at 0 HP
+        // (RaidHeroCharacter's Downed state). Normal monsters/towers continue to despawn and never call this.
+        protected bool RestoreHealthFromZero(int amount)
+        {
+            if (!IsServer || currentHealth.Value > 0 || maxHealth.Value <= 0 || amount <= 0) return false;
+            currentHealth.Value = Mathf.Clamp(amount, 1, maxHealth.Value);
+            return true;
+        }
+
         // Server-only heal, clamped to MaxHealth. A dead character can't be healed — resurrection would
         // need a separate spawn path, and the Fort/tower repair flow only ever targets living towers.
         public void Heal(int amount)

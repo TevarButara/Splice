@@ -10,22 +10,26 @@ namespace Splice.Combat
     public enum RaidOutcome
     {
         InProgress,
-        MonstersWin,
-        FortDefends
+        FullVictory,
+        Extracted,
+        Defeat
     }
 
-    // Why the raid ended — lets the result UI say *how* the Fort won, not just that it did.
+    // Why the raid ended — kept separate from the high-level outcome so result/reward systems can
+    // distinguish a full breach, a safe extraction, and each failure path.
     public enum RaidEndReason
     {
         None,
-        FortDestroyed,
+        CoreDestroyed,
+        ExtractionCompleted,
         TimerExpired,
         AttackerEliminated
     }
 
-    // Raid win/lose objective (architecture 5.6). "Attacker"/"Defender" = บทบาทต่อ raid (RaidSide) ไม่ใช่ตัวตนถาวร:
-    //   Attacker wins -> the Fort's core is destroyed.
-    //   Defender wins -> the match timer runs out, OR the attacker is eliminated
+    // Raid objective contract. "Attacker"/"Defender" = บทบาทต่อ raid (RaidSide) ไม่ใช่ตัวตนถาวร:
+    //   Full victory -> the Fort's core is destroyed.
+    //   Extracted -> a server-validated extraction checkpoint completes (ขั้น 2 wires the real point).
+    //   Defeat -> the match timer runs out, OR the attacker is eliminated
     //                    (no miners left + gold at 0 + no units on the field — unrecoverable, since making a
     //                     miner needs gold and gold needs a miner).
     // Server-authoritative; clients read outcome/reason/time via NetworkVariables.
@@ -65,12 +69,14 @@ namespace Splice.Combat
         public override void OnNetworkSpawn()
         {
             Instance = this;
+            outcome.OnValueChanged += HandleOutcomeChanged;
             if (!IsServer) return;
             remainingSeconds.Value = matchDurationSeconds;
         }
 
         public override void OnNetworkDespawn()
         {
+            outcome.OnValueChanged -= HandleOutcomeChanged;
             if (Instance == this) Instance = null;
         }
 
@@ -86,24 +92,48 @@ namespace Splice.Combat
             }
             else if (fortSeen)
             {
-                EndRaid(RaidOutcome.MonstersWin, RaidEndReason.FortDestroyed);
+                EndRaid(RaidOutcome.FullVictory, RaidEndReason.CoreDestroyed);
                 return;
             }
 
             remainingSeconds.Value = Mathf.Max(0f, remainingSeconds.Value - Time.deltaTime);
             if (remainingSeconds.Value <= 0f)
             {
-                EndRaid(RaidOutcome.FortDefends, RaidEndReason.TimerExpired);
+                EndRaid(RaidOutcome.Defeat, RaidEndReason.TimerExpired);
                 return;
             }
 
             if (IsAttackerEliminated())
             {
-                EndRaid(RaidOutcome.FortDefends, RaidEndReason.AttackerEliminated);
+                EndRaid(RaidOutcome.Defeat, RaidEndReason.AttackerEliminated);
             }
         }
 
-        // Invader can no longer threaten the fort: no miners, no gold, no units on the field.
+        // Server-only entry point for the future ExtractionPoint. Keeping the decision in RaidManager
+        // prevents a client or presentation component from declaring its own result. Returns false when
+        // called on a client or after another end condition has already settled the raid.
+        public bool TryCompleteExtraction()
+        {
+            if (!IsServer || IsOver) return false;
+            EndRaid(RaidOutcome.Extracted, RaidEndReason.ExtractionCompleted);
+            return true;
+        }
+
+        // Step-1 Editor smoke test until ExtractionPoint exists in step 2.
+        [ContextMenu("Debug/Complete Extraction")]
+        private void DebugCompleteExtraction()
+        {
+            if (!Application.isPlaying)
+            {
+                Debug.LogWarning("[Raid] Extraction debug command works only in Play Mode.", this);
+                return;
+            }
+
+            if (!TryCompleteExtraction())
+                Debug.LogWarning("[Raid] Extraction rejected: run this on the active server before the raid ends.", this);
+        }
+
+        // Invader can no longer threaten the fort: no miners, no gold, no units, and no viable Hero.
         // Guard on the gold bank existing first — before the economy spawns, "no gold" is a false
         // positive, not a real elimination.
         private bool IsAttackerEliminated()
@@ -113,7 +143,16 @@ namespace Splice.Combat
 
             if (CountAliveAttackerMiners() > 0) return false;
             if (CountAliveAttackerMonsters() > 0) return false;
+            if (HasViableAttackerHero()) return false;
             return true;
+        }
+
+        // A living Hero can still breach the base alone. A Downed Hero also keeps the raid alive during
+        // its revive window; once Defeated, only the remaining army/economy can prevent elimination.
+        private bool HasViableAttackerHero()
+        {
+            var hero = RaidHeroCharacter.Instance;
+            return hero != null && hero.Side == attackerSide && hero.LifeState != HeroLifeState.Defeated;
         }
 
         private int CountAliveAttackerMiners()
@@ -144,7 +183,14 @@ namespace Splice.Combat
             if (outcome.Value != RaidOutcome.InProgress) return;
             endReason.Value = reason;
             outcome.Value = result;
-            OnRaidEnded?.Invoke(result);
+        }
+
+        // NetworkVariable change notifications run on the host and remote clients. Using this single path
+        // keeps result UI/presentation events to exactly once per RaidManager instance on every peer.
+        private void HandleOutcomeChanged(RaidOutcome previous, RaidOutcome current)
+        {
+            if (previous == current || current == RaidOutcome.InProgress) return;
+            OnRaidEnded?.Invoke(current);
         }
     }
 }

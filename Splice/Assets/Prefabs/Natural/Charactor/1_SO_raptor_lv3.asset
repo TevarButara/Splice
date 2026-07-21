@@ -15,16 +15,19 @@ MonoBehaviour:
   monsterId: 3
   displayName: Raptor lv3
   maxHealth: 1000
-  attackDamage: 70
+  attackDamage: 200
   attackCooldown: 1
   attackRange: 2
-  moveSpeed: 2
+  moveSpeed: 6
   role: 0
   spell: {fileID: 0}
+  projectile: {fileID: 0}
   footprint: 2
   defenseCapacityCost: 2
   injuredMoveSpeed: 1
   waypointArriveRadius: 0.15
+  laneOffsetRange: 0.8
+  speedVariancePercent: 0.1
   fortHoldDistance: 2
   roadsideEngageSeconds: 5
   injuredHealthFraction: 0.3
@@ -35,6 +38,7 @@ MonoBehaviour:
   attackDurationSeconds: 1
   deathAnimSeconds: 3
   landingSeconds: 2
+  spellCastSeconds: 0.8
   movement: 0
   flightHeight: 0
   buildTimeSeconds: 1

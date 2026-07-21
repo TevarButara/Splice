@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Splice.Characters;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -26,6 +27,18 @@ namespace Splice.Input
         [SerializeField] private float homeThreshold = 0.3f;
         [Tooltip("ความเร็ว (world units/วินาที) ที่กล้องเลื่อนกลับฐานตอนกด Home")]
         [SerializeField] private float homeReturnSpeed = 10f;
+
+        [Header("Hero Follow (Raid)")]
+        [Tooltip("เมื่อ Hero ของผู้เล่นอยู่ Manual ให้กล้องรักษา Hero ไว้กลางจอโดยอัตโนมัติ")]
+        [SerializeField] private bool followOwnedHeroInManualMode = true;
+        [Tooltip("เมื่อ Hero ของผู้เล่นอยู่ Auto ให้กล้องตาม Hero เช่นเดียวกับ Manual")]
+        [SerializeField] private bool followOwnedHeroInAutoMode = true;
+        [Tooltip("เปิดเมื่อจำเป็นต้องบังคับกล้องอยู่ใน Pan Bounds แม้จะทำให้ Hero ไม่อยู่กลางจอบริเวณขอบแมป")]
+        [SerializeField] private bool clampHeroFollowToPanBounds;
+        [Tooltip("ความเร็วที่กล้องเลื่อนไปหา Hero (world units/วินาที)")]
+        [Min(0.1f)] [SerializeField] private float heroFollowSpeed = 30f;
+        [Tooltip("หลังผู้เล่นลากกล้องเอง รอกี่วินาทีก่อนกลับไปตาม Hero")]
+        [Min(0f)] [SerializeField] private float heroFollowResumeDelay = 1.25f;
 
         [Header("Zoom (pinch มือถือ / scroll ใน editor)")]
         [Tooltip("[Perspective] world units ที่ dolly เข้า/ออก ต่อ 1 หน่วย pinch/scroll")]
@@ -72,6 +85,7 @@ namespace Splice.Input
         private Vector3 focusPoint;
         private bool hasFocus;
         private Camera cam;
+        private float heroFollowSuspendedUntil;
 
         private static readonly List<RaycastResult> uiHits = new();
 
@@ -88,6 +102,13 @@ namespace Splice.Input
 
         // Wire to the Home button's OnClick.
         public void GoHome() => returningHome = true;
+
+        // Optional UI hook: immediately re-center on the owned Hero in either raid control mode.
+        public void FocusHeroNow()
+        {
+            heroFollowSuspendedUntil = 0f;
+            TickHeroFollow(immediate: true);
+        }
 
         // wire ปุ่ม → สลับมุมมอง บน (topDownAngle) ↔ เอียง (tiltAngle) แบบ smooth หมุนรอบ "จุด focus"
         // (object ล่าสุดที่ทำงานอยู่ — set ผ่าน SetFocusPoint; ถ้าไม่มีใช้จุดกลางจอบนพื้น) → กล้องไม่เด้งไปมั่ว
@@ -160,6 +181,53 @@ namespace Splice.Input
             if (returningHome) ReturnHomeStep();
         }
 
+        private void LateUpdate()
+        {
+            // Run after the server/host Hero movement tick so the camera sees this frame's final position.
+            TickHeroFollow(immediate: false);
+        }
+
+        private void TickHeroFollow(bool immediate)
+        {
+            var hero = RaidHeroCharacter.Instance;
+            if (hero == null || !hero.IsOwner || hero.LifeState != HeroLifeState.Active || isTilting ||
+                returningHome || Time.unscaledTime < heroFollowSuspendedUntil)
+                return;
+
+            var followThisMode = hero.ControlMode == HeroControlMode.Manual
+                ? followOwnedHeroInManualMode
+                : followOwnedHeroInAutoMode;
+            if (!followThisMode) return;
+
+            // Intersect the center ray with a horizontal plane through the Hero's transform, not the ground.
+            // On a tilted camera, centering the ground below a capsule places the actual Hero above screen center.
+            if (!TryGetViewCenterAtHeight(hero.transform.position.y, out var viewCenter)) return;
+
+            var offset = hero.transform.position - viewCenter;
+            offset.y = 0f;
+            var desired = transform.position + offset;
+            if (clampHeroFollowToPanBounds) desired = ClampPanPosition(desired);
+            transform.position = immediate
+                ? desired
+                : Vector3.MoveTowards(transform.position, desired, heroFollowSpeed * Time.unscaledDeltaTime);
+
+            // Tilt now or later should orbit around the Hero rather than an old build-piece focus.
+            focusPoint = hero.transform.position;
+            hasFocus = true;
+        }
+
+        private bool TryGetViewCenterAtHeight(float worldY, out Vector3 point)
+        {
+            point = default;
+            if (Cam == null) return false;
+
+            var plane = new Plane(Vector3.up, new Vector3(0f, worldY, 0f));
+            var ray = Cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            if (!plane.Raycast(ray, out var distance) || distance <= 0f) return false;
+            point = ray.GetPoint(distance);
+            return true;
+        }
+
         private void ReturnHomeStep()
         {
             transform.position = Vector3.MoveTowards(transform.position, homePosition, homeReturnSpeed * Time.deltaTime);
@@ -172,6 +240,8 @@ namespace Splice.Input
 
         private void PanBy(Vector2 dragDelta)
         {
+            heroFollowSuspendedUntil = Time.unscaledTime + heroFollowResumeDelay;
+
             var right = transform.right;
             right.y = 0f; right.Normalize();
 
@@ -190,14 +260,16 @@ namespace Splice.Input
                 : panSpeed;
 
             var move = (-dragDelta.x * right - dragDelta.y * forward) * unitsPerPixel;
-            var p = transform.position + move;
-            if (panBounds != null)
-            {
-                var b = panBounds.bounds; // world-space AABB — accounts for the box's position/scale
-                p.x = Mathf.Clamp(p.x, b.min.x, b.max.x);
-                p.z = Mathf.Clamp(p.z, b.min.z, b.max.z);
-            }
-            transform.position = p;
+            transform.position = ClampPanPosition(transform.position + move);
+        }
+
+        private Vector3 ClampPanPosition(Vector3 position)
+        {
+            if (panBounds == null) return position;
+            var bounds = panBounds.bounds; // world-space AABB — accounts for position/scale
+            position.x = Mathf.Clamp(position.x, bounds.min.x, bounds.max.x);
+            position.z = Mathf.Clamp(position.z, bounds.min.z, bounds.max.z);
+            return position;
         }
 
         // Zoom = dolly กล้องตาม forward (มุมคงที่) clamp ด้วยความสูง. คืน true ถ้ากำลัง pinch (2 นิ้ว) → งด pan.

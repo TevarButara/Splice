@@ -50,12 +50,13 @@ namespace Splice.UI
 
         private static string ResultText(RaidOutcome outcome, RaidEndReason reason)
         {
-            if (outcome == RaidOutcome.MonstersWin) return "Attackers Win!";
+            if (outcome == RaidOutcome.FullVictory) return "Full Victory! (Core Destroyed)";
+            if (outcome == RaidOutcome.Extracted) return "Extraction Successful!";
             return reason switch
             {
-                RaidEndReason.TimerExpired => "Fort Wins! (Time)",
-                RaidEndReason.AttackerEliminated => "Fort Wins! (Attacker Eliminated)",
-                _ => "Fort Wins!"
+                RaidEndReason.TimerExpired => "Raid Failed! (Time)",
+                RaidEndReason.AttackerEliminated => "Raid Failed! (Army Eliminated)",
+                _ => "Raid Failed!"
             };
         }
 

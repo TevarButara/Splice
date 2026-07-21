@@ -282,7 +282,10 @@ namespace Splice.Characters
         {
             if (RaidManager.Instance != null && RaidManager.Instance.IsOver)
             {
-                invadersWon = RaidManager.Instance.Outcome == RaidOutcome.MonstersWin;
+                // Extraction is a successful attacker result too. Until a retreat animation exists,
+                // extracted units use the victory presentation rather than the defeat presentation.
+                invadersWon = RaidManager.Instance.Outcome == RaidOutcome.FullVictory ||
+                              RaidManager.Instance.Outcome == RaidOutcome.Extracted;
                 return true;
             }
             if (FortCore.Instance != null && FortCore.Instance.IsDead)
@@ -512,7 +515,7 @@ namespace Splice.Characters
         }
 
         // เป้าที่ตีได้ = ศัตรูที่ใกล้สุดในระยะ. Attacker → ป้อม/Fort (ฝ่าย Defender) + มอน garrison ฝ่ายตรงข้าม;
-        // Defender (garrison) → มอน Attacker เท่านั้น (ป้อมทั้งหมดถือเป็นฝ่าย Defender จึงไม่ตีพวกเดียวกัน)
+        // Defender (garrison) → มอน Attacker + Raid Hero (ป้อมทั้งหมดถือเป็นฝ่าย Defender จึงไม่ตีพวกเดียวกัน)
         private CharacterBase FindAttackTarget(float range)
         {
             CharacterBase nearest = null;
@@ -524,6 +527,11 @@ namespace Splice.Characters
                 var towers = TowerCharacter.Active;
                 for (var i = 0; i < towers.Count; i++)
                     Consider(towers[i], pos, ref nearest, ref nearestDist);
+            }
+            else
+            {
+                // Garrison must also threaten the player's Raid Hero, not only attacker monsters.
+                Consider(RaidHeroCharacter.Instance, pos, ref nearest, ref nearestDist);
             }
 
             for (var i = 0; i < active.Count; i++)

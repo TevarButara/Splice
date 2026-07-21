@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Splice.Combat;
+using Splice.Core;
 using Splice.Data;
 using Unity.Netcode;
 using UnityEngine;
@@ -51,7 +52,7 @@ namespace Splice.Characters
             Range == other.Range && Targets == other.Targets;
     }
 
-    // Static defender that attacks the nearest MonsterCharacter(s) in range (architecture 5.1/5.6). Stats are
+    // Static defender that attacks the nearest attacker units/Hero in range (architecture 5.1/5.6). Stats are
     // base (TowerDefinitionSO) + per-stat upgrade levels; HP/armor upgrades are pushed into CharacterBase,
     // attack/range/targets are computed on the fly. Placed towers first spend buildTimeSeconds under
     // construction (can't fire, but are attackable). FortCore extends this.
@@ -61,7 +62,7 @@ namespace Splice.Characters
         public static IReadOnlyList<TowerCharacter> Active => active;
 
         // Reused per fire (server is single-threaded, so sharing is safe).
-        private static readonly List<MonsterCharacter> fireBuffer = new();
+        private static readonly List<CharacterBase> fireBuffer = new();
 
         [SerializeField] private TowerDefinitionSO definition;
         [Tooltip("ติ๊กเพื่อโชว์วงระยะโจมตีตลอดเวลา (ไม่ต้องเลือกก่อน) — ช่วยกะระยะตอนจัดวาง. เป็น Gizmo (Scene view เสมอ, Game view ต้องเปิดปุ่ม Gizmos)")]
@@ -76,7 +77,7 @@ namespace Splice.Characters
 
         // โหมด Projectile: ดาเมจไม่ลงตอนยิง แต่ตั้งเวลาไว้ให้ตรงกับตอนกระสุนถึงเป้า (server-only).
         // เป้าตาย/หายก่อนถึง = ยิงพลาด (whiff) ไม่ลงดาเมจ.
-        private struct PendingHit { public MonsterCharacter target; public float timeLeft; public int damage; }
+        private struct PendingHit { public CharacterBase target; public float timeLeft; public int damage; }
         private readonly List<PendingHit> pendingHits = new();
 
         // เป้าที่จะยิงในชอตนี้ (reuse; server single-thread)
@@ -209,8 +210,8 @@ namespace Splice.Characters
             attackTimer = 0f;
         }
 
-        // Fill `buffer` with living monsters within EffectiveRange, nearest first.
-        private void CollectTargetsInRange(List<MonsterCharacter> buffer)
+        // Fill `buffer` with living attacker units/Hero within EffectiveRange, nearest first.
+        private void CollectTargetsInRange(List<CharacterBase> buffer)
         {
             var range = EffectiveRange;
             var pos = transform.position;
@@ -220,15 +221,20 @@ namespace Splice.Characters
             for (var i = 0; i < monsters.Count; i++)
             {
                 var monster = monsters[i];
-                if (monster.IsDead) continue;
+                if (monster.IsDead || monster.Side != RaidSide.Attacker) continue;
                 if (Vector3.Distance(pos, monster.transform.position) <= range) buffer.Add(monster);
             }
+
+            var hero = RaidHeroCharacter.Instance;
+            if (hero != null && !hero.IsDead && hero.Side == RaidSide.Attacker &&
+                Vector3.Distance(pos, hero.transform.position) <= range)
+                buffer.Add(hero);
 
             buffer.Sort((a, b) =>
                 (a.transform.position - pos).sqrMagnitude.CompareTo((b.transform.position - pos).sqrMagnitude));
         }
 
-        // Fire at up to EffectiveMaxTargets nearest monsters (already collected in fireBuffer).
+        // Fire at up to EffectiveMaxTargets nearest attacker targets (already collected in fireBuffer).
         //  - No turret / Direct mode: damage lands immediately (turret shows the beam).
         //  - Projectile mode: damage is scheduled for when the shot arrives (travel time), so a monster can
         //    dodge death by dying first (whiff). The turret spawns the cosmetic projectiles on every client.
