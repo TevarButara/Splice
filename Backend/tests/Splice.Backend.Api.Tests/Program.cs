@@ -17,6 +17,8 @@ const string highTargetAId = "41000000-0000-0000-0000-000000000002";
 const string highTargetBId = "41000000-0000-0000-0000-000000000003";
 const string selfTargetId = "41000000-0000-0000-0000-000000000004";
 const string loadoutId = "51000000-0000-0000-0000-000000000001";
+const string attackerGearId = "61000000-0000-0000-0000-000000000001";
+const string foreignGearId = "61000000-0000-0000-0000-000000000002";
 const string trustedServerId = "test-authoritative-raid-1";
 const string trustedServerKey = "test-only-c4-trusted-key-2026";
 
@@ -39,20 +41,54 @@ try
 
     var forgedLoadout = await SendAsync(host.Client, HttpMethod.Put,
         $"/v1/attacker-loadouts/{loadoutId}",
-        new { factionId = "1", heroId = "hero/local", entries = new[] { new { cardId = "1/unknown", count = 1 } } },
+        new
+        {
+            factionId = "1",
+            heroId = "hero_test",
+            gearInstanceIds = Array.Empty<string>(),
+            entries = new[] { new { cardId = "1/unknown", count = 1 } }
+        },
         "loadout:forged");
     Equal(HttpStatusCode.Conflict, forgedLoadout.Status, "unknown attacker card rejected");
     ErrorCode(forgedLoadout, "LOADOUT_CONTENT_INVALID");
     var validLoadoutBody = new
     {
         factionId = "1",
-        heroId = "hero/local",
+        heroId = "hero_test",
+        gearInstanceIds = new[] { attackerGearId },
         entries = new[] { new { cardId = "1/1", count = 2 } },
     };
     var validLoadout = await SendAsync(host.Client, HttpMethod.Put,
         $"/v1/attacker-loadouts/{loadoutId}", validLoadoutBody, "loadout:valid");
     Equal(HttpStatusCode.OK, validLoadout.Status, "server validates attacker loadout");
-    Equal(130L, Long(validLoadout, "raidPower"), "server computes attacker power from catalog");
+    Equal(130L, Long(validLoadout, "armyPower"), "server computes army power from catalog");
+    Equal(2830L, Long(validLoadout, "heroPower"), "server computes owned Hero power from catalog");
+    Equal(200L, Long(validLoadout, "gearPower"), "server computes owned gear power from catalog");
+    Equal(3160L, Long(validLoadout, "raidPower"), "server composes total authoritative raid power");
+
+    var unownedHero = await SendAsync(host.Client, HttpMethod.Put,
+        $"/v1/attacker-loadouts/{Guid.NewGuid():D}",
+        new
+        {
+            factionId = "1",
+            heroId = "not_owned",
+            gearInstanceIds = Array.Empty<string>(),
+            entries = new[] { new { cardId = "1/1", count = 1 } }
+        }, "loadout:unowned-hero");
+    Equal(HttpStatusCode.Conflict, unownedHero.Status, "unowned Hero rejected");
+    ErrorCode(unownedHero, "HERO_NOT_OWNED");
+
+    var foreignGear = await SendAsync(host.Client, HttpMethod.Put,
+        $"/v1/attacker-loadouts/{Guid.NewGuid():D}",
+        new
+        {
+            factionId = "1",
+            heroId = "hero_test",
+            gearInstanceIds = new[] { foreignGearId },
+            entries = new[] { new { cardId = "1/1", count = 1 } }
+        }, "loadout:foreign-gear");
+    Equal(HttpStatusCode.Conflict, foreignGear.Status, "gear owned by another player rejected");
+    ErrorCode(foreignGear, "GEAR_NOT_OWNED");
 
     var missingKey = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
         QuoteBody(fairTargetId), null);
@@ -274,15 +310,18 @@ static async Task SeedAsync(string connectionString)
           ('11000000-0000-0000-0000-000000000003', 'Defender Beta')
         ON CONFLICT (id) DO NOTHING;
 
-        INSERT INTO attacker_loadouts
-          (id, owner_player_id, faction_id, revision, hero_id, entries, payload_sha256,
-           raid_power, content_version) VALUES
-          ('51000000-0000-0000-0000-000000000001',
-           '11000000-0000-0000-0000-000000000001', '1', 1, 'hero/local',
-           '[{"cardId":"1/1","count":2}]'::jsonb,
-           'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-           130, 'content-c4b-v1')
-        ON CONFLICT (id) DO NOTHING;
+        INSERT INTO content_definitions
+          (content_id, faction_id, content_kind, raid_power, enabled, content_version, combat_payload)
+        VALUES ('gear/test-blade','','GEAR',200,true,'content-c4c1-v1',
+                '{"slot":"weapon","attackBonus":20}'::jsonb)
+        ON CONFLICT (content_id, content_kind) DO UPDATE SET
+          raid_power=EXCLUDED.raid_power, enabled=true,
+          content_version=EXCLUDED.content_version, combat_payload=EXCLUDED.combat_payload;
+        INSERT INTO player_heroes (player_id, hero_content_id, level) VALUES
+          ('11000000-0000-0000-0000-000000000001','hero/hero_test',1);
+        INSERT INTO player_gear_items (id, owner_player_id, gear_content_id, level) VALUES
+          ('61000000-0000-0000-0000-000000000001','11000000-0000-0000-0000-000000000001','gear/test-blade',1),
+          ('61000000-0000-0000-0000-000000000002','11000000-0000-0000-0000-000000000002','gear/test-blade',1);
 
         INSERT INTO ledger_accounts (id, account_key, owner_type, owner_id, currency_code) VALUES
           ('21000000-0000-0000-0000-000000000001', 'test:c2:attacker:war-gem', 'PLAYER',
@@ -391,9 +430,15 @@ static async Task RunC4Async(TestHost host, string connectionString)
         QuoteBody(fairTargetId), "quote:c4:full");
     var changedAfterQuote = await SendAsync(host.Client, HttpMethod.Put,
         $"/v1/attacker-loadouts/{loadoutId}",
-        new { factionId = "1", heroId = "hero/local", entries = new[] { new { cardId = "1/3", count = 2 } } },
+        new
+        {
+            factionId = "1",
+            heroId = "hero_test",
+            gearInstanceIds = new[] { attackerGearId },
+            entries = new[] { new { cardId = "1/3", count = 2 } }
+        },
         "loadout:changed-after-quote");
-    Equal(300L, Long(changedAfterQuote, "raidPower"), "mutable loadout advances after quote");
+    Equal(3330L, Long(changedAfterQuote, "raidPower"), "mutable loadout advances after quote");
     var confirm = await SendAsync(host.Client, HttpMethod.Post, "/v1/raids",
         new { quoteId = String(quote, "quoteId") }, "raid:c4:full");
     var raidId = String(confirm, "raidId");
@@ -431,8 +476,17 @@ static async Task RunC4Async(TestHost host, string connectionString)
     True(Bool(claim, "hasJob"), "claim returns an authoritative raid job");
     Equal(raidId, String(claim, "raidId"), "worker receives funded raid");
     Equal(allocationId, String(claim, "allocationId"), "worker receives assigned allocation");
-    Equal(130L, Long(claim, "attackerPower"),
+    Equal(3160L, Long(claim, "attackerPower"),
         "job uses quoted immutable loadout power after mutable loadout changes");
+    Equal(130L, Long(claim, "armyPower"), "job exposes immutable army power breakdown");
+    Equal(2830L, Long(claim, "heroPower"), "job exposes immutable Hero power breakdown");
+    Equal(200L, Long(claim, "gearPower"), "job exposes immutable gear power breakdown");
+    Equal("hero/hero_test", String(claim, "hero", "contentId"),
+        "job includes the immutable authoritative Hero identity");
+    Equal(30000L, Long(claim, "hero", "combat", "maxHealth"),
+        "job includes the immutable authoritative Hero combat payload");
+    Equal(1, Element(claim, "gearItems").GetArrayLength(),
+        "job includes the immutable owned gear instances");
     Equal("32000000-0000-0000-0000-000000000001", String(claim, "targetSnapshotId"),
         "worker job pins immutable target snapshot");
     var loadoutSnapshotId = String(claim, "loadoutSnapshotId");
@@ -567,7 +621,7 @@ static async Task AssertImmutableLoadoutSnapshotAsync(string connectionString, s
     try
     {
         await using var command = new NpgsqlCommand(
-            "UPDATE splice.attacker_loadout_snapshots SET raid_power=1 WHERE id=@snapshot", connection);
+            "UPDATE splice.attacker_loadout_snapshots SET hero_power=hero_power+1 WHERE id=@snapshot", connection);
         command.Parameters.AddWithValue("snapshot", Guid.Parse(snapshotId));
         await command.ExecuteNonQueryAsync();
         throw new Exception("TEST_FAILED: immutable attacker loadout snapshot accepted direct update");
@@ -868,13 +922,13 @@ static async Task SeedC3Async(string connectionString)
             jsonb_build_object('account_id','21000000-0000-0000-0000-000000000002','amount',500)));
         INSERT INTO content_definitions
           (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost, content_version) VALUES
-          ('c3-natural/tower-1','c3-natural','TOWER',2,20,'content-c4b-v1'),
-          ('c3-natural/tower-2','c3-natural','TOWER',1,10,'content-c4b-v1'),
-          ('c3-natural/garrison-1','c3-natural','GARRISON',3,30,'content-c4b-v1'),
-          ('c3-natural/miner-1','c3-natural','MINER',0,10,'content-c4b-v1'),
-          ('c3-expensive/tower-1','c3-expensive','TOWER',1,1000,'content-c4b-v1'),
-          ('c3-natural/shared-1','c3-natural','TOWER',2,20,'content-c4b-v1'),
-          ('c3-natural/shared-1','c3-natural','GARRISON',3,30,'content-c4b-v1')
+          ('c3-natural/tower-1','c3-natural','TOWER',2,20,'content-c4c1-v1'),
+          ('c3-natural/tower-2','c3-natural','TOWER',1,10,'content-c4c1-v1'),
+          ('c3-natural/garrison-1','c3-natural','GARRISON',3,30,'content-c4c1-v1'),
+          ('c3-natural/miner-1','c3-natural','MINER',0,10,'content-c4c1-v1'),
+          ('c3-expensive/tower-1','c3-expensive','TOWER',1,1000,'content-c4c1-v1'),
+          ('c3-natural/shared-1','c3-natural','TOWER',2,20,'content-c4c1-v1'),
+          ('c3-natural/shared-1','c3-natural','GARRISON',3,30,'content-c4c1-v1')
         ON CONFLICT (content_id, content_kind) DO UPDATE SET
           faction_id=EXCLUDED.faction_id,
           defense_capacity_cost=EXCLUDED.defense_capacity_cost,

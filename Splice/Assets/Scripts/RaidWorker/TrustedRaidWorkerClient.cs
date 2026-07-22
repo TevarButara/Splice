@@ -12,6 +12,43 @@ namespace Splice.RaidWorker
     public sealed class RaidWorkerLoadoutEntry { public string cardId; public int count; }
 
     [Serializable]
+    public sealed class RaidWorkerCombatPayload
+    {
+        public int maxHealth;
+        public int armor;
+        public int attackDamage;
+        public int attackCooldownMs;
+        public int attackRangeMilli;
+        public int moveSpeedMilli;
+        public string abilityId;
+        public int abilityDamage;
+        public int abilityCooldownMs;
+        public int abilityCastRangeMilli;
+        public int abilityRadiusMilli;
+    }
+
+    [Serializable]
+    public sealed class RaidWorkerHeroAuthority
+    {
+        public string contentId;
+        public int level;
+        public long basePower;
+        public long scaledPower;
+        public RaidWorkerCombatPayload combat;
+    }
+
+    [Serializable]
+    public sealed class RaidWorkerGearAuthority
+    {
+        public string instanceId;
+        public string contentId;
+        public int level;
+        public long basePower;
+        public long scaledPower;
+        public RaidWorkerCombatPayload combat;
+    }
+
+    [Serializable]
     public sealed class RaidJobResponse
     {
         public bool hasJob;
@@ -23,8 +60,13 @@ namespace Splice.RaidWorker
         public string loadoutSnapshotId;
         public string sceneContractVersion;
         public long attackerPower;
+        public long armyPower;
+        public long heroPower;
+        public long gearPower;
         public long defenderPower;
         public List<RaidWorkerLoadoutEntry> loadoutEntries;
+        public RaidWorkerHeroAuthority hero;
+        public List<RaidWorkerGearAuthority> gearItems;
         public string leaseExpiresUtc;
     }
 

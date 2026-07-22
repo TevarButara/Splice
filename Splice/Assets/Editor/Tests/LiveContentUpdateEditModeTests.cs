@@ -103,6 +103,22 @@ namespace Splice.Tests.EditMode
         }
 
         [Test]
+        public void BackendCatalogExport_HeroIsAuthoritativeWithDeterministicCombatPower()
+        {
+            var document = SpliceContentCatalogExporter.BuildDocument();
+            var hero = document.items.Single(item => item.contentId == "hero/hero_test");
+
+            Assert.That(document.serverContentVersion, Is.EqualTo("content-c4c1-v1"));
+            Assert.That(hero.contentKind, Is.EqualTo("HERO"));
+            Assert.That(hero.backendAuthoritative, Is.True);
+            Assert.That(hero.raidPower, Is.EqualTo(2830));
+            Assert.That(hero.heroCombat, Is.Not.Null);
+            Assert.That(hero.heroCombat.maxHealth, Is.EqualTo(30000));
+            Assert.That(hero.heroCombat.attackDamage, Is.EqualTo(1000));
+            Assert.That(hero.heroCombat.abilityId, Is.EqualTo("breach_charge"));
+        }
+
+        [Test]
         public void ContentOnlyProofReport_ConfirmsCatalogChangedWithoutPlayerBuild()
         {
             var repositoryRoot = Directory.GetParent(Directory.GetParent(UnityEngine.Application.dataPath).FullName).FullName;

@@ -1,8 +1,8 @@
 {
     "schemaVersion": 1,
     "liveContentVersion": "1.0.0",
-    "serverContentVersion": "content-c4b-v1",
-    "sourceSha256": "4dbd8ea846139e6b9cd896f210d8f252d7f6d1d639403936db8272b5d6e01b2f",
+    "serverContentVersion": "content-c4c1-v1",
+    "sourceSha256": "78d31a618db91cba11c653ce4576d76f4d31dd5ff744cfcd978398ae39fbb800",
     "items": [
         {
             "contentId": "1/0",
@@ -11,7 +11,20 @@
             "defenseCapacityCost": 0,
             "goldCost": 10,
             "raidPower": 0,
-            "serverContentVersion": "content-c4b-v1",
+            "heroCombat": {
+                "maxHealth": 0,
+                "armor": 0,
+                "attackDamage": 0,
+                "attackCooldownMs": 0,
+                "attackRangeMilli": 0,
+                "moveSpeedMilli": 0,
+                "abilityId": "",
+                "abilityDamage": 0,
+                "abilityCooldownMs": 0,
+                "abilityCastRangeMilli": 0,
+                "abilityRadiusMilli": 0
+            },
+            "serverContentVersion": "content-c4c1-v1",
             "addressablesLabel": "faction/1",
             "address": "1/0",
             "backendAuthoritative": true
@@ -23,7 +36,20 @@
             "defenseCapacityCost": 1,
             "goldCost": 4,
             "raidPower": 65,
-            "serverContentVersion": "content-c4b-v1",
+            "heroCombat": {
+                "maxHealth": 0,
+                "armor": 0,
+                "attackDamage": 0,
+                "attackCooldownMs": 0,
+                "attackRangeMilli": 0,
+                "moveSpeedMilli": 0,
+                "abilityId": "",
+                "abilityDamage": 0,
+                "abilityCooldownMs": 0,
+                "abilityCastRangeMilli": 0,
+                "abilityRadiusMilli": 0
+            },
+            "serverContentVersion": "content-c4c1-v1",
             "addressablesLabel": "faction/1",
             "address": "1/1",
             "backendAuthoritative": true
@@ -35,7 +61,20 @@
             "defenseCapacityCost": 2,
             "goldCost": 10,
             "raidPower": 0,
-            "serverContentVersion": "content-c4b-v1",
+            "heroCombat": {
+                "maxHealth": 0,
+                "armor": 0,
+                "attackDamage": 0,
+                "attackCooldownMs": 0,
+                "attackRangeMilli": 0,
+                "moveSpeedMilli": 0,
+                "abilityId": "",
+                "abilityDamage": 0,
+                "abilityCooldownMs": 0,
+                "abilityCastRangeMilli": 0,
+                "abilityRadiusMilli": 0
+            },
+            "serverContentVersion": "content-c4c1-v1",
             "addressablesLabel": "faction/1",
             "address": "1/1",
             "backendAuthoritative": true
@@ -47,7 +86,20 @@
             "defenseCapacityCost": 2,
             "goldCost": 5,
             "raidPower": 100,
-            "serverContentVersion": "content-c4b-v1",
+            "heroCombat": {
+                "maxHealth": 0,
+                "armor": 0,
+                "attackDamage": 0,
+                "attackCooldownMs": 0,
+                "attackRangeMilli": 0,
+                "moveSpeedMilli": 0,
+                "abilityId": "",
+                "abilityDamage": 0,
+                "abilityCooldownMs": 0,
+                "abilityCastRangeMilli": 0,
+                "abilityRadiusMilli": 0
+            },
+            "serverContentVersion": "content-c4c1-v1",
             "addressablesLabel": "faction/1",
             "address": "1/2",
             "backendAuthoritative": true
@@ -59,7 +111,20 @@
             "defenseCapacityCost": 2,
             "goldCost": 10,
             "raidPower": 150,
-            "serverContentVersion": "content-c4b-v1",
+            "heroCombat": {
+                "maxHealth": 0,
+                "armor": 0,
+                "attackDamage": 0,
+                "attackCooldownMs": 0,
+                "attackRangeMilli": 0,
+                "moveSpeedMilli": 0,
+                "abilityId": "",
+                "abilityDamage": 0,
+                "abilityCooldownMs": 0,
+                "abilityCastRangeMilli": 0,
+                "abilityRadiusMilli": 0
+            },
+            "serverContentVersion": "content-c4c1-v1",
             "addressablesLabel": "faction/1",
             "address": "1/3",
             "backendAuthoritative": true
@@ -71,7 +136,20 @@
             "defenseCapacityCost": 2,
             "goldCost": 4,
             "raidPower": 90,
-            "serverContentVersion": "content-c4b-v1",
+            "heroCombat": {
+                "maxHealth": 0,
+                "armor": 0,
+                "attackDamage": 0,
+                "attackCooldownMs": 0,
+                "attackRangeMilli": 0,
+                "moveSpeedMilli": 0,
+                "abilityId": "",
+                "abilityDamage": 0,
+                "abilityCooldownMs": 0,
+                "abilityCastRangeMilli": 0,
+                "abilityRadiusMilli": 0
+            },
+            "serverContentVersion": "content-c4c1-v1",
             "addressablesLabel": "faction/1",
             "address": "1/4",
             "backendAuthoritative": true
@@ -82,11 +160,24 @@
             "contentKind": "HERO",
             "defenseCapacityCost": 0,
             "goldCost": 0,
-            "raidPower": 0,
-            "serverContentVersion": "content-c4b-v1",
+            "raidPower": 2830,
+            "heroCombat": {
+                "maxHealth": 30000,
+                "armor": 10,
+                "attackDamage": 1000,
+                "attackCooldownMs": 800,
+                "attackRangeMilli": 1800,
+                "moveSpeedMilli": 9000,
+                "abilityId": "breach_charge",
+                "abilityDamage": 300,
+                "abilityCooldownMs": 200,
+                "abilityCastRangeMilli": 7000,
+                "abilityRadiusMilli": 2500
+            },
+            "serverContentVersion": "content-c4c1-v1",
             "addressablesLabel": "hero/hero_test",
             "address": "hero/hero_test",
-            "backendAuthoritative": false
+            "backendAuthoritative": true
         }
     ]
 }

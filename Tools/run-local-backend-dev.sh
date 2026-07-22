@@ -37,6 +37,9 @@ INSERT INTO players (id, display_name) VALUES
   (:'player_id'::uuid, 'Unity Local Player'),
   ('11000000-0000-0000-0000-000000000002', 'Defender Alpha');
 
+INSERT INTO player_heroes (player_id, hero_content_id, level) VALUES
+  (:'player_id'::uuid, 'hero/hero_test', 1);
+
 INSERT INTO ledger_accounts (id, account_key, owner_type, owner_id, currency_code) VALUES
   ('21000000-0000-0000-0000-000000000001','local-dev:player:war-gem','PLAYER',:'player_id'::uuid,'WAR_GEM'),
   ('21000000-0000-0000-0000-000000000002','local-dev:player:gold','PLAYER',:'player_id'::uuid,'GOLD');
@@ -73,7 +76,7 @@ INSERT INTO town_snapshots
    garrison_count, matchmaking_eligible) VALUES
   ('32000000-0000-0000-0000-000000000001','31000000-0000-0000-0000-000000000001',1,
    '{"schemaVersion":1,"snapshotId":"32000000-0000-0000-0000-000000000001","deploymentId":"41000000-0000-0000-0000-000000000001","revision":1,"committedUtc":"2026-07-22T00:00:00Z","ownerAccountId":"11000000-0000-0000-0000-000000000002","factionId":"1","baseLevel":1,"basePowerRating":405,"usedCapacity":2,"maxCapacity":100,"matchmakingEligible":true,"validationVersion":"server-c3-v1","validationWarnings":[],"layout":{"version":1,"ownerAccountId":"11000000-0000-0000-0000-000000000002","factionId":"1","towers":[{"towerId":"1/1","position":{"x":0,"y":0,"z":0},"attackLevel":0,"healthLevel":0,"armorLevel":0,"rangeLevel":0,"targetsLevel":0}],"garrison":[],"minerCardIds":[],"storedGold":100},"armyShowcasePresetName":"","heroAppearanceId":""}',
-   repeat('a',64),'1',1,405,'content-c3-v1','server-c3-v1',2,100,1,0,true);
+   repeat('a',64),'1',1,405,'content-c4c1-v1','server-c3-v1',2,100,1,0,true);
 INSERT INTO town_deployments (id, town_id, active_snapshot_id, town_escrow_id, status, stake_band) VALUES
   ('41000000-0000-0000-0000-000000000001','31000000-0000-0000-0000-000000000001',
    '32000000-0000-0000-0000-000000000001','42000000-0000-0000-0000-000000000001',

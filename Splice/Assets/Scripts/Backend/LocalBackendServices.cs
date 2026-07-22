@@ -277,6 +277,8 @@ namespace Splice.Backend
                 factionId = request?.factionId ?? string.Empty,
                 heroId = request?.heroId ?? string.Empty,
                 entries = request?.entries ?? new List<AttackerLoadoutEntryDto>(),
+                gearInstanceIds = request?.gearInstanceIds ?? new List<string>(),
+                armyPower = 1,
                 raidPower = 1,
                 contentVersion = "local-prototype",
                 updatedUtc = DateTime.UtcNow.ToString("O"),
@@ -543,6 +545,7 @@ namespace Splice.Backend
             {
                 factionId = factionId,
                 heroId = PlayerHeroProfile.SelectedHeroId,
+                gearInstanceIds = new List<string>(),
             };
             foreach (var entry in selected.entries)
                 request.entries.Add(new AttackerLoadoutEntryDto

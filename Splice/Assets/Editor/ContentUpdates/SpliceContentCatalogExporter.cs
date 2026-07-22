@@ -14,6 +14,22 @@ using UnityEngine;
 namespace Splice.Editor.ContentUpdates
 {
     [Serializable]
+    public sealed class SpliceHeroCombatCatalog
+    {
+        public int maxHealth;
+        public int armor;
+        public int attackDamage;
+        public int attackCooldownMs;
+        public int attackRangeMilli;
+        public int moveSpeedMilli;
+        public string abilityId;
+        public int abilityDamage;
+        public int abilityCooldownMs;
+        public int abilityCastRangeMilli;
+        public int abilityRadiusMilli;
+    }
+
+    [Serializable]
     public sealed class SpliceContentCatalogItem
     {
         public string contentId;
@@ -22,6 +38,7 @@ namespace Splice.Editor.ContentUpdates
         public int defenseCapacityCost;
         public long goldCost;
         public int raidPower;
+        public SpliceHeroCombatCatalog heroCombat;
         public string serverContentVersion;
         public string addressablesLabel;
         public string address;
@@ -40,7 +57,7 @@ namespace Splice.Editor.ContentUpdates
 
     public static class SpliceContentCatalogExporter
     {
-        public const string ServerContentVersion = "content-c4b-v1";
+        public const string ServerContentVersion = "content-c4c1-v1";
         public const string CatalogRelativePath = "Backend/content/generated/splice-content-catalog.json";
         public const string SqlRelativePath = "Backend/database/seeds/002_splice_content_catalog.generated.sql";
         public const string ExportMenu = "Splice/Live Content/2. Validate + Export Backend Catalog";
@@ -97,10 +114,12 @@ namespace Splice.Editor.ContentUpdates
                     contentId = "hero/" + hero.heroId,
                     factionId = string.Empty,
                     contentKind = "HERO",
+                    raidPower = HeroRaidPower(hero),
+                    heroCombat = HeroCombat(hero),
                     serverContentVersion = ServerContentVersion,
                     addressablesLabel = "hero/" + hero.heroId,
                     address = "hero/" + hero.heroId,
-                    backendAuthoritative = false,
+                    backendAuthoritative = true,
                 });
             }
 
@@ -162,6 +181,7 @@ namespace Splice.Editor.ContentUpdates
                 canonical.Append(item.contentId).Append('|').Append(item.factionId).Append('|')
                     .Append(item.contentKind).Append('|').Append(item.defenseCapacityCost).Append('|')
                     .Append(item.goldCost).Append('|').Append(item.raidPower).Append('|')
+                    .Append(CombatJson(item)).Append('|')
                     .Append(item.addressablesLabel).Append('\n');
             return LiveContentManifestValidator.Sha256(canonical.ToString());
         }
@@ -173,7 +193,7 @@ namespace Splice.Editor.ContentUpdates
             if (rows.Length > 0)
             {
                 builder.Append("INSERT INTO splice.content_definitions\n")
-                    .Append("  (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost, raid_power, enabled, content_version) VALUES\n");
+                    .Append("  (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost, raid_power, enabled, content_version, combat_payload) VALUES\n");
                 for (var i = 0; i < rows.Length; i++)
                 {
                     var item = rows[i];
@@ -181,13 +201,15 @@ namespace Splice.Editor.ContentUpdates
                         .Append(Sql(item.factionId)).Append("','").Append(Sql(item.contentKind)).Append("',")
                         .Append(item.defenseCapacityCost).Append(',').Append(item.goldCost).Append(',')
                         .Append(item.raidPower)
-                        .Append(",true,'").Append(Sql(item.serverContentVersion)).Append("')")
+                        .Append(",true,'").Append(Sql(item.serverContentVersion)).Append("','")
+                        .Append(Sql(CombatJson(item))).Append("'::jsonb)")
                         .Append(i == rows.Length - 1 ? "\n" : ",\n");
                 }
                 builder.Append("ON CONFLICT (content_id, content_kind) DO UPDATE SET\n")
                     .Append("  faction_id=EXCLUDED.faction_id,\n")
                     .Append("  defense_capacity_cost=EXCLUDED.defense_capacity_cost, gold_cost=EXCLUDED.gold_cost,\n")
                     .Append("  raid_power=EXCLUDED.raid_power,\n")
+                    .Append("  combat_payload=EXCLUDED.combat_payload,\n")
                     .Append("  enabled=true, content_version=EXCLUDED.content_version;\n");
             }
             builder.Append("COMMIT;\n");
@@ -195,6 +217,41 @@ namespace Splice.Editor.ContentUpdates
         }
 
         private static string Sql(string value) => (value ?? string.Empty).Replace("'", "''");
+
+        private static SpliceHeroCombatCatalog HeroCombat(HeroDefinitionSO hero)
+        {
+            var ability = hero.tacticalAbility;
+            return new SpliceHeroCombatCatalog
+            {
+                maxHealth = hero.maxHealth,
+                armor = hero.armor,
+                attackDamage = hero.attackDamage,
+                attackCooldownMs = Milliseconds(hero.attackCooldown),
+                attackRangeMilli = Milli(hero.attackRange),
+                moveSpeedMilli = Milli(hero.moveSpeed),
+                abilityId = ability != null ? ability.abilityId : string.Empty,
+                abilityDamage = ability != null ? ability.damage : 0,
+                abilityCooldownMs = ability != null ? Milliseconds(ability.cooldownSeconds) : 0,
+                abilityCastRangeMilli = ability != null ? Milli(ability.castRange) : 0,
+                abilityRadiusMilli = ability != null ? Milli(ability.effectRadius) : 0,
+            };
+        }
+
+        private static int HeroRaidPower(HeroDefinitionSO hero)
+        {
+            var cooldownMs = Math.Max(1, Milliseconds(hero.attackCooldown));
+            var abilityPower = hero.tacticalAbility != null ? hero.tacticalAbility.damage / 5 : 0;
+            return Math.Max(1, checked(hero.maxHealth / 20 + hero.armor * 2 +
+                                       hero.attackDamage * 1000 / cooldownMs + abilityPower));
+        }
+
+        private static string CombatJson(SpliceContentCatalogItem item) =>
+            item.heroCombat == null ? "{}" : JsonUtility.ToJson(item.heroCombat);
+
+        private static int Milliseconds(float seconds) =>
+            Math.Max(1, Mathf.RoundToInt(seconds * 1000f));
+
+        private static int Milli(float value) => Mathf.RoundToInt(value * 1000f);
 
         private static List<T> LoadAll<T>() where T : UnityEngine.Object =>
             AssetDatabase.FindAssets($"t:{typeof(T).Name}")

@@ -126,6 +126,7 @@ namespace Splice.Backend
     {
         public string factionId;
         public string heroId;
+        public List<string> gearInstanceIds = new();
         public List<AttackerLoadoutEntryDto> entries = new();
     }
 
@@ -139,6 +140,10 @@ namespace Splice.Backend
         public string factionId;
         public string heroId;
         public List<AttackerLoadoutEntryDto> entries = new();
+        public List<string> gearInstanceIds = new();
+        public long armyPower;
+        public long heroPower;
+        public long gearPower;
         public long raidPower;
         public string contentVersion;
         public string payloadSha256;

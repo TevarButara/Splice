@@ -27,11 +27,12 @@
 - U2 Unity ↔ Local Backend Integration เสร็จแล้ว: HTTP transport, development bootstrap, server-authoritative Checkout/Deploy/Target/Quote/Fund และ local launcher
 - C4A Authoritative Raid Lifecycle เสร็จแล้วแบบ local-only: allocation ticket, trusted start/result, zero-sum settlement, immutable result และ active-session recovery
 - C4B Authoritative Loadout + Headless Worker เสร็จแล้วแบบ local-only: validated army, immutable loadout snapshot, worker queue/lease และ deterministic Unity batchmode proxy
+- C4C1 Authoritative Hero + Gear เสร็จแล้วแบบ local-only: ownership inventory, Gear instance UUID, server combat stats/power และ immutable raid payload
 
 ## Verification ล่าสุด
 
 - Unity compile: Error 0
-- EditMode: 48/48 passed
+- EditMode: 49/49 passed
 - PlayMode: 2/2 passed
 - Content Validator: Errors 0, Warnings 0
 - Target Pool diagnostic: PASS; immutable V1 คงเดิมหลัง commit V2
@@ -47,19 +48,20 @@
 - local ASP.NET/PostgreSQL launcher smoke test ผ่าน; API health, wallet และ defender deployment อ่านได้จริง และฐานข้อมูลชั่วคราวถูกลบหลังหยุด
 - C4 trusted-route regression ผ่าน: player ปลอม start/result ไม่ได้, result replay ไม่จ่ายซ้ำ, conflicting result ถูกปฏิเสธ และ deployment ถูก Pause เมื่อ backing ต่ำกว่าเกณฑ์
 - C4B regression ผ่าน: loadout ปลอมถูก reject, quote ตรึง immutable army, worker อื่นขโมย lease/result ไม่ได้ และ empty queue ตอบแบบ explicit
+- C4C1 regression ผ่าน: Hero/Gear ที่ไม่ได้เป็นเจ้าของถูก reject, power breakdown 130+2,830+200=3,160 และ worker ได้ immutable Hero combat/Gear payload แม้แก้ loadout ภายหลัง
 
 ## Backend
 
 - Architecture contract: `splice-server-wallet-escrow-snapshot-contract-db.md`
-- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle และ C4B loadout/headless worker เสร็จแล้ว
+- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle, C4B loadout/headless worker และ C4C1 Hero/Gear authority เสร็จแล้ว
 - Backend package: `Backend`; ใช้ HTTP เฉพาะ 127.0.0.1 ตอนทดสอบ ยังไม่เปิด Cloud/production
 - Stack ที่เสนอ: ASP.NET Core modular monolith + PostgreSQL; deploy แบบ stateless containers และแยก authoritative Unity Raid Server ในระยะ C4
 
 ## งานถัดไป
 
-1. C4C: ทำ Hero/gear inventory เป็น server authority และเพิ่มลง immutable raid loadout
-2. เปลี่ยน deterministic power proxy เป็น physical headless scene/command-stream simulation
-3. ให้ player Raid Arena subscribe/poll authoritative lifecycle แล้วแสดง Pending/Completed/Replay
+1. C4C2: เปลี่ยน deterministic power proxy เป็น physical headless scene/command-stream simulation
+2. ให้ player Raid Arena subscribe/poll authoritative lifecycle แล้วแสดง Pending/Completed/Replay
+3. เพิ่ม Gear content/equip UI และ progression rules โดยใช้ authority contract ที่วางไว้
 4. เพิ่ม headless executable end-to-end smoke; ก่อน production ค่อยเพิ่ม autoscaling/metrics/secrets
 
 ## สิ่งที่ยังห้ามใน production
