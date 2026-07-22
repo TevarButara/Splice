@@ -1,4 +1,5 @@
 using Splice.Characters;
+using Splice.Combat;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -26,6 +27,14 @@ namespace Splice.UI
         [SerializeField] private TMP_Text modeButtonText;
         [SerializeField] private TMP_Text lifeStateText;
         [SerializeField] private GameObject downedPanel;
+
+        [Header("Breach Rings")]
+        [Tooltip("แสดงชั้นฐาน, defense progress และ breach loot — เว้นว่างได้")]
+        [SerializeField] private TMP_Text breachRingText;
+
+        [Header("Squad Order")]
+        [Tooltip("แสดงจำนวนยูนิตที่รับคำสั่งและเวลาคงเหลือ — เว้นว่างได้")]
+        [SerializeField] private TMP_Text squadOrderText;
 
         [Header("Tactical Ability")]
         [SerializeField] private GameObject abilityRoot;
@@ -68,11 +77,18 @@ namespace Splice.UI
             // the HUD from detecting a Hero that spawns later.
             if (contentRoot != null && contentRoot != gameObject && contentRoot.activeSelf != ready)
                 contentRoot.SetActive(ready);
-            if (!ready) return;
+            if (!ready)
+            {
+                if (squadOrderText != null) squadOrderText.gameObject.SetActive(false);
+                if (breachRingText != null) breachRingText.gameObject.SetActive(false);
+                return;
+            }
 
             RefreshVitals();
             RefreshState();
+            RefreshBreachRing();
             RefreshAbility();
+            RefreshSquadOrder();
 
             if (Time.unscaledTime >= nextProximityRefresh)
             {
@@ -187,6 +203,55 @@ namespace Splice.UI
             if (abilityButton != null) abilityButton.interactable = boundHero.CanAct;
         }
 
+        private void RefreshSquadOrder()
+        {
+            if (squadOrderText == null) return;
+
+            var count = 0;
+            var longestRemaining = 0f;
+            var monsters = MonsterCharacter.Instances;
+            for (var i = 0; i < monsters.Count; i++)
+            {
+                var monster = monsters[i];
+                if (monster == null || monster.IsDead || monster.Side != boundHero.Side ||
+                    !monster.HasTacticalFocusOrder)
+                    continue;
+                count++;
+                longestRemaining = Mathf.Max(longestRemaining, monster.TacticalFocusOrderRemaining);
+            }
+
+            var show = count > 0;
+            if (squadOrderText.gameObject.activeSelf != show) squadOrderText.gameObject.SetActive(show);
+            if (show) squadOrderText.text = $"SQUAD ORDER ×{count}  •  {Mathf.CeilToInt(longestRemaining)}s";
+        }
+
+        private void RefreshBreachRing()
+        {
+            if (breachRingText == null) return;
+            var rings = BreachRingController.Instance;
+            var show = rings != null && rings.IsSpawned && rings.HasRingObjectives;
+            if (breachRingText.gameObject.activeSelf != show) breachRingText.gameObject.SetActive(show);
+            if (!show) return;
+
+            if (!rings.IsConfigurationValid)
+            {
+                breachRingText.text = "BREACH RINGS • CONFIG INVALID";
+                return;
+            }
+
+            if (rings.CoreUnlocked)
+            {
+                breachRingText.text = "RING 3/3 CLEARED  •  CORE EXPOSED";
+                return;
+            }
+
+            var total = rings.CurrentTotal;
+            var destroyed = Mathf.Max(0, total - rings.CurrentRemaining);
+            var ringName = rings.CurrentRing.ToString().ToUpperInvariant();
+            breachRingText.text =
+                $"RING {rings.BreachedRingCount + 1}/3  •  {ringName} {destroyed}/{total}  •  LOOT +{rings.CurrentRingSecuredBonus}";
+        }
+
         private void HandleFeedback(HeroFeedback feedback, int value)
         {
             if (feedbackText == null) return;
@@ -210,7 +275,9 @@ namespace Splice.UI
                 HeroFeedback.AbilityOutOfRange => "TARGET OUT OF RANGE",
                 HeroFeedback.AbilityNoTargets => "NO DEFENSIVE TARGET IN BLAST RADIUS",
                 HeroFeedback.AbilityUnavailable => "TACTICAL ABILITY UNAVAILABLE",
-                HeroFeedback.FocusTargetSet => "FOCUS TARGET CONFIRMED",
+                HeroFeedback.FocusTargetSet => value > 0
+                    ? $"FOCUS TARGET CONFIRMED • SQUAD ×{value}"
+                    : "FOCUS TARGET CONFIRMED • HERO ONLY",
                 HeroFeedback.FocusTargetCleared => "FOCUS TARGET CLEARED",
                 HeroFeedback.FocusTargetRejected => "INVALID FOCUS TARGET",
                 HeroFeedback.FocusTargetCompleted => "FOCUS TARGET ELIMINATED",

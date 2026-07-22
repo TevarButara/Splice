@@ -5,16 +5,12 @@ namespace Splice.Data
 {
     // Single entry point to every faction's content. Resolves the composite network id "factionId/localId"
     // to a card/tower and back. Add a faction by dropping its FactionSO into `factions` — no code changes.
-    // (Server RPCs send the composite id string; this maps it back to the definition.)
     [CreateAssetMenu(fileName = "FactionRegistry", menuName = "Splice/Faction Registry")]
     public class FactionRegistrySO : ScriptableObject
     {
         [SerializeField] private List<FactionSO> factions = new();
-
         public IReadOnlyList<FactionSO> Factions => factions;
 
-        // หา FactionSO จาก factionId — ใช้ resolve เผ่าที่ผู้เล่นเลือก (ActiveFactionId) เพื่อดึง towers/cards
-        // ไปทำ palette แบบ dynamic ฯลฯ
         public FactionSO GetFaction(string factionId)
         {
             if (string.IsNullOrEmpty(factionId)) return null;
@@ -28,7 +24,6 @@ namespace Splice.Data
         private Dictionary<string, TowerDefinitionSO> towerById;
         private Dictionary<TowerDefinitionSO, string> idByTower;
 
-        // Composite ids are stable across list reordering (built from ids, not indices).
         public static string CardId(FactionSO faction, CardDefinitionSO card) => $"{faction.factionId}/{card.cardId}";
         public static string TowerId(FactionSO faction, TowerDefinitionSO tower) => $"{faction.factionId}/{tower.towerId}";
 
@@ -47,7 +42,6 @@ namespace Splice.Data
             return tower != null && idByTower.TryGetValue(tower, out var id) ? id : null;
         }
 
-        // Flat list of every faction's cards — e.g. for a draft pool (scope by faction later when needed).
         public List<CardDefinitionSO> AllCards()
         {
             var result = new List<CardDefinitionSO>();
@@ -60,6 +54,19 @@ namespace Splice.Data
             return result;
         }
 
+        // Registry caches are runtime optimizations only. Invalidate after authoring changes so Resolve*
+        // cannot retain definitions that were removed or renamed in the Inspector.
+        public void InvalidateCache()
+        {
+            cardById = null;
+            idByCard = null;
+            towerById = null;
+            idByTower = null;
+        }
+
+        private void OnEnable() => InvalidateCache();
+        private void OnValidate() => InvalidateCache();
+
         private void EnsureBuilt()
         {
             if (cardById != null) return;
@@ -71,7 +78,6 @@ namespace Splice.Data
             foreach (var faction in factions)
             {
                 if (faction == null) continue;
-
                 foreach (var card in faction.cards)
                 {
                     if (card == null) continue;
@@ -79,8 +85,6 @@ namespace Splice.Data
                     cardById[id] = card;
                     idByCard[card] = id;
                 }
-
-                // Miner cards resolve through the same id space (composite factionId/cardId).
                 foreach (var card in faction.minerCards)
                 {
                     if (card == null) continue;
@@ -88,7 +92,6 @@ namespace Splice.Data
                     cardById[id] = card;
                     idByCard[card] = id;
                 }
-
                 foreach (var tower in faction.towers)
                 {
                     if (tower == null) continue;

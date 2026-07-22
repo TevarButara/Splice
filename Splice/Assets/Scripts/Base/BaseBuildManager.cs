@@ -40,6 +40,7 @@ namespace Splice.Base
         private CardDefinitionSO armedGarrison;
         private BaseBuildPiece selected;
         private int pendingRefund;
+        private bool hasUnsavedChanges;
         private Vector2 floorHalfExtent = new(-1f, -1f); // world half-size ของพื้นที่เมือง (set โดย FitGridToFloor)
 
         public BuildGrid Grid => grid;
@@ -50,6 +51,7 @@ namespace Splice.Base
         public CardDefinitionSO ArmedGarrison => armedGarrison;
         public BaseBuildPiece Selected => selected;
         public bool WantsPreview => HasArmed || selected != null;
+        public bool HasUnsavedChanges => hasUnsavedChanges;
         public Vector3 GridOrigin => grid.gridOrigin;
 
         public float PreviewRange =>
@@ -102,6 +104,7 @@ namespace Splice.Base
             if (floor != null) FitGridToFloor();
             var layout = PlayerBaseStore.LoadLayout(CityFactionId);
             if (layout != null) LoadCommitted(layout);
+            hasUnsavedChanges = false;
         }
 
         [ContextMenu("Fit Grid To Floor")]
@@ -188,7 +191,11 @@ namespace Splice.Base
 
             var ok = armedTower != null ? PlaceTower(armedTower, cell)
                 : armedGarrison != null && PlaceGarrison(armedGarrison, cell);
-            if (ok && cameraPan != null) cameraPan.SetFocusPoint(cell);
+            if (ok)
+            {
+                hasUnsavedChanges = true;
+                if (cameraPan != null) cameraPan.SetFocusPoint(cell);
+            }
             return ok;
         }
 
@@ -221,6 +228,7 @@ namespace Splice.Base
             var cell = SnapPoint(world);
             if (!IsWithinBuildArea(cell, selected.Footprint) || Overlaps(cell, selected.Footprint, selected)) return false;
             selected.MoveTo(cell); // ย้าย = ฟรี
+            hasUnsavedChanges = true;
             if (cameraPan != null) cameraPan.SetFocusPoint(cell);
             return true;
         }
@@ -239,13 +247,16 @@ namespace Splice.Base
             placed.Remove(selected);
             Destroy(selected.gameObject);
             selected = null;
+            hasUnsavedChanges = true;
         }
 
         public void ClearAll()
         {
+            var changed = placed.Count > 0;
             foreach (var piece in placed) { AccrueRefund(piece); if (piece != null) Destroy(piece.gameObject); }
             placed.Clear();
             selected = null;
+            if (changed) hasUnsavedChanges = true;
         }
 
         private void AccrueRefund(BaseBuildPiece piece)
@@ -271,6 +282,7 @@ namespace Splice.Base
             foreach (var piece in placed) if (piece != null) piece.Paid = true;
             pendingRefund = 0;
             PersistCommitted(fid);
+            hasUnsavedChanges = false;
             Debug.Log($"[BaseBuild] checkout '{fid}': จ่ายสุทธิ {net}, ทองเหลือ {PlayerWallet.MetaGold}");
             return true;
         }
@@ -281,6 +293,7 @@ namespace Splice.Base
             var layout = PlayerBaseStore.LoadLayout(CityFactionId);
             ClearPlaced();
             if (layout != null) LoadCommitted(layout);
+            hasUnsavedChanges = false;
         }
 
         private void PersistCommitted(string fid)

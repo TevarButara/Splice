@@ -24,4 +24,5 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 4c18604bf1338164abb3e39ad32efda5, type: 2}
   minerCards:
   - {fileID: 11400000, guid: 3e2279bd0764dc845bcbcd6a45198a03, type: 2}
-  towers: []
+  towers:
+  - {fileID: 11400000, guid: 7904e90b155643f4988b7f4dc00dc489, type: 2}

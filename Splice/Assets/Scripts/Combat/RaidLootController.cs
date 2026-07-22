@@ -63,6 +63,19 @@ namespace Splice.Combat
             return moved;
         }
 
+        // Ring breach reward: move a capped slice of the target's existing potential loot directly into
+        // Secured. This does not mint currency; it converts Available -> Secured and makes extraction after
+        // each deeper ring a meaningful, server-authoritative risk/reward choice.
+        public int GrantSecuredBreachLoot(int requestedAmount)
+        {
+            if (!CanMutate() || requestedAmount <= 0) return 0;
+
+            var moved = Mathf.Min(requestedAmount, available.Value);
+            available.Value -= moved;
+            secured.Value += moved;
+            return moved;
+        }
+
         // Checkpoints/vault caches call this on the server. Returns the amount newly secured.
         public int SecureCarried()
         {

@@ -205,3 +205,7 @@ MonoBehaviour:
   definition: {fileID: 11400000, guid: f32b03e742ce7405d9de5f6f7177f874, type: 2}
   side: 0
   movementBounds: {fileID: 0}
+  squadCommandRadius: 16
+  squadCommandDuration: 10
+  squadMaxTravelDistance: 24
+  squadStalledSeconds: 2.5

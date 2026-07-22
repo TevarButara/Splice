@@ -19,12 +19,29 @@ MonoBehaviour:
   attackCooldown: 2.5
   attackRange: 20
   moveSpeed: 2
+  role: 0
+  spell: {fileID: 0}
+  projectile: {fileID: 0}
   footprint: 25
   defenseCapacityCost: 2
   injuredMoveSpeed: 20
+  waypointArriveRadius: 0.15
+  laneOffsetRange: 0.8
+  speedVariancePercent: 0.1
+  fortHoldDistance: 1.5
+  roadsideEngageSeconds: 4
+  injuredHealthFraction: 0.3
+  turnSpeedDegPerSec: 720
+  separationRadius: 1
+  separationStrength: 0.6
+  settleDeadzone: 0.02
+  attackDurationSeconds: 0.6
+  deathAnimSeconds: 1.5
+  landingSeconds: 0
+  spellCastSeconds: 0.8
   movement: 0
   flightHeight: 2
   buildTimeSeconds: 6
   goldCost: 6
   icon: {fileID: 0}
-  prefab: {fileID: 690574931462591514, guid: c8db7fd78ddedbb479080e9216d7640f, type: 3}
+  prefab: {fileID: 7114109506353519949, guid: bc2988788de61844193b61ddcce19003, type: 3}

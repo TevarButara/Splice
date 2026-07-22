@@ -1,4 +1,5 @@
 using TMPro;
+using Splice.Core;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -25,8 +26,11 @@ namespace Splice.Base
             if (index < targets.Count)
             {
                 var t = targets[index];
-                label.text = $"{t.displayName}\nทอง {t.StoredGold} · Lv{t.baseLevel}";
-                if (button != null) button.interactable = true;
+                var source = t.IsSnapshotBacked ? $"PLAYER SNAPSHOT V{t.snapshotRevision}" : "BOT FALLBACK";
+                var capacity = t.maxCapacity > 0 ? $" · Cap {t.usedCapacity}/{t.maxCapacity}" : string.Empty;
+                label.text = $"{t.displayName}\n{source} · Power {t.basePowerRating:N0}{capacity}\n" +
+                             $"Tower {t.towerCount} · Garrison {t.garrisonCount} · Gold {t.StoredGold:N0}";
+                if (button != null) button.interactable = t.CanRaid(PlayerProfile.AccountId, out _);
             }
             else
             {

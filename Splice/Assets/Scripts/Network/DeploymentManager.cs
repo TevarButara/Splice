@@ -52,9 +52,41 @@ namespace Splice.Network
         private readonly NetworkList<QueuedUnit> buildQueue = new();
 
         public RaidSide DeploySide => deploySide;
+        public int LaneCount => lanePaths?.Length ?? 0;
 
         // Composite id (factionId/cardId) for a card — card UI uses it to send deploy intent + match queue rows.
         public string IdOf(CardDefinitionSO card) => registry != null ? registry.IdOf(card) : null;
+
+        // Server-only scenario hook. IncomingRaidScenarioController uses the same authored lanes, prefab and
+        // character initialization as normal deployment, but does not charge the local defender's wallet.
+        public bool TrySpawnScenarioMonster(string cardId, int laneId, out string error)
+        {
+            error = string.Empty;
+            if (!IsSpawned || !IsServer)
+            {
+                error = "Deployment server is not ready.";
+                return false;
+            }
+            var card = registry != null ? registry.ResolveCard(cardId) : null;
+            if (card == null || card.linkedMonster == null || card.linkedMonster.prefab == null)
+            {
+                error = $"Scenario card '{cardId}' is unavailable.";
+                return false;
+            }
+            if (laneId < 0 || laneId >= LaneCount || lanePaths[laneId] == null || lanePaths[laneId].Count == 0)
+            {
+                error = $"Scenario lane {laneId} is invalid.";
+                return false;
+            }
+            if (RaidManager.Instance != null && RaidManager.Instance.IsOver)
+            {
+                error = "Raid has already ended.";
+                return false;
+            }
+
+            SpawnMonster(card.linkedMonster, laneId);
+            return true;
+        }
 
         // ---------- UI read helpers (client-safe) ----------
 

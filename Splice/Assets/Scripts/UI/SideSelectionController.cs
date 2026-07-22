@@ -1,3 +1,8 @@
+using Splice.Base;
+using Splice.Characters;
+using Splice.Input;
+using Splice.Network;
+using Splice.Scenes;
 using UnityEngine;
 
 namespace Splice.UI
@@ -30,14 +35,28 @@ namespace Splice.UI
         [Tooltip("Monster/Invader: DeployInputController, การ์ด ฯลฯ")]
         [SerializeField] private GameObject[] monsterObjects;
 
+        [Header("Step 5B — Raid Stake")]
+        [Tooltip("ถ้ามี: ปุ่ม Invader จะเปิด Target Offer และหัก War Gem stake ก่อนเริ่ม raid")]
+        [SerializeField] private LocalRaidStakeController raidStakeController;
+
+        [Header("Step 6E — Incoming Raid View")]
+        [Tooltip("ถ้ามี: ปุ่ม Fort ใช้เปิด simulation มุมผู้ป้องกัน และระบบจะเปิดให้อัตโนมัติเมื่อกด Play")]
+        [SerializeField] private IncomingRaidScenarioController incomingRaidScenarioController;
+        [SerializeField] private RaidSceneCompositionController sceneCompositionController;
+
         private void Start()
         {
+            if (incomingRaidScenarioController == null)
+                incomingRaidScenarioController = FindFirstObjectByType<IncomingRaidScenarioController>();
+            if (sceneCompositionController == null)
+                sceneCompositionController = FindFirstObjectByType<RaidSceneCompositionController>();
             // Nothing is controllable until a side is chosen.
             SetActive(fortObjects, false);
             SetActive(monsterObjects, false);
 
             // While choosing, show the overview camera (or the Fort camera as a fallback backdrop).
-            ActivateOnly(overviewCamera != null ? overviewCamera : fortCamera);
+            if (sceneCompositionController == null)
+                ActivateOnly(overviewCamera != null ? overviewCamera : fortCamera);
 
             if (selectionPanel == null)
             {
@@ -51,17 +70,94 @@ namespace Splice.UI
         }
 
         // Wire to the "Fort" button.
-        public void ChooseFort() => Choose(isFort: true);
+        public void ChooseFort()
+        {
+            if (incomingRaidScenarioController != null)
+            {
+                incomingRaidScenarioController.BeginIncomingRaid();
+                return;
+            }
+            Choose(isFort: true);
+        }
 
         // Wire to the "Monster" button.
-        public void ChooseMonster() => Choose(isFort: false);
+        public void ChooseMonster()
+        {
+            if (raidStakeController != null)
+            {
+                raidStakeController.OpenOffer();
+                return;
+            }
+            Choose(isFort: false);
+        }
+
+        // Called only after the Step 5B offer has successfully debited its idempotent stake transaction.
+        public void ConfirmMonsterRaid() => Choose(isFort: false);
 
         private void Choose(bool isFort)
         {
-            ActivateOnly(isFort ? fortCamera : monsterCamera);
+            if (sceneCompositionController != null)
+                sceneCompositionController.RequestMode(isFort
+                    ? RaidPresentationMode.Defender
+                    : RaidPresentationMode.Attacker);
+            else
+                ActivateOnly(isFort ? fortCamera : monsterCamera);
             SetActive(fortObjects, isFort);
             SetActive(monsterObjects, !isFort);
+            SetHeroFollow(fortCamera, !isFort);
+            SetHeroFollow(monsterCamera, !isFort);
             if (selectionPanel != null) selectionPanel.SetActive(false);
+        }
+
+        // Incoming async raid is spectator-like: the owner watches their authored defense but cannot move
+        // pieces during the immutable snapshot battle. Keep the Fort UI, disable placement controllers, and
+        // never let the camera follow the enemy Hero away from the town.
+        public void EnterIncomingDefenseView()
+        {
+            if (sceneCompositionController != null)
+                sceneCompositionController.RequestMode(RaidPresentationMode.Defender);
+            else
+                ActivateMirroredLegacyDefenderCamera();
+            SetActive(monsterObjects, false);
+            if (fortObjects != null)
+            {
+                foreach (var obj in fortObjects)
+                {
+                    if (obj == null) continue;
+                    var isInputController = obj.GetComponent<TowerPlacementInputController>() != null;
+                    obj.SetActive(!isInputController);
+                }
+            }
+            var activeCamera = sceneCompositionController != null
+                ? sceneCompositionController.ActiveCamera
+                : fortCamera;
+            SetHeroFollow(activeCamera, false);
+            // The split-scene architecture owns only its loaded presentation camera. The legacy
+            // Monster camera can be a destroyed serialized reference after migration, so never
+            // touch it on the composition path (Unity's fake-null references break ?. calls).
+            if (sceneCompositionController == null)
+                SetHeroFollow(monsterCamera, true);
+            if (selectionPanel != null) selectionPanel.SetActive(false);
+        }
+
+        private void ActivateMirroredLegacyDefenderCamera()
+        {
+            if (fortCamera == null || monsterCamera == null)
+            {
+                ActivateOnly(fortCamera);
+                return;
+            }
+            var core = FortCore.Instance != null ? FortCore.Instance : FindFirstObjectByType<FortCore>();
+            var spawner = FindFirstObjectByType<RaidHeroSpawner>();
+            if (core != null && spawner != null && spawner.SpawnPoint != null)
+            {
+                RaidPresentationCameraContract.CalculateMirroredPose(monsterCamera.transform.position,
+                    monsterCamera.transform.eulerAngles, spawner.SpawnPoint.position, core.transform.position,
+                    out var position, out var euler);
+                fortCamera.CopyFrom(monsterCamera);
+                fortCamera.transform.SetPositionAndRotation(position, Quaternion.Euler(euler));
+            }
+            ActivateOnly(fortCamera);
         }
 
         // Enable the given camera's GameObject and disable the other two — so exactly one camera (and one
@@ -76,6 +172,13 @@ namespace Splice.UI
         private static void ToggleCamera(Camera cam, bool on)
         {
             if (cam != null) cam.gameObject.SetActive(on);
+        }
+
+        private static void SetHeroFollow(Camera camera, bool enabled)
+        {
+            if (camera == null) return;
+            var pan = camera.GetComponent<CameraPanController>();
+            if (pan != null) pan.SetHeroFollowEnabled(enabled);
         }
 
         private static void SetActive(GameObject[] objects, bool active)

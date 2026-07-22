@@ -1,4 +1,8 @@
+using System;
 using System.Collections;
+using System.Threading;
+using System.Threading.Tasks;
+using Splice.Backend;
 using Splice.Characters;
 using Splice.Combat;
 using Splice.Core;
@@ -23,12 +27,24 @@ namespace Splice.Base
         [Tooltip("โหลดผังจาก local save อัตโนมัติตอน server เริ่ม — ไว้เทส loop 'ปล้นฐานตัวเอง' ก่อนมีระบบเลือกเป้าหมาย (ขั้น 5.4)")]
         [SerializeField] private bool loadLocalSaveOnSpawn;
 
+        private bool loadQueued;
+        public FactionRegistrySO Registry => registry;
+        public bool HasStartedLoading { get; private set; }
+        public bool HasCompletedLoading { get; private set; }
+        public string LastLoadedSnapshotId { get; private set; } = string.Empty;
+        public int LastLoadedTowerCount { get; private set; }
+        public int LastLoadedGarrisonCount { get; private set; }
+        public int LastLoadedMinerCount { get; private set; }
+
         public override void OnNetworkSpawn()
         {
             if (!IsServer) return;
-            // โหลดถ้ามีเป้าหมายจาก raid flow (5.4) หรือเปิด local test
-            if (RaidContext.HasTarget || loadLocalSaveOnSpawn)
-                StartCoroutine(LoadNextFrame()); // รอ 1 เฟรมให้ NetworkObject ในซีน (GoldController ฯลฯ) spawn ครบก่อน
+            // A scene with RaidSceneAdapter waits for pre-flight validation + stake confirmation. Legacy scenes
+            // keep the old automatic target load path; explicit local-save testing remains available everywhere.
+            if (loadLocalSaveOnSpawn)
+                QueueLoad();
+            else if (RaidContext.HasTarget && FindFirstObjectByType<RaidSceneAdapter>() == null)
+                QueueLoad();
         }
 
         // faction ของเมืองที่โหลด (local test) — Inspector override หรือเผ่าที่เลือกอยู่
@@ -37,24 +53,111 @@ namespace Splice.Base
         private IEnumerator LoadNextFrame()
         {
             yield return null;
+            HasStartedLoading = true;
 
             // เป้าหมายจากจอเลือก raid (5.4) — โหลด snapshot ของเป้าหมายนั้น
             if (RaidContext.HasTarget)
             {
-                LoadIntoMatch(RaidContext.Target.layout);
+                BaseLayout selectedLayout;
+                if (RaidContext.Target.IsSnapshotBacked)
+                {
+                    var snapshotTask = SpliceServiceHub.TownSnapshots.GetByIdAsync(
+                        RaidContext.TargetSnapshotId, CancellationToken.None);
+                    while (!snapshotTask.IsCompleted) yield return null;
+                    if (snapshotTask.IsFaulted)
+                    {
+                        Debug.LogError("[RaidSnapshotLoader] snapshot service failed: " +
+                                       snapshotTask.Exception?.GetBaseException().Message);
+                        loadQueued = false;
+                        yield break;
+                    }
+                    selectedLayout = snapshotTask.Result?.layout;
+                }
+                else
+                {
+                    selectedLayout = RaidContext.Target.layout;
+                }
+                if (selectedLayout == null)
+                {
+                    Debug.LogError("[RaidSnapshotLoader] selected target could not resolve an immutable layout.");
+                    loadQueued = false;
+                    yield break;
+                }
+
+                if (!string.IsNullOrWhiteSpace(RaidContext.TargetSnapshotId))
+                    Debug.Log($"[RaidSnapshotLoader] resolving immutable snapshot {RaidContext.TargetSnapshotId} " +
+                              $"v{RaidContext.TargetSnapshotRevision}; Draft storage is not consulted.");
+                LastLoadedSnapshotId = RaidContext.TargetSnapshotId;
+                LoadIntoMatch(selectedLayout);
                 yield break;
             }
 
             // local test: โหลดผังเมืองตัวเองจาก save (เทส loop ก่อนมีจอเลือกเป้า)
-            var layout = PlayerBaseStore.LoadLayout(CityFactionId);
+            var draftTask = SpliceServiceHub.TownSnapshots.GetCheckedOutDraftAsync(
+                CityFactionId, CancellationToken.None);
+            while (!draftTask.IsCompleted) yield return null;
+            if (draftTask.IsFaulted)
+            {
+                Debug.LogError("[RaidSnapshotLoader] draft service failed: " +
+                               draftTask.Exception?.GetBaseException().Message);
+                loadQueued = false;
+                yield break;
+            }
+            var layout = draftTask.Result?.checkedOutLayout;
             if (layout != null) LoadIntoMatch(layout);
             else Debug.LogWarning($"[RaidSnapshotLoader] ไม่มี BaseLayout ของ faction '{CityFactionId}' ใน local save — ข้าม (จัดเมือง/capture ก่อน)");
+            loadQueued = false;
+        }
+
+        public bool CanLoadSelectedTarget(out string error)
+        {
+            if (!IsSpawned || !IsServer)
+            {
+                error = "Raid snapshot server is not ready.";
+                return false;
+            }
+            if (registry == null)
+            {
+                error = "Faction registry is missing from RaidSnapshotLoader.";
+                return false;
+            }
+            if (loadQueued || HasStartedLoading || HasCompletedLoading)
+            {
+                error = "Raid snapshot loading has already started.";
+                return false;
+            }
+            if (!RaidContext.HasTarget)
+            {
+                error = "Selected raid target has no resolvable immutable layout.";
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        public bool TryLoadSelectedTarget(out string error)
+        {
+            if (!CanLoadSelectedTarget(out error)) return false;
+            QueueLoad();
+            return true;
+        }
+
+        private void QueueLoad()
+        {
+            if (loadQueued || HasStartedLoading || HasCompletedLoading) return;
+            loadQueued = true;
+            StartCoroutine(LoadNextFrame()); // wait for in-scene NetworkObjects to finish spawning
         }
 
         // จุดเข้าเดียวของการโหลด snapshot เข้าแมตช์ — ขั้น 5.4 (raid flow) จะส่ง layout ของเป้าหมายจริงมาที่นี่
         public void LoadIntoMatch(BaseLayout layout)
         {
-            if (!IsServer || layout == null || registry == null) return;
+            if (!IsServer || layout == null || registry == null)
+            {
+                loadQueued = false;
+                return;
+            }
 
             var towers = 0;
             foreach (var data in layout.towers)
@@ -74,6 +177,12 @@ namespace Splice.Base
             var garrison = 0;
             foreach (var data in layout.garrison)
                 if (SpawnGarrison(data)) garrison++;
+
+            LastLoadedTowerCount = towers;
+            LastLoadedGarrisonCount = garrison;
+            LastLoadedMinerCount = miners;
+            HasCompletedLoading = true;
+            loadQueued = false;
 
             Debug.Log($"[RaidSnapshotLoader] โหลดเมืองตั้งรับ: ป้อม {towers}, garrison {garrison}, miner {miners}, ทองคลัง {layout.storedGold}");
         }
@@ -147,7 +256,9 @@ namespace Splice.Base
         // เล่นฝั่ง Fort วางป้อมตามใจ → คลิกขวาที่ component นี้ (ตอน Play, เครื่อง host) → เลือกเมนูนี้
         // → รันใหม่โดยติ๊ก loadLocalSaveOnSpawn = ป้อมชุดเดิมโผล่เอง
         [ContextMenu("Debug/Capture Scene Towers -> Save Layout")]
-        private void DebugCaptureSceneToSave()
+        private void DebugCaptureSceneToSave() => _ = DebugCaptureSceneToSaveAsync();
+
+        private async Task DebugCaptureSceneToSaveAsync()
         {
             if (!IsServer || registry == null)
             {
@@ -162,7 +273,9 @@ namespace Splice.Base
                 return;
             }
 
-            var layout = PlayerBaseStore.LoadLayout(fid) ?? new BaseLayout();
+            var draft = await SpliceServiceHub.TownSnapshots.GetCheckedOutDraftAsync(
+                fid, CancellationToken.None);
+            var layout = draft?.checkedOutLayout ?? new BaseLayout();
             layout.factionId = fid;
             layout.ownerAccountId = PlayerProfile.AccountId;
             layout.towers.Clear();
@@ -194,7 +307,8 @@ namespace Splice.Base
             var bank = GoldController.For(defendSide);
             if (bank != null) layout.storedGold = bank.CurrentGold;
 
-            PlayerBaseStore.SaveLayout(layout);
+            await SpliceServiceHub.TownSnapshots.SaveCheckedOutDraftAsync(layout,
+                Guid.NewGuid().ToString("N"), CancellationToken.None);
             Debug.Log($"[RaidSnapshotLoader] capture แล้ว: ป้อม {layout.towers.Count}, ทองคลัง {layout.storedGold} → local save");
         }
     }

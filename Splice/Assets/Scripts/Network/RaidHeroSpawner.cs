@@ -1,3 +1,4 @@
+using Splice.Base;
 using Splice.Characters;
 using Splice.Core;
 using Splice.Data;
@@ -15,9 +16,31 @@ namespace Splice.Network
         [Tooltip("ใช้เมื่อ profile ยังไม่ได้เลือก Hero — เว้นว่าง = ตัวแรกใน registry")]
         [SerializeField] private string debugFallbackHeroId;
 
+        private bool waitForCommittedSession;
+        private bool spawnAttempted;
+
+        public Transform SpawnPoint => spawnPoint;
+
         public override void OnNetworkSpawn()
         {
-            if (!IsServer || RaidHeroCharacter.Instance != null) return;
+            if (!IsServer) return;
+            waitForCommittedSession = FindFirstObjectByType<RaidSceneAdapter>() != null;
+            TrySpawnWhenReady();
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            spawnAttempted = false;
+            base.OnNetworkDespawn();
+        }
+
+        private void Update() => TrySpawnWhenReady();
+
+        private void TrySpawnWhenReady()
+        {
+            if (!IsSpawned || !IsServer || spawnAttempted || RaidHeroCharacter.Instance != null) return;
+            if (waitForCommittedSession && !RaidSessionContext.IsStarted) return;
+            spawnAttempted = true;
             SpawnSelectedHero();
         }
 
@@ -58,8 +81,6 @@ namespace Splice.Network
 
         private ulong ResolveOwnerClientId()
         {
-            // In a local host the server client is also the player. Dedicated matchmaking will inject the
-            // real attacker client id before this spawner is used in PvP/PvBot.
             return NetworkManager.ServerClientId;
         }
     }

@@ -59,6 +59,16 @@ namespace Splice.Characters
         [Tooltip("ขอบเขตตำแหน่ง Hero — เว้นว่าง = ไม่ clamp")]
         [SerializeField] private BoxCollider movementBounds;
 
+        [Header("Squad Focus Order")]
+        [Tooltip("ยูนิตฝ่ายบุกที่อยู่ไม่เกินรัศมีนี้จาก Hero ตอนยืนยันเป้าหมายจะรับคำสั่งช่วยโจมตี")]
+        [Min(1f)] [SerializeField] private float squadCommandRadius = 16f;
+        [Tooltip("เวลาสูงสุดที่กองทัพทำตามคำสั่ง ก่อนกลับ lane AI เดิม")]
+        [Min(0.5f)] [SerializeField] private float squadCommandDuration = 10f;
+        [Tooltip("ระยะสูงสุดที่ยูนิตหนึ่งตัวออกจากจุดรับคำสั่ง เพื่อป้องกันการลากข้ามทั้งแผนที่")]
+        [Min(1f)] [SerializeField] private float squadMaxTravelDistance = 24f;
+        [Tooltip("ยกเลิกคำสั่งเมื่อยูนิตอยู่นอกระยะโจมตีและไม่เข้าใกล้เป้าหมายต่อเนื่องนานเท่านี้")]
+        [Min(0.5f)] [SerializeField] private float squadStalledSeconds = 2.5f;
+
         private readonly NetworkVariable<HeroControlMode> controlMode = new(
             HeroControlMode.Auto, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
         private readonly NetworkVariable<HeroLifeState> lifeState = new(
@@ -101,6 +111,17 @@ namespace Splice.Characters
         public bool IsTacticalAbilityReady => TacticalAbility != null && tacticalAbilityCooldownRemaining.Value <= 0f;
         public bool HasFocusTarget => hasFocusTarget.Value;
         public bool CanAct => lifeState.Value == HeroLifeState.Active && !IsDead;
+        public float SquadCommandRadius => squadCommandRadius;
+
+        // Shared client/server preview predicate. The server still repeats every check when assigning the
+        // actual command, but presentation can highlight the same recruitment snapshot before confirmation.
+        public bool IsSquadCommandCandidate(MonsterCharacter monster)
+        {
+            if (monster == null || monster.IsDead || monster.Side != side || monster.Side != RaidSide.Attacker)
+                return false;
+            return HorizontalSqrDistance(monster.transform.position, transform.position) <=
+                   squadCommandRadius * squadCommandRadius;
+        }
 
         public void Initialize(HeroDefinitionSO heroDefinition, RaidSide owningSide = RaidSide.Attacker)
         {
@@ -282,7 +303,7 @@ namespace Splice.Characters
         {
             if (!CanControl(rpcParams.Receive.SenderClientId)) return;
             if (!CanAct || (RaidManager.Instance != null && RaidManager.Instance.IsOver) ||
-                !TryResolveRequestedFocusTarget(requestedTarget, out _))
+                !TryResolveRequestedFocusTarget(requestedTarget, out var target))
             {
                 PublishFeedback(HeroFeedback.FocusTargetRejected);
                 return;
@@ -291,7 +312,8 @@ namespace Splice.Characters
             // Write the reference before the flag so clients never observe "has target" with an old ref.
             focusTarget.Value = requestedTarget;
             hasFocusTarget.Value = true;
-            PublishFeedback(HeroFeedback.FocusTargetSet);
+            var assignedUnitCount = IssueSquadFocusOrder(target);
+            PublishFeedback(HeroFeedback.FocusTargetSet, assignedUnitCount);
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -425,9 +447,40 @@ namespace Splice.Characters
         {
             if (!IsServer) return;
             var hadTarget = hasFocusTarget.Value;
+            if (hadTarget) ClearSquadFocusOrders();
             hasFocusTarget.Value = false;
             focusTarget.Value = default;
             if (hadTarget || feedback == HeroFeedback.FocusTargetRejected) PublishFeedback(feedback);
+        }
+
+        private int IssueSquadFocusOrder(CharacterBase target)
+        {
+            ClearSquadFocusOrders();
+            var assigned = 0;
+            var monsters = MonsterCharacter.Active;
+            for (var i = 0; i < monsters.Count; i++)
+            {
+                var monster = monsters[i];
+                if (!IsSquadCommandCandidate(monster)) continue;
+
+                if (monster.TryAssignTacticalFocusTarget(
+                        target,
+                        squadCommandDuration,
+                        squadMaxTravelDistance,
+                        squadStalledSeconds))
+                    assigned++;
+            }
+            return assigned;
+        }
+
+        private void ClearSquadFocusOrders()
+        {
+            var monsters = MonsterCharacter.Active;
+            for (var i = 0; i < monsters.Count; i++)
+            {
+                var monster = monsters[i];
+                if (monster != null && monster.Side == side) monster.ClearTacticalFocusTarget();
+            }
         }
 
         private bool IsWithinHorizontalRange(CharacterBase target, float range) =>

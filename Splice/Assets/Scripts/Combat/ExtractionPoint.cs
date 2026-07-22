@@ -8,6 +8,7 @@ namespace Splice.Combat
     {
         [SerializeField] private RaidManager raidManager;
         [SerializeField] private RaidLootController lootController;
+        [SerializeField] private BreachRingController breachRingController;
         [Tooltip("เมื่อถอนที่ checkpoint ให้นำของที่กำลังแบกเข้า Secured ก่อนจบ raid")]
         [SerializeField] private bool secureCarriedOnExtract = true;
         [Tooltip("ป้องกันการถอนเปล่าใน prototype")]
@@ -17,6 +18,12 @@ namespace Splice.Combat
         {
             ResolveReferences();
             if (raidManager == null || lootController == null || !raidManager.IsServer || raidManager.IsOver)
+                return false;
+
+            // Three-ring raids open the retreat decision only after the first meaningful breach. Legacy
+            // scenes without ring objectives preserve the pre-Step-5 extraction contract.
+            if (breachRingController != null && breachRingController.HasRingObjectives &&
+                !breachRingController.CanExtract)
                 return false;
 
             if (secureCarriedOnExtract) lootController.SecureCarried();
@@ -29,6 +36,7 @@ namespace Splice.Combat
         {
             if (raidManager == null) raidManager = FindFirstObjectByType<RaidManager>();
             if (lootController == null) lootController = FindFirstObjectByType<RaidLootController>();
+            if (breachRingController == null) breachRingController = FindFirstObjectByType<BreachRingController>();
         }
 
         [ContextMenu("Debug/Extract Now")]

@@ -1,4 +1,5 @@
 using System;
+using Splice.Base;
 using Splice.Characters;
 using Splice.Core;
 using Unity.Netcode;
@@ -65,6 +66,8 @@ namespace Splice.Combat
         // Becomes true once the Fort has actually spawned and is alive; lets us tell "Fort not spawned yet"
         // apart from "Fort destroyed" when polling.
         private bool fortSeen;
+        private bool sessionGateRequired;
+        private bool matchClockStarted;
 
         public override void OnNetworkSpawn()
         {
@@ -72,6 +75,8 @@ namespace Splice.Combat
             outcome.OnValueChanged += HandleOutcomeChanged;
             if (!IsServer) return;
             remainingSeconds.Value = matchDurationSeconds;
+            sessionGateRequired = FindFirstObjectByType<RaidSceneAdapter>() != null;
+            matchClockStarted = !sessionGateRequired;
         }
 
         public override void OnNetworkDespawn()
@@ -83,6 +88,14 @@ namespace Splice.Combat
         private void Update()
         {
             if (!IsServer || outcome.Value != RaidOutcome.InProgress) return;
+            if (sessionGateRequired && !RaidSessionContext.IsStarted) return;
+            if (!matchClockStarted)
+            {
+                matchClockStarted = true;
+                fortSeen = false;
+                remainingSeconds.Value = matchDurationSeconds;
+                Debug.Log($"[Raid] match clock started after raid session {RaidSessionContext.Current?.raidId} committed.", this);
+            }
 
             // Fort destroyed = invaders win. Polled (not event-subscribed) so it's robust to scene spawn
             // order — the Fort may spawn after this manager, and on death it despawns (Instance → null).
@@ -116,6 +129,17 @@ namespace Splice.Combat
         {
             if (!IsServer || IsOver) return false;
             EndRaid(RaidOutcome.Extracted, RaidEndReason.ExtractionCompleted);
+            return true;
+        }
+
+        // Server-only scenario tuning. Used by the incoming-defense viewer so its visible proof completes
+        // quickly without changing the authored duration for normal raids.
+        public bool TrySetScenarioTimeLimit(float seconds)
+        {
+            if (!IsSpawned || !IsServer || IsOver) return false;
+            matchDurationSeconds = Mathf.Max(10f, seconds);
+            remainingSeconds.Value = matchDurationSeconds;
+            matchClockStarted = RaidSessionContext.IsStarted || !sessionGateRequired;
             return true;
         }
 

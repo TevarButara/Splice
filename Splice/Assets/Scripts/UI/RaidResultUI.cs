@@ -18,6 +18,9 @@ namespace Splice.UI
         [SerializeField] private TMP_Text lootLabel;
         [SerializeField] private Button playAgainButton;
 
+        private RaidOutcome shownOutcome = RaidOutcome.InProgress;
+        private RaidEndReason shownReason = RaidEndReason.None;
+
         private void Awake()
         {
             if (resultPanel != null) resultPanel.SetActive(false);
@@ -36,17 +39,38 @@ namespace Splice.UI
 
         private void HandleRaidEnded(RaidOutcome outcome)
         {
+            shownOutcome = outcome;
+            shownReason = raidManager != null ? raidManager.EndReason : RaidEndReason.None;
             if (resultPanel != null) resultPanel.SetActive(true);
-            if (resultLabel != null) resultLabel.text = ResultText(outcome, raidManager.EndReason);
+            RefreshResultLabel();
         }
 
         // อ่าน loot ทุกเฟรมตอน panel โชว์ — กันปัญหาลำดับ event (RaidRewardController อาจ set ทีหลัง)
         private void Update()
         {
-            if (lootLabel == null) return;
             var show = resultPanel != null && resultPanel.activeSelf && RaidContext.LastLootGained > 0;
-            lootLabel.text = show ? $"+{RaidContext.LastLootGained} ทอง" : string.Empty;
+            if (lootLabel != null) lootLabel.text = show ? $"+{RaidContext.LastLootGained} ทอง" : string.Empty;
+            if (resultPanel != null && resultPanel.activeSelf) RefreshResultLabel();
         }
+
+        private void RefreshResultLabel()
+        {
+            if (resultLabel == null || shownOutcome == RaidOutcome.InProgress) return;
+            var incomingDefense = Splice.Core.RaidSessionContext.Current?.isIncomingDefense == true;
+            var text = incomingDefense
+                ? DefenseResultText(shownOutcome, shownReason)
+                : ResultText(shownOutcome, shownReason);
+            if (!incomingDefense && RaidContext.HasLastWarGemSettlement)
+            {
+                // The legacy result headline is intentionally very large. Keep the economy line compact so
+                // it remains one readable line and does not collide with the Play Again button.
+                text += $"\n<size=45%>WAR GEMS  PAYOUT +{RaidContext.LastWarGemPayout}  •  " +
+                        $"NET {Signed(RaidContext.LastWarGemNet)}  •  BAL {RaidContext.LastWarGemBalance}</size>";
+            }
+            resultLabel.text = text;
+        }
+
+        private static string Signed(int value) => value >= 0 ? $"+{value}" : value.ToString();
 
         private static string ResultText(RaidOutcome outcome, RaidEndReason reason)
         {
@@ -57,6 +81,18 @@ namespace Splice.UI
                 RaidEndReason.TimerExpired => "Raid Failed! (Time)",
                 RaidEndReason.AttackerEliminated => "Raid Failed! (Army Eliminated)",
                 _ => "Raid Failed!"
+            };
+        }
+
+        private static string DefenseResultText(RaidOutcome outcome, RaidEndReason reason)
+        {
+            if (outcome == RaidOutcome.FullVictory) return "Defense Breached! (Core Destroyed)";
+            if (outcome == RaidOutcome.Extracted) return "Raiders Escaped!";
+            return reason switch
+            {
+                RaidEndReason.TimerExpired => "Defense Held! (Time Survived)",
+                RaidEndReason.AttackerEliminated => "Defense Held! (Raiders Eliminated)",
+                _ => "Defense Held!"
             };
         }
 

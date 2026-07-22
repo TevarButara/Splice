@@ -12,12 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cf865d68022b14f4b94f8aaaab26552c, type: 3}
   m_Name: Projectile_1_mendcap-lv1
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.ProjectileDefinitionSO
-  projectilePrefab: {fileID: 7627304123461817746, guid: da19500b9893b154592c67d489880b71, type: 3}
+  projectilePrefab: {fileID: 7627304123461817746, guid: a93def3a7f2ff4a27a8e48c6e547f038, type: 3}
   startSpeed: 12
   endSpeed: 14
   minFlightSeconds: 0.08
   minHeight: 0.5
   maxHeight: 2
   maxLifetime: 6
-  launchEffect: {fileID: 2114415160723529283, guid: 3a12eb215c4bbc44981b4a0fa95357f1, type: 3}
-  impactEffect: {fileID: 1945117620317266661, guid: dc8c0ad5fdc84a847bdb89706f819fee, type: 3}
+  launchEffect: {fileID: 296538973387200349, guid: 74e1f35c63373a04183a02de73efe471, type: 3}
+  impactEffect: {fileID: 5821367000186595868, guid: da19f95c7a73443bab3fccbe95789bcb, type: 3}

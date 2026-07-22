@@ -18,7 +18,7 @@ MonoBehaviour:
   icon: {fileID: 0}
   castRange: 7
   effectRadius: 2.5
-  damage: 200
-  cooldownSeconds: 1
+  damage: 300
+  cooldownSeconds: 0.2
   castEffectPrefab: {fileID: 2918079810098078142, guid: 4dcb4c4ad1efd4c43bd3226cd86f98d9, type: 3}
   castEffectLifetime: 2

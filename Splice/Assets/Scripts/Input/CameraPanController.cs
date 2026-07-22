@@ -86,6 +86,7 @@ namespace Splice.Input
         private bool hasFocus;
         private Camera cam;
         private float heroFollowSuspendedUntil;
+        private bool heroFollowRuntimeEnabled = true;
 
         private static readonly List<RaycastResult> uiHits = new();
 
@@ -108,6 +109,14 @@ namespace Splice.Input
         {
             heroFollowSuspendedUntil = 0f;
             TickHeroFollow(immediate: true);
+        }
+
+        // Defender spectator mode watches the town rather than centering the locally-owned simulated attacker.
+        public void SetHeroFollowEnabled(bool enabled)
+        {
+            heroFollowRuntimeEnabled = enabled;
+            if (!enabled) heroFollowSuspendedUntil = float.PositiveInfinity;
+            else heroFollowSuspendedUntil = 0f;
         }
 
         // wire ปุ่ม → สลับมุมมอง บน (topDownAngle) ↔ เอียง (tiltAngle) แบบ smooth หมุนรอบ "จุด focus"
@@ -189,6 +198,7 @@ namespace Splice.Input
 
         private void TickHeroFollow(bool immediate)
         {
+            if (!heroFollowRuntimeEnabled) return;
             var hero = RaidHeroCharacter.Instance;
             if (hero == null || !hero.IsOwner || hero.LifeState != HeroLifeState.Active || isTilting ||
                 returningHome || Time.unscaledTime < heroFollowSuspendedUntil)

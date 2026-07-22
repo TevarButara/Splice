@@ -88,7 +88,7 @@ namespace Splice.Characters
         // `source` = ผู้โจมตี (เว้น null ได้). ใช้ให้เป้ารู้ว่าใครตี (เช่น monster aggro ป้อมที่ยิงมัน).
         public void ApplyDamage(int amount, CharacterBase source)
         {
-            if (!IsServer || IsDead || amount <= 0) return;
+            if (!IsServer || IsDead || amount <= 0 || !CanReceiveDamage(amount, source)) return;
 
             // Armor mitigates by percentage; always at least 1 so armor can never fully negate a hit.
             var mitigated = Mathf.Max(1, Mathf.RoundToInt(amount * 100f / (100 + Mathf.Max(0, armor.Value))));
@@ -115,6 +115,10 @@ namespace Splice.Characters
 
         // Server-only hook: ถูกโจมตีโดย `source` และยังไม่ตาย. subclass override เพื่อ react (เช่น aggro).
         protected virtual void OnDamagedBy(CharacterBase source) { }
+
+        // Server-side damage gate for explicit objectives such as a Core protected by breach rings. The
+        // default remains fully backward-compatible; subclasses may reject a hit before armor/shield/HP.
+        protected virtual bool CanReceiveDamage(int amount, CharacterBase source) => true;
 
         // What happens to the object once HP hits 0. Default: remove it from the world. Overridable so
         // special characters (e.g. the Fort core) can stay in the scene as a destroyed husk for a death

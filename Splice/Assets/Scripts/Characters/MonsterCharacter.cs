@@ -29,7 +29,11 @@ namespace Splice.Characters
     public class MonsterCharacter : CharacterBase
     {
         private static readonly List<MonsterCharacter> active = new();
+        private static readonly List<MonsterCharacter> instances = new();
         public static IReadOnlyList<MonsterCharacter> Active => active;
+        // Presentation-safe list populated on server and remote clients. Gameplay authority must keep
+        // using Active, while HUD/marker code can read Instances without doing scene-wide searches.
+        public static IReadOnlyList<MonsterCharacter> Instances => instances;
 
         public RaidSide Side => side;
         private bool IsGarrison => side == RaidSide.Defender;
@@ -56,6 +60,13 @@ namespace Splice.Characters
         private readonly NetworkVariable<float> mana = new(
             0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        // Minimal replicated presentation state for Step 4D. The target/AI remain server-only; clients only
+        // learn whether this unit has an order and its server-time expiry for marker/timer rendering.
+        private readonly NetworkVariable<bool> hasTacticalFocusOrder = new(
+            false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<double> tacticalFocusEndServerTime = new(
+            0d, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         // Timed buff (server-only) from a supporter's Buff spell — refresh + strongest (single slot, take max).
         private float buffAttackMult = 1f;
         private float buffMoveMult = 1f;
@@ -65,6 +76,18 @@ namespace Splice.Characters
         public bool IsSupporter => definition != null && definition.role == MonsterRole.Supporter && definition.spell != null;
         public float Mana => mana.Value;
         public float ManaMaxValue => ManaMax;
+        public bool HasTacticalFocusOrder => hasTacticalFocusOrder.Value;
+        public float TacticalFocusOrderRemaining
+        {
+            get
+            {
+                if (!hasTacticalFocusOrder.Value) return 0f;
+                var now = NetworkManager != null && IsSpawned
+                    ? NetworkManager.ServerTime.Time
+                    : Time.timeAsDouble;
+                return Mathf.Max(0f, (float)(tacticalFocusEndServerTime.Value - now));
+            }
+        }
 
         // Effective combat stats = base × active buffs (attack speed shortens cooldown).
         private int EffectiveAttackDamage => definition == null ? 0 : Mathf.RoundToInt(definition.attackDamage * buffAttackMult);
@@ -84,6 +107,16 @@ namespace Splice.Characters
         private TowerCharacter aggroTower;
         private float engageStartTime;
         private readonly HashSet<TowerCharacter> engagedTowers = new();  // ป้อมที่เคยแวะตีแล้ว — ไม่ aggro ซ้ำ (ไม่วิ่งย้อนกลับ)
+
+        // Temporary Hero-issued squad order. Server-only: clients receive movement/animation through the
+        // existing NetworkTransform and animState, so this cannot become a second source of authority.
+        private CharacterBase tacticalFocusTarget;
+        private float tacticalFocusExpiresAt;
+        private Vector3 tacticalFocusOrigin;
+        private float tacticalFocusMaxTravelDistance;
+        private float tacticalFocusBestDistance;
+        private float tacticalFocusLastProgressAt;
+        private float tacticalFocusStalledSeconds;
 
         private bool dying;
         private float deathTimer;
@@ -147,6 +180,8 @@ namespace Splice.Characters
             animState.OnValueChanged += HandleAnimChanged;
             PlayAnim(animState.Value);
 
+            if (!instances.Contains(this)) instances.Add(this);
+
             if (!IsServer) return;
 
             active.Add(this);
@@ -158,6 +193,7 @@ namespace Splice.Characters
         public override void OnNetworkDespawn()
         {
             animState.OnValueChanged -= HandleAnimChanged;
+            instances.Remove(this);
             active.Remove(this);
             base.OnNetworkDespawn();
         }
@@ -195,6 +231,7 @@ namespace Splice.Characters
             }
             if (IsDead)
             {
+                ClearTacticalFocusTarget();
                 dying = true;
                 deathTimer = definition.deathAnimSeconds;
                 SetAnim(MonsterAnim.Death);
@@ -204,6 +241,7 @@ namespace Splice.Characters
             // Game over → victory (invaders won) / lose pose, then freeze in place.
             if (IsMatchOver(out var invadersWon))
             {
+                ClearTacticalFocusTarget();
                 // มุมมองของตัวเอง: Attacker ชนะเมื่อ invaders ชนะ / Defender (garrison) ชนะเมื่อ invaders แพ้
                 var thisSideWon = invadersWon == (side == RaidSide.Attacker);
                 SetAnim(thisSideWon ? MonsterAnim.Victory : MonsterAnim.Lose);
@@ -242,6 +280,10 @@ namespace Splice.Characters
             }
 
             attackTimer += Time.deltaTime;
+
+            // A Hero squad command temporarily overrides roadside aggro/lane marching. It is intentionally
+            // bounded by time, travel distance and progress so one unreachable order cannot steal a unit.
+            if (TryRunTacticalFocusOrder()) return;
 
             // ป้อมข้างทางที่ "ยิงเรา" (aggro) → แวะวิ่งไปตีตามระยะตัวเอง ตีครบ roadsideEngageSeconds แล้วเดินต่อ.
             // Fort ในระยะมาก่อนเสมอ = objective → ทิ้ง aggro ป้อมข้างทาง
@@ -336,6 +378,90 @@ namespace Splice.Characters
         }
 
         // ---------- Roadside aggro (แวะตีเฉพาะป้อมที่ยิงเรา) ----------
+
+        // Server entry point used by the Raid Hero after a validated Focus Target order. Only mobile
+        // attacker units can join; defender garrisons keep their base-defense contract unchanged.
+        public bool TryAssignTacticalFocusTarget(
+            CharacterBase target,
+            float durationSeconds,
+            float maxTravelDistance,
+            float stalledSeconds)
+        {
+            if (!IsServer || definition == null || IsGarrison || side != RaidSide.Attacker ||
+                !IsValidTacticalFocusTarget(target))
+                return false;
+
+            tacticalFocusTarget = target;
+            tacticalFocusExpiresAt = Time.time + Mathf.Max(0.1f, durationSeconds);
+            tacticalFocusOrigin = transform.position;
+            tacticalFocusMaxTravelDistance = Mathf.Max(definition != null ? definition.attackRange : 0f, maxTravelDistance);
+            tacticalFocusBestDistance = HorizontalDistance(transform.position, target.transform.position);
+            tacticalFocusLastProgressAt = Time.time;
+            tacticalFocusStalledSeconds = Mathf.Max(0.5f, stalledSeconds);
+            tacticalFocusEndServerTime.Value = NetworkManager.ServerTime.Time + Mathf.Max(0.1f, durationSeconds);
+            hasTacticalFocusOrder.Value = true;
+            return true;
+        }
+
+        public void ClearTacticalFocusTarget()
+        {
+            if (!IsServer || (!hasTacticalFocusOrder.Value && tacticalFocusTarget == null)) return;
+            var hadOrder = hasTacticalFocusOrder.Value || tacticalFocusTarget != null;
+            tacticalFocusTarget = null;
+            tacticalFocusExpiresAt = 0f;
+            hasTacticalFocusOrder.Value = false;
+            tacticalFocusEndServerTime.Value = 0d;
+            if (hadOrder) SnapToNearestForwardWaypoint();
+        }
+
+        private bool TryRunTacticalFocusOrder()
+        {
+            if (tacticalFocusTarget == null)
+            {
+                if (hasTacticalFocusOrder.Value) ClearTacticalFocusTarget();
+                return false;
+            }
+            if (!IsValidTacticalFocusTarget(tacticalFocusTarget) ||
+                Time.time >= tacticalFocusExpiresAt ||
+                HorizontalDistance(tacticalFocusOrigin, transform.position) > tacticalFocusMaxTravelDistance)
+            {
+                ClearTacticalFocusTarget();
+                return false;
+            }
+
+            var distance = HorizontalDistance(transform.position, tacticalFocusTarget.transform.position);
+            if (distance <= definition.attackRange)
+            {
+                HoldAndSpread();
+                FaceTarget(tacticalFocusTarget.transform.position);
+                if (attackTimer >= EffectiveAttackCooldown) StartAttack(tacticalFocusTarget);
+                else SetAnim(MonsterAnim.Idle);
+                return true;
+            }
+
+            // Progress watchdog applies only while approaching. Remaining still while attacking is valid.
+            if (distance + 0.15f < tacticalFocusBestDistance)
+            {
+                tacticalFocusBestDistance = distance;
+                tacticalFocusLastProgressAt = Time.time;
+            }
+            else if (Time.time - tacticalFocusLastProgressAt >= tacticalFocusStalledSeconds)
+            {
+                ClearTacticalFocusTarget();
+                return false;
+            }
+
+            MoveTowardPoint(tacticalFocusTarget.transform.position);
+            SetAnim(IsInjured() ? MonsterAnim.InjuredWalk : MonsterAnim.Walk);
+            return true;
+        }
+
+        private bool IsValidTacticalFocusTarget(CharacterBase target)
+        {
+            if (target == null || target.IsDead) return false;
+            if (target is TowerCharacter tower) return tower is not FortCore;
+            return target is MonsterCharacter monster && monster.side != side;
+        }
 
         // ถูกป้อมยิง → aggro แวะตีป้อมนั้น (เฉพาะ Attacker, ไม่ใช่ Fort, ไม่อยู่ช่วง immune, ไม่ได้ engage อยู่แล้ว)
         protected override void OnDamagedBy(CharacterBase source)

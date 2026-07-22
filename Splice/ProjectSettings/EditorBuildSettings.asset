@@ -6,10 +6,16 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/=======SCENES/SampleScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
-  - enabled: 1
     path: Assets/=======SCENES/Bootstrap.unity
     guid: ccd5a5bde4ecf4e6a838553d458f9ecc
+  - enabled: 1
+    path: Assets/=======SCENES/RaidArena.unity
+    guid: 25c4e79f648f94185ac8859c551e1f0c
+  - enabled: 1
+    path: Assets/=======SCENES/RaidAttackerPresentation.unity
+    guid: 8b3fcd5c5f7624d909229d5ed87efc06
+  - enabled: 1
+    path: Assets/=======SCENES/RaidDefenderPresentation.unity
+    guid: a7527358ae7fd4d2eb90864843d18931
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

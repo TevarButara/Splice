@@ -15,12 +15,17 @@ namespace Splice.Base
         [Tooltip("เพดานฝ่ายรับ (used/max) — DefenseCapacity")]
         [SerializeField] private TMP_Text capacityLabel;
 
-        private void Update()
+        private void OnEnable() => InvokeRepeating(nameof(Refresh), 0f, .15f);
+
+        private void OnDisable() => CancelInvoke(nameof(Refresh));
+
+        private void Refresh()
         {
             if (buildManager == null) return;
-            if (costLabel != null) costLabel.text = $"ต้องจ่าย: {buildManager.NetCost}";
-            if (walletLabel != null) walletLabel.text = $"ทอง: {buildManager.WalletGold}";
-            if (capacityLabel != null) capacityLabel.text = $"Defense: {buildManager.UsedCapacity}/{buildManager.DefenseCapacity}";
+            if (costLabel != null) costLabel.text = $"COST  •  {buildManager.NetCost:N0}";
+            if (walletLabel != null) walletLabel.text = $"GOLD  •  {buildManager.WalletGold:N0}";
+            if (capacityLabel != null) capacityLabel.text =
+                $"DEFENSE  •  {buildManager.UsedCapacity}/{buildManager.DefenseCapacity}";
         }
     }
 }

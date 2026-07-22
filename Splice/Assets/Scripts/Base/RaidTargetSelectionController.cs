@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Splice.Core;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -14,13 +17,35 @@ namespace Splice.Base
         [SerializeField] private string raidSceneName = "Raid_Greybox";
 
         private List<RaidTarget> targets = new();
+        private CancellationTokenSource lifetimeCancellation;
         public IReadOnlyList<RaidTarget> Targets => targets;
 
+        private void Awake() => lifetimeCancellation = new CancellationTokenSource();
         private void Start() => Refresh();
-
-        public void Refresh()
+        private void OnDestroy()
         {
-            targets = provider != null ? provider.GenerateTargets() : new List<RaidTarget>();
+            lifetimeCancellation?.Cancel();
+            lifetimeCancellation?.Dispose();
+            lifetimeCancellation = null;
+        }
+
+        public void Refresh() => _ = RefreshAsync();
+
+        public async Task RefreshAsync()
+        {
+            if (provider == null || lifetimeCancellation == null)
+            {
+                targets = new List<RaidTarget>();
+                return;
+            }
+            try
+            {
+                targets = await provider.GenerateTargetsAsync(lifetimeCancellation.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Scene teardown owns cancellation.
+            }
         }
 
         // wire ปุ่มเป้าหมาย → Raid(index)
@@ -28,18 +53,16 @@ namespace Splice.Base
         {
             if (index < 0 || index >= targets.Count) return;
             var target = targets[index];
-            if (target.layout == null) return;
-
-            // กติกากัน exploit ข้อ 2 (architecture §5.10): บุกเมืองของบัญชีตัวเองไม่ได้
-            if (target.layout.ownerAccountId == PlayerProfile.AccountId)
+            if (!RaidContext.TrySelectTarget(target, PlayerProfile.ActiveFactionId, PlayerProfile.AccountId,
+                    out var error))
             {
-                Debug.LogWarning("[Raid] บุกเมืองของตัวเองไม่ได้ (attacker ≠ defender)");
+                Debug.LogWarning($"[Raid] target rejected: {error}");
                 return;
             }
 
-            RaidContext.Target = target;
-            RaidContext.AttackerFactionId = PlayerProfile.ActiveFactionId;
-            RaidContext.LastLootGained = 0;
+            Debug.Log(target.IsSnapshotBacked
+                ? $"[Raid] locked immutable snapshot {target.snapshotId} v{target.snapshotRevision} before scene load."
+                : $"[Raid] locked bot target {target.targetId} before scene load.");
             SceneManager.LoadScene(raidSceneName);
         }
     }

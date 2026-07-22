@@ -15,10 +15,10 @@ MonoBehaviour:
   monsterId: 3
   displayName: Raptor lv3
   maxHealth: 1000
-  attackDamage: 200
+  attackDamage: 20
   attackCooldown: 1
   attackRange: 2
-  moveSpeed: 6
+  moveSpeed: 4
   role: 0
   spell: {fileID: 0}
   projectile: {fileID: 0}

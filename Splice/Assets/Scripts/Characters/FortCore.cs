@@ -1,3 +1,5 @@
+using Splice.Combat;
+
 namespace Splice.Characters
 {
     // The single win/lose objective per raid: monsters win by destroying this (architecture 5.1).
@@ -23,6 +25,15 @@ namespace Splice.Characters
         protected override void HandleDeath()
         {
             // Intentionally left blank: no despawn. The husk stays; IsDead is already true.
+        }
+
+        // Legacy scenes without a BreachRingController remain damageable. Three-ring raids expose the Core
+        // only after every authored defense ring has been breached on the server.
+        protected override bool CanReceiveDamage(int amount, CharacterBase source)
+        {
+            var rings = BreachRingController.Instance;
+            return base.CanReceiveDamage(amount, source) &&
+                   (rings == null || !rings.HasRingObjectives || rings.CoreUnlocked);
         }
     }
 }

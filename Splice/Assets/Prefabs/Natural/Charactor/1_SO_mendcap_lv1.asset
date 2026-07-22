@@ -17,8 +17,8 @@ MonoBehaviour:
   maxHealth: 800
   attackDamage: 30
   attackCooldown: 3
-  attackRange: 4
-  moveSpeed: 2
+  attackRange: 5
+  moveSpeed: 3
   role: 1
   spell: {fileID: 11400000, guid: f9b56ea8d430bc248a1936979d8a9283, type: 2}
   projectile: {fileID: 11400000, guid: c009fcc497fb7544785c330c562a0eb2, type: 2}
@@ -26,6 +26,8 @@ MonoBehaviour:
   defenseCapacityCost: 2
   injuredMoveSpeed: 1
   waypointArriveRadius: 0.15
+  laneOffsetRange: 0.8
+  speedVariancePercent: 0.1
   fortHoldDistance: 2
   roadsideEngageSeconds: 5
   injuredHealthFraction: 0.3

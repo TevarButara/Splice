@@ -19,7 +19,7 @@ MonoBehaviour:
   prefab: {fileID: 85909023590922870, guid: 056bb6b25e4494ff0b11fcbae4552f6d, type: 3}
   maxHealth: 30000
   armor: 10
-  attackDamage: 25
+  attackDamage: 1000
   attackCooldown: 0.8
   attackRange: 1.8
   moveSpeed: 9
