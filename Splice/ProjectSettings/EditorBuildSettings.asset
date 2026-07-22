@@ -18,4 +18,5 @@ EditorBuildSettings:
     path: Assets/=======SCENES/RaidDefenderPresentation.unity
     guid: a7527358ae7fd4d2eb90864843d18931
   m_configObjects:
+    com.unity.addressableassets: {fileID: 11400000, guid: e77bd5c3f61c04b2da324755f2a519a6, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

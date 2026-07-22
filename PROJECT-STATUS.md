@@ -23,12 +23,13 @@
 - C1 PostgreSQL ledger แบบ local-only เสร็จแล้ว: migrations, currencies/system accounts, double-entry posting, idempotency และ outbox
 - C2 ASP.NET Core Wallet/Escrow API แบบ local-only เสร็จแล้ว: auth boundary, wallet, quote, confirm/fund, startup refund และ reconciliation
 - C3 immutable Town backend เสร็จแล้ว: draft, server checkout, layout commit, snapshot, deployment, vault/escrow และ global snapshot query
+- U1 Live Content Update เสร็จแล้วแบบ local-first: Addressables groups/profile, deterministic Content Catalog + PostgreSQL seed, runtime updater, retry/rollback, automated tests และ content-only build proof
 
 ## Verification ล่าสุด
 
 - Unity compile: Error 0
-- EditMode: 33/33 passed
-- PlayMode: 1/1 passed
+- EditMode: 41/41 passed
+- PlayMode: 2/2 passed
 - Content Validator: Errors 0, Warnings 0
 - Target Pool diagnostic: PASS; immutable V1 คงเดิมหลัง commit V2
 - Pre-debit snapshot gate ปฏิเสธ snapshot ที่หายหรือ identity/revision ไม่ตรงก่อนหัก stake
@@ -36,6 +37,9 @@
 - PostgreSQL C1 regression ผ่าน; invariant/idempotency/concurrent double-spend ผ่านซ้ำ 10/10 รอบ
 - .NET build: 0 errors, 0 warnings; C2 HTTP/race/recovery regression ผ่านซ้ำ 10/10 รอบ; NuGet vulnerability scan ไม่พบช่องโหว่
 - C3 pre-debit/hash/immutability/concurrency/rollback regression ผ่านซ้ำ 10/10 รอบ; formatting ผ่าน
+- Addressables content-only proof ผ่าน: baseline `1.0.0` → update `1.0.1`, catalog hash เปลี่ยน, `IsUpdateContentBuild=true` และไม่มี Player rebuild
+- Unity Content Catalog export 7 definitions แบบ deterministic; backend รองรับ composite identity `(content_id, content_kind)` และ C1–C3 regression ยังผ่าน
+- Configurator รันซ้ำได้แบบ idempotent และล้าง stale Addressables groups ที่ไม่มี content definition; มี regression test ป้องกัน group ชื่อซ้ำ/เลขต่อท้าย
 
 ## Backend
 
@@ -46,10 +50,10 @@
 
 ## งานถัดไป
 
-1. สร้าง Unity Content Catalog Exporter/Validator และ seed content จริงเข้า PostgreSQL
-2. เชื่อม Unity remote adapters กับ local C2/C3 API พร้อม EditMode/PlayMode tests
-3. ทดสอบ local end-to-end: Checkout → Deploy → Target → Quote → Fund
-4. C4: Trusted authoritative Raid Result/Settlement
+1. เชื่อม Unity remote adapters กับ local C2/C3 API พร้อม EditMode/PlayMode tests
+2. ทดสอบ local end-to-end: Checkout → Deploy → Target → Quote → Fund
+3. C4: Trusted authoritative Raid Result/Settlement
+4. ก่อน production ค่อยเพิ่ม CDN/object storage, manifest signing, staged rollout และ monitoring
 
 ## สิ่งที่ยังห้ามใน production
 

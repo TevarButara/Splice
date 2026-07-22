@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Splice.Data;
+using Splice.Editor.ContentUpdates;
 using Splice.Validation;
 using UnityEditor;
 using UnityEditor.Build;
@@ -19,7 +20,8 @@ namespace Splice.Editor.Validation
             EditorUtility.DisplayDialog("Splice Content Validator", report.Summary(), "OK");
         }
 
-        public static ContentValidationReport ValidateProject(bool logResults = false)
+        public static ContentValidationReport ValidateProject(bool logResults = false,
+            bool includeGeneratedCatalog = true)
         {
             // Registries are the playable-content roots. The core follows every referenced dependency
             // (cards, characters, towers, abilities and projectiles), while unfinished unregistered drafts
@@ -28,6 +30,8 @@ namespace Splice.Editor.Validation
                 LoadAll<FactionRegistrySO>(), LoadAll<HeroRegistrySO>());
             RaidSceneArchitectureValidator.Validate(report);
             BackendBoundaryValidator.Validate(report);
+            LiveContentAddressablesConfigurator.Validate(report);
+            if (includeGeneratedCatalog) SpliceContentCatalogExporter.ValidateGenerated(report);
             if (logResults) Log(report);
             return report;
         }

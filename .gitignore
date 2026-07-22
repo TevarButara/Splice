@@ -45,4 +45,7 @@ Assets/Plugins/Editor/JetBrains*
 # Addressables build output (regenerated ตอน build — ข้อ B)
 [Aa]ssets/[Ss]treamingAssets/aa*
 
+# Local Addressables/CDN output (rebuild from committed settings + content state)
+[Ss]erver[Dd]ata/
+
 .DS_Store

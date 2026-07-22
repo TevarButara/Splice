@@ -402,7 +402,7 @@ public static partial class TownFeature
             .Concat(layout.Garrison.Select(g => g.CardId))
             .Concat(layout.MinerCardIds).Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.Ordinal).ToArray();
-        var definitions = new Dictionary<string, ContentDefinition>(StringComparer.Ordinal);
+        var definitions = new Dictionary<(string Id, string Kind), ContentDefinition>();
         if (ids.Length > 0)
         {
             await using var command = new NpgsqlCommand("""
@@ -413,8 +413,12 @@ public static partial class TownFeature
             command.Parameters.AddWithValue("ids", ids);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
-                definitions[reader.GetString(0)] = new(reader.GetString(1), reader.GetString(2),
+            {
+                var id = reader.GetString(0);
+                var kind = reader.GetString(2);
+                definitions[(id, kind)] = new(reader.GetString(1), kind,
                     reader.GetInt32(3), reader.GetInt64(4), reader.GetString(5));
+            }
         }
 
         var occupied = new HashSet<string>(StringComparer.Ordinal);
@@ -422,7 +426,7 @@ public static partial class TownFeature
         {
             if (!ValidPosition(tower.Position) || !occupied.Add(PositionKey(tower.Position)))
                 result.Errors.Add("Tower position is invalid or overlaps another defense piece.");
-            if (!definitions.TryGetValue(tower.TowerId ?? string.Empty, out var definition) ||
+            if (!definitions.TryGetValue((tower.TowerId ?? string.Empty, "TOWER"), out var definition) ||
                 definition.Kind != "TOWER" || definition.Faction != layout.FactionId)
             {
                 result.Errors.Add($"Unknown or mismatched tower content: {tower.TowerId}");
@@ -441,7 +445,7 @@ public static partial class TownFeature
         {
             if (!ValidPosition(unit.Position) || !occupied.Add(PositionKey(unit.Position)))
                 result.Errors.Add("Garrison position is invalid or overlaps another defense piece.");
-            if (!definitions.TryGetValue(unit.CardId ?? string.Empty, out var definition) ||
+            if (!definitions.TryGetValue((unit.CardId ?? string.Empty, "GARRISON"), out var definition) ||
                 definition.Kind != "GARRISON" || definition.Faction != layout.FactionId)
             {
                 result.Errors.Add($"Unknown or mismatched garrison content: {unit.CardId}");
@@ -455,7 +459,7 @@ public static partial class TownFeature
         }
         foreach (var minerId in layout.MinerCardIds)
         {
-            if (!definitions.TryGetValue(minerId ?? string.Empty, out var definition) ||
+            if (!definitions.TryGetValue((minerId ?? string.Empty, "MINER"), out var definition) ||
                 definition.Kind != "MINER" || definition.Faction != layout.FactionId)
                 result.Errors.Add($"Unknown or mismatched miner content: {minerId}");
             else

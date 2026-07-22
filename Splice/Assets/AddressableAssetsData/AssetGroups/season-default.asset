@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: season-default
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: season-default
+  m_GUID: 24efcac2e58c7486c857fd24d3cbc2cd
+  m_SerializeEntries:
+  - m_GUID: 5c7415f2a002b45db9b172357b90b8c4
+    m_Address: livecontent/probe
+    m_ReadOnly: 0
+    m_SerializedLabels:
+    - season/default
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: 01610b44c786b40ae9b2715d9cb9b25d, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: bcd8f5efd6efd41cfa5b75b593864f90, type: 2}
+    - {fileID: 11400000, guid: 7ca9374ecbabd4745bb674f20056b205, type: 2}

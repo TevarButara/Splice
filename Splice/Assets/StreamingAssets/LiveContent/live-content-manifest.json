@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "1.0.0",
+  "minimumClientVersion": "0.0.0",
+  "serverRulesVersion": "content-c3-v1",
+  "catalogUrl": "",
+  "catalogSha256": "",
+  "signature": "",
+  "rollbackCatalogUrl": "",
+  "validationAddress": "livecontent/probe",
+  "packs": [
+    {
+      "label": "season/default",
+      "mandatory": true,
+      "expectedBytes": 0
+    },
+    {
+      "label": "map/default",
+      "mandatory": false,
+      "expectedBytes": 0
+    },
+    {
+      "label": "hero/default",
+      "mandatory": false,
+      "expectedBytes": 0
+    }
+  ]
+}

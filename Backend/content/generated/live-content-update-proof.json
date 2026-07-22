@@ -1,0 +1,11 @@
+{
+    "schemaVersion": 1,
+    "baselineContentVersion": "1.0.0",
+    "updateContentVersion": "1.0.1",
+    "baselineCatalogSha256": "13bb0adac144546ee230d19fee384548e575dfc0858c1a37ac354d45c56bc9dd",
+    "updateCatalogSha256": "82ac0ee05d249447d02c3e8fcde35b7aa8d4ed86ed7e8cf63d142a6eae266e2a",
+    "addressablesContentUpdateBuild": true,
+    "playerRebuildInvoked": false,
+    "validationAddress": "livecontent/probe",
+    "result": "PASS"
+}

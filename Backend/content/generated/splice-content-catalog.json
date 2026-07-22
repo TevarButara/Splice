@@ -1,0 +1,85 @@
+{
+    "schemaVersion": 1,
+    "liveContentVersion": "1.0.0",
+    "serverContentVersion": "content-c3-v1",
+    "sourceSha256": "c705866853703301715db4ecb3c7479dcc6f40846fb84f784ff197db0e436e0e",
+    "items": [
+        {
+            "contentId": "1/0",
+            "factionId": "1",
+            "contentKind": "MINER",
+            "defenseCapacityCost": 0,
+            "goldCost": 10,
+            "serverContentVersion": "content-c3-v1",
+            "addressablesLabel": "faction/1",
+            "address": "1/0",
+            "backendAuthoritative": true
+        },
+        {
+            "contentId": "1/1",
+            "factionId": "1",
+            "contentKind": "GARRISON",
+            "defenseCapacityCost": 1,
+            "goldCost": 4,
+            "serverContentVersion": "content-c3-v1",
+            "addressablesLabel": "faction/1",
+            "address": "1/1",
+            "backendAuthoritative": true
+        },
+        {
+            "contentId": "1/1",
+            "factionId": "1",
+            "contentKind": "TOWER",
+            "defenseCapacityCost": 2,
+            "goldCost": 10,
+            "serverContentVersion": "content-c3-v1",
+            "addressablesLabel": "faction/1",
+            "address": "1/1",
+            "backendAuthoritative": true
+        },
+        {
+            "contentId": "1/2",
+            "factionId": "1",
+            "contentKind": "GARRISON",
+            "defenseCapacityCost": 2,
+            "goldCost": 5,
+            "serverContentVersion": "content-c3-v1",
+            "addressablesLabel": "faction/1",
+            "address": "1/2",
+            "backendAuthoritative": true
+        },
+        {
+            "contentId": "1/3",
+            "factionId": "1",
+            "contentKind": "GARRISON",
+            "defenseCapacityCost": 2,
+            "goldCost": 10,
+            "serverContentVersion": "content-c3-v1",
+            "addressablesLabel": "faction/1",
+            "address": "1/3",
+            "backendAuthoritative": true
+        },
+        {
+            "contentId": "1/4",
+            "factionId": "1",
+            "contentKind": "GARRISON",
+            "defenseCapacityCost": 2,
+            "goldCost": 4,
+            "serverContentVersion": "content-c3-v1",
+            "addressablesLabel": "faction/1",
+            "address": "1/4",
+            "backendAuthoritative": true
+        },
+        {
+            "contentId": "hero/hero_test",
+            "factionId": "",
+            "contentKind": "HERO",
+            "defenseCapacityCost": 0,
+            "goldCost": 0,
+            "serverContentVersion": "content-c3-v1",
+            "addressablesLabel": "hero/hero_test",
+            "address": "hero/hero_test",
+            "backendAuthoritative": false
+        }
+    ]
+}

@@ -326,6 +326,21 @@ static async Task RunC3Async(TestHost host, string connectionString)
     var emptyDraft = await SendAsync(host.Client, HttpMethod.Get, $"/v1/towns/{faction}/draft", null, null);
     False(Bool(emptyDraft, "exists"), "draft initially absent");
 
+    var collisionLayout = new BaseLayoutView
+    {
+        OwnerAccountId = attackerId,
+        FactionId = faction,
+        Towers = [new PlacedTowerView { TowerId = "c3-natural/shared-1", Position = new Vector3View() }],
+        Garrison = [new GarrisonMonsterView
+        {
+            CardId = "c3-natural/shared-1", Position = new Vector3View { X = 2 },
+        }],
+    };
+    var collisionDraft = await SendAsync(host.Client, HttpMethod.Put,
+        $"/v1/towns/{faction}/draft", collisionLayout, "draft:c3:kind-collision");
+    Equal(HttpStatusCode.OK, collisionDraft.Status,
+        "tower and garrison may share a legacy composite id when content kind differs");
+
     var spoofedOwner = C3Layout(ownerId: "11000000-0000-0000-0000-000000000002");
     var ownerRejected = await SendAsync(host.Client, HttpMethod.Put, $"/v1/towns/{faction}/draft",
         spoofedOwner, "draft:owner-spoof");
@@ -547,8 +562,11 @@ static async Task SeedC3Async(string connectionString)
           ('c3-natural/tower-2','c3-natural','TOWER',1,10,'content-c3-v1'),
           ('c3-natural/garrison-1','c3-natural','GARRISON',3,30,'content-c3-v1'),
           ('c3-natural/miner-1','c3-natural','MINER',0,10,'content-c3-v1'),
-          ('c3-expensive/tower-1','c3-expensive','TOWER',1,1000,'content-c3-v1')
-        ON CONFLICT (content_id) DO UPDATE SET
+          ('c3-expensive/tower-1','c3-expensive','TOWER',1,1000,'content-c3-v1'),
+          ('c3-natural/shared-1','c3-natural','TOWER',2,20,'content-c3-v1'),
+          ('c3-natural/shared-1','c3-natural','GARRISON',3,30,'content-c3-v1')
+        ON CONFLICT (content_id, content_kind) DO UPDATE SET
+          faction_id=EXCLUDED.faction_id,
           defense_capacity_cost=EXCLUDED.defense_capacity_cost,
           gold_cost=EXCLUDED.gold_cost,
           enabled=true,
