@@ -91,7 +91,7 @@ public static class RaidFeature
                 insert.Parameters.AddWithValue("loadout", loadoutId);
                 insert.Parameters.AddWithValue("band", band);
                 insert.Parameters.AddWithValue("stake", stake);
-                insert.Parameters.AddWithValue("loss", full);
+                insert.Parameters.AddWithValue("loss", full - stake);
                 insert.Parameters.AddWithValue("full", full);
                 insert.Parameters.AddWithValue("outer", outer);
                 insert.Parameters.AddWithValue("inner", inner);
@@ -119,10 +119,12 @@ public static class RaidFeature
 
                 await using var quoteCommand = new NpgsqlCommand("""
                     SELECT q.target_snapshot_id, q.attacker_stake, q.expires_at,
-                           t.owner_player_id
+                           t.owner_player_id, q.full_victory_payout,
+                           te.id, te.ledger_account_id, te.state
                       FROM splice.raid_quotes q
                       JOIN splice.town_deployments d ON d.id = q.target_deployment_id
                       JOIN splice.towns t ON t.id = d.town_id
+                      LEFT JOIN splice.town_escrows te ON te.id = d.town_escrow_id
                      WHERE q.id = @quote AND q.attacker_player_id = @attacker
                      FOR UPDATE OF q
                     """, connection, transaction);
@@ -136,6 +138,10 @@ public static class RaidFeature
                 var stake = reader.GetInt64(1);
                 var expiresAt = reader.GetFieldValue<DateTimeOffset>(2);
                 var defenderId = reader.GetGuid(3);
+                var fullPayout = reader.GetInt64(4);
+                var defenderTownEscrowId = reader.IsDBNull(5) ? (Guid?)null : reader.GetGuid(5);
+                var defenderTownAccountId = reader.IsDBNull(6) ? (Guid?)null : reader.GetGuid(6);
+                var defenderTownEscrowState = reader.IsDBNull(7) ? string.Empty : reader.GetString(7);
                 await reader.DisposeAsync();
 
                 // Re-check only after locking the quote: concurrent keys for one quote must replay one raid.
@@ -160,6 +166,20 @@ public static class RaidFeature
                     return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
                         "PENDING_RAID_EXISTS", "Another funded raid is still open.");
 
+                var defenderReserve = Math.Max(0, fullPayout - stake);
+                if (defenderReserve > 0 && (defenderTownEscrowId is null || defenderTownAccountId is null ||
+                                            defenderTownEscrowState != "ACTIVE"))
+                    return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                        "TARGET_ESCROW_UNAVAILABLE", "Target town does not have active War Gem backing.");
+                if (defenderTownAccountId is not null)
+                {
+                    var defenderBalance = await AccountBalanceAsync(connection, transaction,
+                        defenderTownAccountId.Value, cancellationToken);
+                    if (defenderBalance < defenderReserve)
+                        return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                            "TARGET_ESCROW_UNAVAILABLE", "Target town War Gem backing is already reserved.");
+                }
+
                 var playerAccountId = await PlayerWarGemAccountAsync(connection, transaction,
                     attackerId, cancellationToken);
                 var raidId = Guid.NewGuid();
@@ -181,22 +201,33 @@ public static class RaidFeature
                     """, cancellationToken,
                     ("account", escrowAccountId), ("key", $"raid:{raidId:D}:escrow"), ("raid", raidId));
 
-                var postings = JsonSerializer.Serialize(new[]
+                var postingItems = new List<Dictionary<string, object>>
                 {
-                    new { account_id = playerAccountId, amount = -stake },
-                    new { account_id = escrowAccountId, amount = stake },
-                });
+                    new() { ["account_id"] = playerAccountId, ["amount"] = -stake },
+                    new() { ["account_id"] = escrowAccountId, ["amount"] = stake + defenderReserve },
+                };
+                if (defenderReserve > 0)
+                    postingItems.Add(new()
+                    {
+                        ["account_id"] = defenderTownAccountId!.Value,
+                        ["amount"] = -defenderReserve,
+                    });
+                var postings = JsonSerializer.Serialize(postingItems);
                 var fundedTransactionId = await PostLedgerAsync(connection, transaction,
                     $"raid:{raidId:D}:fund", "RAID_FUND", raidId, postings, cancellationToken);
 
                 await ExecuteAsync(connection, transaction, """
                     INSERT INTO splice.raid_escrows (
                         id, raid_id, ledger_account_id, currency_code, funded_amount,
-                        state, funded_transaction_id)
-                    VALUES (@id, @raid, @account, 'WAR_GEM', @amount, 'FUNDED', @transaction)
+                        state, funded_transaction_id, defender_town_escrow_id,
+                        defender_reserved_amount)
+                    VALUES (@id, @raid, @account, 'WAR_GEM', @amount, 'FUNDED', @transaction,
+                            @townEscrow, @reserve)
                     """, cancellationToken,
                     ("id", Guid.NewGuid()), ("raid", raidId), ("account", escrowAccountId),
-                    ("amount", stake), ("transaction", fundedTransactionId));
+                    ("amount", stake), ("transaction", fundedTransactionId),
+                    ("townEscrow", (object?)defenderTownEscrowId ?? DBNull.Value),
+                    ("reserve", defenderReserve));
 
                 var wallet = await WalletFeature.LoadAsync(connection, transaction, attackerId, cancellationToken);
                 return new ApiReply(StatusCodes.Status201Created,
@@ -220,13 +251,15 @@ public static class RaidFeature
 
                 await using var query = new NpgsqlCommand("""
                     SELECT r.state, r.started_at, e.id, e.ledger_account_id,
-                           e.funded_amount, e.state, e.refunded_transaction_id,
+                           e.funded_amount, e.defender_reserved_amount, te.ledger_account_id,
+                           e.state, e.refunded_transaction_id,
                            q.difficulty_band, q.attacker_stake, q.full_victory_payout,
                            q.outer_payout, q.inner_payout, q.core_payout, defender.display_name
                       FROM splice.raid_sessions r
                       JOIN splice.raid_escrows e ON e.raid_id = r.id
                       JOIN splice.raid_quotes q ON q.id = r.quote_id
                       JOIN splice.players defender ON defender.id = r.defender_player_id
+                      LEFT JOIN splice.town_escrows te ON te.id = e.defender_town_escrow_id
                      WHERE r.id = @raid AND r.attacker_player_id = @attacker
                      FOR UPDATE OF r, e
                     """, connection, transaction);
@@ -242,9 +275,11 @@ public static class RaidFeature
                 var escrowId = reader.GetGuid(2);
                 var escrowAccountId = reader.GetGuid(3);
                 var amount = reader.GetInt64(4);
-                var escrowState = reader.GetString(5);
-                var offer = new RaidStakeOfferView(reader.GetString(13), reader.GetString(7), reader.GetInt64(8),
-                    reader.GetInt64(9), reader.GetInt64(10), reader.GetInt64(11), reader.GetInt64(12));
+                var defenderReserve = reader.GetInt64(5);
+                var defenderTownAccountId = reader.IsDBNull(6) ? (Guid?)null : reader.GetGuid(6);
+                var escrowState = reader.GetString(7);
+                var offer = new RaidStakeOfferView(reader.GetString(15), reader.GetString(9), reader.GetInt64(10),
+                    reader.GetInt64(11), reader.GetInt64(12), reader.GetInt64(13), reader.GetInt64(14));
                 await reader.DisposeAsync();
 
                 if (raidState == "REFUNDED" || escrowState == "REFUNDED")
@@ -259,11 +294,18 @@ public static class RaidFeature
 
                 var playerAccountId = await PlayerWarGemAccountAsync(connection, transaction,
                     attackerId, cancellationToken);
-                var postings = JsonSerializer.Serialize(new[]
+                var postingItems = new List<Dictionary<string, object>>
                 {
-                    new { account_id = escrowAccountId, amount = -amount },
-                    new { account_id = playerAccountId, amount },
-                });
+                    new() { ["account_id"] = escrowAccountId, ["amount"] = -(amount + defenderReserve) },
+                    new() { ["account_id"] = playerAccountId, ["amount"] = amount },
+                };
+                if (defenderReserve > 0 && defenderTownAccountId is not null)
+                    postingItems.Add(new()
+                    {
+                        ["account_id"] = defenderTownAccountId.Value,
+                        ["amount"] = defenderReserve,
+                    });
+                var postings = JsonSerializer.Serialize(postingItems);
                 var refundTransactionId = await PostLedgerAsync(connection, transaction,
                     $"raid:{raidId:D}:startup_refund", "RAID_STARTUP_REFUND", raidId,
                     postings, cancellationToken);
@@ -326,6 +368,15 @@ public static class RaidFeature
         if (value is not Guid accountId)
             throw new PostgresException("LEDGER_ACCOUNT_NOT_FOUND", "P0001", "P0001", "LEDGER_ACCOUNT_NOT_FOUND");
         return accountId;
+    }
+
+    private static async Task<long> AccountBalanceAsync(NpgsqlConnection connection,
+        NpgsqlTransaction transaction, Guid accountId, CancellationToken cancellationToken)
+    {
+        await using var command = new NpgsqlCommand(
+            "SELECT balance FROM splice.ledger_accounts WHERE id=@account FOR UPDATE", connection, transaction);
+        command.Parameters.AddWithValue("account", accountId);
+        return (long)(await command.ExecuteScalarAsync(cancellationToken))!;
     }
 
     private static async Task<Guid> PostLedgerAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,

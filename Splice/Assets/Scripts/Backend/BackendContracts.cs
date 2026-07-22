@@ -139,6 +139,34 @@ namespace Splice.Backend
         public WalletView wallet;
     }
 
+    [Serializable]
+    public sealed class RaidAllocationDto
+    {
+        public bool success;
+        public string error;
+        public string raidId;
+        public string allocationId;
+        public string raidServerId;
+        public string ticket;
+        public string targetSnapshotId;
+        public string sceneContractVersion;
+        public string expiresUtc;
+    }
+
+    [Serializable]
+    public sealed class RaidLifecycleDto
+    {
+        public string raidId;
+        public string state;
+        public string targetSnapshotId;
+        public string allocationState;
+        public string resultId;
+        public string outcome;
+        public int breachedRings;
+        public int warGemPayout;
+        public string updatedUtc;
+    }
+
     public interface IWalletService
     {
         Task<WalletView> GetWalletAsync(CancellationToken cancellationToken);
@@ -168,6 +196,9 @@ namespace Splice.Backend
             CancellationToken cancellationToken);
         Task<RaidStartDto> ConfirmAsync(string quoteId, string idempotencyKey,
             CancellationToken cancellationToken);
+        Task<RaidAllocationDto> AllocateAsync(string raidId, string idempotencyKey,
+            CancellationToken cancellationToken);
+        Task<RaidLifecycleDto> GetLifecycleAsync(string raidId, CancellationToken cancellationToken);
     }
 
     public interface IRaidReportService

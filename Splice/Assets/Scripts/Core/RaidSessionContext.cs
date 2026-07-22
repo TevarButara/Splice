@@ -1,4 +1,5 @@
 using System;
+using Splice.Backend;
 using Splice.Base;
 using Splice.Combat;
 
@@ -27,6 +28,9 @@ namespace Splice.Core
         public int snapshotRevision;
         public string attackerAccountId;
         public string attackerLoadoutId;
+        public string allocationId;
+        public string raidServerId;
+        public string raidTicket;
         public string defenderAccountId;
         public string attackerTownSnapshotId;
         public int attackerTownSnapshotRevision;
@@ -113,6 +117,22 @@ namespace Splice.Core
                 outcome = RaidOutcome.InProgress,
                 note = "Raid target and scene contract prepared before stake debit.",
             };
+            return true;
+        }
+
+        public static bool BindAllocation(RaidAllocationDto allocation)
+        {
+            if (!IsPrepared || allocation?.success != true ||
+                string.IsNullOrWhiteSpace(allocation.raidId) ||
+                string.IsNullOrWhiteSpace(allocation.allocationId) ||
+                string.IsNullOrWhiteSpace(allocation.ticket) ||
+                (!string.IsNullOrWhiteSpace(Current.raidId) && Current.raidId != allocation.raidId))
+                return false;
+            Current.raidId = allocation.raidId;
+            Current.allocationId = allocation.allocationId;
+            Current.raidServerId = allocation.raidServerId ?? string.Empty;
+            Current.raidTicket = allocation.ticket;
+            Current.note = "Raid Server allocation ticket bound before scene startup.";
             return true;
         }
 

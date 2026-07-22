@@ -25,6 +25,7 @@
 - C3 immutable Town backend เสร็จแล้ว: draft, server checkout, layout commit, snapshot, deployment, vault/escrow และ global snapshot query
 - U1 Live Content Update เสร็จแล้วแบบ local-first: Addressables groups/profile, deterministic Content Catalog + PostgreSQL seed, runtime updater, retry/rollback, automated tests และ content-only build proof
 - U2 Unity ↔ Local Backend Integration เสร็จแล้ว: HTTP transport, development bootstrap, server-authoritative Checkout/Deploy/Target/Quote/Fund และ local launcher
+- C4A Authoritative Raid Lifecycle เสร็จแล้วแบบ local-only: allocation ticket, trusted start/result, zero-sum settlement, immutable result และ active-session recovery
 
 ## Verification ล่าสุด
 
@@ -43,19 +44,20 @@
 - Configurator รันซ้ำได้แบบ idempotent และล้าง stale Addressables groups ที่ไม่มี content definition; มี regression test ป้องกัน group ชื่อซ้ำ/เลขต่อท้าย
 - Unity HTTP contract regression ผ่าน flow Checkout → Deploy → Target → Quote → Fund พร้อมตรวจ Bearer auth และ idempotency headers
 - local ASP.NET/PostgreSQL launcher smoke test ผ่าน; API health, wallet และ defender deployment อ่านได้จริง และฐานข้อมูลชั่วคราวถูกลบหลังหยุด
+- C4 trusted-route regression ผ่าน: player ปลอม start/result ไม่ได้, result replay ไม่จ่ายซ้ำ, conflicting result ถูกปฏิเสธ และ deployment ถูก Pause เมื่อ backing ต่ำกว่าเกณฑ์
 
 ## Backend
 
 - Architecture contract: `splice-server-wallet-escrow-snapshot-contract-db.md`
-- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API และ Unity local integration เสร็จแล้ว
+- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration และ C4A authoritative raid lifecycle เสร็จแล้ว
 - Backend package: `Backend`; ใช้ HTTP เฉพาะ 127.0.0.1 ตอนทดสอบ ยังไม่เปิด Cloud/production
 - Stack ที่เสนอ: ASP.NET Core modular monolith + PostgreSQL; deploy แบบ stateless containers และแยก authoritative Unity Raid Server ในระยะ C4
 
 ## งานถัดไป
 
-1. C4: Trusted authoritative Raid Allocation/Start/Result/Settlement
-2. เชื่อม Raid Arena กับ raid ticket ที่ server ออก และปิดการส่งผลจาก client โดยตรง
-3. เพิ่ม crash/retry/reconciliation regression สำหรับ raid result และ reward
+1. C4B: headless authoritative Unity Raid Worker/Simulator ใช้ ticket claim งานจริง
+2. ย้าย attacker loadout contents ไป server snapshot และส่ง scene contract ให้ worker
+3. ให้ player Raid Arena subscribe/poll authoritative lifecycle แล้วแสดงผลที่ server ยืนยัน
 4. ก่อน production ค่อยเพิ่ม CDN/object storage, manifest signing, staged rollout และ monitoring
 
 ## สิ่งที่ยังห้ามใน production

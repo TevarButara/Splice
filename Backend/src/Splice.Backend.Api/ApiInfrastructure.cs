@@ -25,9 +25,10 @@ public static class ApiErrors
     }
 }
 
-public sealed class RequestIdentityMiddleware(RequestDelegate next)
+public sealed class RequestIdentityMiddleware(RequestDelegate next, IConfiguration configuration)
 {
     public const string PlayerItem = "Splice.PlayerId";
+    public const string RaidServerItem = "Splice.RaidServerId";
 
     public async Task InvokeAsync(HttpContext context)
     {
@@ -37,7 +38,29 @@ public sealed class RequestIdentityMiddleware(RequestDelegate next)
             : Guid.NewGuid().ToString("D");
         context.Response.Headers["X-Request-Id"] = context.TraceIdentifier;
 
-        if (context.Request.Path.StartsWithSegments("/v1"))
+        if (context.Request.Path.StartsWithSegments("/internal/v1"))
+        {
+            var configuredKey = configuration["RaidServer:DevelopmentKey"];
+            var providedKey = context.Request.Headers["X-Raid-Server-Key"].FirstOrDefault();
+            var serverId = context.Request.Headers["X-Raid-Server-Id"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(configuredKey))
+            {
+                await ApiErrors.WriteAsync(context, StatusCodes.Status503ServiceUnavailable,
+                    "TRUSTED_RAID_SERVER_DISABLED", "Trusted Raid Server access is not configured.");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(providedKey) ||
+                !CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(configuredKey), Encoding.UTF8.GetBytes(providedKey)) ||
+                string.IsNullOrWhiteSpace(serverId) || serverId.Length > 80)
+            {
+                await ApiErrors.WriteAsync(context, StatusCodes.Status401Unauthorized,
+                    "TRUSTED_RAID_SERVER_AUTH_REQUIRED", "A trusted Raid Server identity is required.");
+                return;
+            }
+            context.Items[RaidServerItem] = serverId.Trim();
+        }
+        else if (context.Request.Path.StartsWithSegments("/v1"))
         {
             var authorization = context.Request.Headers.Authorization.FirstOrDefault();
             const string prefix = "Bearer dev:";
@@ -71,6 +94,11 @@ public sealed class RequestIdentityMiddleware(RequestDelegate next)
         context.Items.TryGetValue(PlayerItem, out var value) && value is Guid playerId
             ? playerId
             : throw new InvalidOperationException("Authenticated player identity is missing.");
+
+    public static string RaidServerId(HttpContext context) =>
+        context.Items.TryGetValue(RaidServerItem, out var value) && value is string serverId
+            ? serverId
+            : throw new InvalidOperationException("Trusted Raid Server identity is missing.");
 }
 
 public sealed class IdempotencyExecutor(NpgsqlDataSource dataSource)

@@ -17,6 +17,8 @@ const string highTargetAId = "41000000-0000-0000-0000-000000000002";
 const string highTargetBId = "41000000-0000-0000-0000-000000000003";
 const string selfTargetId = "41000000-0000-0000-0000-000000000004";
 const string loadoutId = "51000000-0000-0000-0000-000000000001";
+const string trustedServerId = "test-authoritative-raid-1";
+const string trustedServerKey = "test-only-c4-trusted-key-2026";
 
 await SeedAsync(connectionString);
 var host = await StartAsync(connectionString);
@@ -179,6 +181,8 @@ try
     Console.WriteLine("C2 API integration tests: PASS (auth, wallet, quote, escrow, restart, reconciliation, idempotency, concurrency)");
     await RunC3Async(host, connectionString);
     Console.WriteLine("C3 town integration tests: PASS (draft, validation, checkout, immutable snapshot, deployment, escrow, concurrency)");
+    await RunC4Async(host, connectionString);
+    Console.WriteLine("C4 raid authority tests: PASS (allocation, trusted start/result, settlement, immutable result, active recovery)");
 }
 finally
 {
@@ -203,6 +207,9 @@ static async Task<TestHost> StartAsync(string connectionString)
         "--Logging:LogLevel:Default=Warning",
         "--Reconciliation:Enabled=false",
         "--Reconciliation:TimeoutSeconds=1",
+        "--Reconciliation:ActiveTimeoutSeconds=1",
+        $"--RaidServer:DevelopmentKey={trustedServerKey}",
+        $"--RaidServer:DefaultServerId={trustedServerId}",
     ]);
     await app.StartAsync();
     var server = app.Services.GetRequiredService<IServer>();
@@ -215,6 +222,20 @@ static async Task<ApiResult> SendAsync(HttpClient client, HttpMethod method, str
 {
     using var request = new HttpRequestMessage(method, path);
     if (authenticated) request.Headers.Authorization = new("Bearer", $"dev:{attackerId}");
+    request.Headers.Add("X-Request-Id", Guid.NewGuid().ToString("D"));
+    if (idempotencyKey is not null) request.Headers.Add("Idempotency-Key", idempotencyKey);
+    if (body is not null) request.Content = JsonContent.Create(body);
+    using var response = await client.SendAsync(request);
+    var text = await response.Content.ReadAsStringAsync();
+    return new ApiResult(response.StatusCode, JsonDocument.Parse(text));
+}
+
+static async Task<ApiResult> SendTrustedAsync(HttpClient client, HttpMethod method, string path,
+    object? body, string? idempotencyKey, string key = trustedServerKey)
+{
+    using var request = new HttpRequestMessage(method, path);
+    request.Headers.Add("X-Raid-Server-Key", key);
+    request.Headers.Add("X-Raid-Server-Id", trustedServerId);
     request.Headers.Add("X-Request-Id", Guid.NewGuid().ToString("D"));
     if (idempotencyKey is not null) request.Headers.Add("Idempotency-Key", idempotencyKey);
     if (body is not null) request.Content = JsonContent.Create(body);
@@ -253,6 +274,28 @@ static async Task SeedAsync(string connectionString)
           ('31000000-0000-0000-0000-000000000004','11000000-0000-0000-0000-000000000001','human')
         ON CONFLICT (id) DO NOTHING;
 
+        INSERT INTO ledger_accounts (id, account_key, owner_type, owner_id, currency_code) VALUES
+          ('22000000-0000-0000-0000-000000000001','test:c4:town:fair','TOWN','31000000-0000-0000-0000-000000000001','WAR_GEM'),
+          ('22000000-0000-0000-0000-000000000002','test:c4:town:high-a','TOWN','31000000-0000-0000-0000-000000000002','WAR_GEM'),
+          ('22000000-0000-0000-0000-000000000003','test:c4:town:high-b','TOWN','31000000-0000-0000-0000-000000000003','WAR_GEM'),
+          ('22000000-0000-0000-0000-000000000004','test:c4:town:self','TOWN','31000000-0000-0000-0000-000000000004','WAR_GEM')
+        ON CONFLICT (id) DO NOTHING;
+        SELECT post_ledger_transaction(
+          'test:c4:mint:town-backing', 'TEST_MINT', 'TEST', NULL,
+          jsonb_build_array(
+            jsonb_build_object('account_id','00000000-0000-0000-0000-000000000201','amount',-1400),
+            jsonb_build_object('account_id','22000000-0000-0000-0000-000000000001','amount',100),
+            jsonb_build_object('account_id','22000000-0000-0000-0000-000000000002','amount',600),
+            jsonb_build_object('account_id','22000000-0000-0000-0000-000000000003','amount',600),
+            jsonb_build_object('account_id','22000000-0000-0000-0000-000000000004','amount',100)));
+        INSERT INTO town_escrows
+          (id, town_id, ledger_account_id, currency_code, funded_amount, state, funded_transaction_id) VALUES
+          ('42000000-0000-0000-0000-000000000001','31000000-0000-0000-0000-000000000001','22000000-0000-0000-0000-000000000001','WAR_GEM',100,'ACTIVE',(SELECT id FROM ledger_transactions WHERE idempotency_key='test:c4:mint:town-backing')),
+          ('42000000-0000-0000-0000-000000000002','31000000-0000-0000-0000-000000000002','22000000-0000-0000-0000-000000000002','WAR_GEM',600,'ACTIVE',(SELECT id FROM ledger_transactions WHERE idempotency_key='test:c4:mint:town-backing')),
+          ('42000000-0000-0000-0000-000000000003','31000000-0000-0000-0000-000000000003','22000000-0000-0000-0000-000000000003','WAR_GEM',600,'ACTIVE',(SELECT id FROM ledger_transactions WHERE idempotency_key='test:c4:mint:town-backing')),
+          ('42000000-0000-0000-0000-000000000004','31000000-0000-0000-0000-000000000004','22000000-0000-0000-0000-000000000004','WAR_GEM',100,'ACTIVE',(SELECT id FROM ledger_transactions WHERE idempotency_key='test:c4:mint:town-backing'))
+        ON CONFLICT (id) DO NOTHING;
+
         INSERT INTO town_snapshots
           (id, town_id, revision, payload, payload_sha256, faction_id, base_level,
            base_power, content_version, validator_version) VALUES
@@ -262,11 +305,12 @@ static async Task SeedAsync(string connectionString)
           ('32000000-0000-0000-0000-000000000004','31000000-0000-0000-0000-000000000004',1,'{}',repeat('d',64),'human',1,100,'test','test')
         ON CONFLICT (id) DO NOTHING;
 
-        INSERT INTO town_deployments (id, town_id, active_snapshot_id, status, stake_band) VALUES
-          ('41000000-0000-0000-0000-000000000001','31000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001','ACTIVE','FAIR'),
-          ('41000000-0000-0000-0000-000000000002','31000000-0000-0000-0000-000000000002','32000000-0000-0000-0000-000000000002','ACTIVE','HIGH'),
-          ('41000000-0000-0000-0000-000000000003','31000000-0000-0000-0000-000000000003','32000000-0000-0000-0000-000000000003','ACTIVE','HIGH'),
-          ('41000000-0000-0000-0000-000000000004','31000000-0000-0000-0000-000000000004','32000000-0000-0000-0000-000000000004','ACTIVE','FAIR')
+        INSERT INTO town_deployments
+          (id, town_id, active_snapshot_id, town_escrow_id, status, stake_band) VALUES
+          ('41000000-0000-0000-0000-000000000001','31000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001','42000000-0000-0000-0000-000000000001','ACTIVE','FAIR'),
+          ('41000000-0000-0000-0000-000000000002','31000000-0000-0000-0000-000000000002','32000000-0000-0000-0000-000000000002','42000000-0000-0000-0000-000000000002','ACTIVE','HIGH'),
+          ('41000000-0000-0000-0000-000000000003','31000000-0000-0000-0000-000000000003','32000000-0000-0000-0000-000000000003','42000000-0000-0000-0000-000000000003','ACTIVE','HIGH'),
+          ('41000000-0000-0000-0000-000000000004','31000000-0000-0000-0000-000000000004','32000000-0000-0000-0000-000000000004','42000000-0000-0000-0000-000000000004','ACTIVE','FAIR')
         ON CONFLICT (id) DO NOTHING;
         """, connection);
     await command.ExecuteNonQueryAsync();
@@ -311,6 +355,180 @@ static async Task AssertDatabaseAsync(string connectionString)
     Equal(0L, reader.GetInt64(1), "all posted transactions balanced");
     Equal(0L, reader.GetInt64(2), "Premium Diamond excluded from raid ledger");
     Equal(0L, reader.GetInt64(3), "no open raid remains after refunds");
+}
+
+static async Task RunC4Async(TestHost host, string connectionString)
+{
+    var quote = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
+        QuoteBody(fairTargetId), "quote:c4:full");
+    var confirm = await SendAsync(host.Client, HttpMethod.Post, "/v1/raids",
+        new { quoteId = String(quote, "quoteId") }, "raid:c4:full");
+    var raidId = String(confirm, "raidId");
+    Equal(800L, Long(confirm, "wallet", "warGemBalance"), "C4 fund reserves attacker stake");
+
+    var allocationBody = new { raidId };
+    var allocation = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raids/{raidId}/allocation", allocationBody, "allocate:c4:full");
+    Equal(HttpStatusCode.Created, allocation.Status, "funded raid allocated");
+    var allocationId = String(allocation, "allocationId");
+    var ticket = String(allocation, "ticket");
+    True(ticket.Length >= 64, "allocation returns opaque one-time ticket");
+    var allocationReplay = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raids/{raidId}/allocation", allocationBody, "allocate:c4:full");
+    Equal(ticket, String(allocationReplay, "ticket"), "allocation idempotency replays ticket");
+    var allocationSecondKey = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raids/{raidId}/allocation", allocationBody, "allocate:c4:full:other");
+    Equal(HttpStatusCode.Conflict, allocationSecondKey.Status, "ticket cannot be reissued with another key");
+    ErrorCode(allocationSecondKey, "RAID_ALREADY_ALLOCATED");
+
+    var startBody = new { allocationId, ticket };
+    var untrustedStart = await SendAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{raidId}/start", startBody, "trusted:start:blocked");
+    Equal(HttpStatusCode.Unauthorized, untrustedStart.Status, "player bearer cannot claim trusted route");
+    ErrorCode(untrustedStart, "TRUSTED_RAID_SERVER_AUTH_REQUIRED");
+    var wrongTrustedStart = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{raidId}/start", startBody, "trusted:start:wrong", "wrong-server-key-value");
+    Equal(HttpStatusCode.Unauthorized, wrongTrustedStart.Status, "wrong Raid Server key rejected");
+    var start = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{raidId}/start", startBody, "trusted:start:c4:full");
+    Equal(HttpStatusCode.OK, start.Status, "trusted server claims ticket");
+    Equal(loadoutId, String(start, "attackerLoadoutId"), "trusted start pins quoted loadout");
+    Equal("32000000-0000-0000-0000-000000000001", String(start, "targetSnapshotId"),
+        "trusted start pins immutable target snapshot");
+
+    var lateRefund = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raids/{raidId}/startup-refund",
+        new { raidId, reasonCode = "CLIENT_START_FAILED" }, "refund:c4:after-start");
+    Equal(HttpStatusCode.Conflict, lateRefund.Status, "started raid cannot use client startup refund");
+    ErrorCode(lateRefund, "RAID_ALREADY_STARTED");
+
+    var resultId = Guid.NewGuid().ToString("D");
+    var resultBody = new
+    {
+        allocationId,
+        ticket,
+        resultId,
+        outcome = "FULL_VICTORY",
+        breachedRings = 3,
+        durationMs = 60000,
+        simulationHash = new string('a', 64),
+    };
+    var result = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{raidId}/result", resultBody, "trusted:result:c4:full");
+    Equal(HttpStatusCode.Created, result.Status, "trusted result settles raid");
+    Equal(180L, Long(result, "warGemPayout"), "server computes full-victory payout");
+    Equal(980L, Long(result, "attackerWallet", "warGemBalance"), "settlement credits backed payout");
+    True(Bool(result, "defenderDeploymentPaused"), "depleted defender backing pauses deployment");
+
+    var resultReplay = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{raidId}/result", resultBody, "trusted:result:c4:full:other");
+    Equal(HttpStatusCode.OK, resultReplay.Status, "same immutable result replays across keys");
+    Equal(980L, Long(resultReplay, "attackerWallet", "warGemBalance"), "result replay does not double-credit");
+    var conflictBody = new
+    {
+        allocationId,
+        ticket,
+        resultId = Guid.NewGuid().ToString("D"),
+        outcome = "DEFEAT",
+        breachedRings = 0,
+        durationMs = 60000,
+        simulationHash = new string('b', 64),
+    };
+    var conflict = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{raidId}/result", conflictBody, "trusted:result:c4:conflict");
+    Equal(HttpStatusCode.Conflict, conflict.Status, "different second result rejected");
+    ErrorCode(conflict, "RAID_RESULT_CONFLICT");
+
+    var lifecycle = await SendAsync(host.Client, HttpMethod.Get, $"/v1/raids/{raidId}", null, null);
+    Equal("SETTLED", String(lifecycle, "state"), "player reads authoritative settled state");
+    Equal(resultId, String(lifecycle, "resultId"), "lifecycle exposes immutable result identity");
+    await AssertImmutableRaidResultAsync(connectionString, resultId);
+
+    var recoveryQuote = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
+        QuoteBody(highTargetAId), "quote:c4:active-recovery");
+    var recoveryConfirm = await SendAsync(host.Client, HttpMethod.Post, "/v1/raids",
+        new { quoteId = String(recoveryQuote, "quoteId") }, "raid:c4:active-recovery");
+    var recoveryRaidId = String(recoveryConfirm, "raidId");
+    var recoveryAllocation = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raids/{recoveryRaidId}/allocation", new { raidId = recoveryRaidId },
+        "allocate:c4:active-recovery");
+    var recoveryStartBody = new
+    {
+        allocationId = String(recoveryAllocation, "allocationId"),
+        ticket = String(recoveryAllocation, "ticket"),
+    };
+    await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{recoveryRaidId}/start", recoveryStartBody,
+        "trusted:start:c4:active-recovery");
+    await BackdateActiveRaidAsync(connectionString, recoveryRaidId);
+    var recovered = await host.App.Services.GetRequiredService<RaidReconciliationService>()
+        .ReconcileOnceAsync(CancellationToken.None);
+    Equal(1, recovered, "timed-out active Raid Server session reconciled");
+    Equal(980L, Long(await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null),
+        "warGemBalance"), "infrastructure timeout refunds attacker stake");
+    await AssertC4DatabaseAsync(connectionString, raidId, recoveryRaidId);
+}
+
+static async Task BackdateActiveRaidAsync(string connectionString, string raidId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand(
+        "UPDATE splice.raid_sessions SET started_at=clock_timestamp()-interval '10 minutes' WHERE id=@raid",
+        connection);
+    command.Parameters.AddWithValue("raid", Guid.Parse(raidId));
+    await command.ExecuteNonQueryAsync();
+}
+
+static async Task AssertImmutableRaidResultAsync(string connectionString, string resultId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    try
+    {
+        await using var command = new NpgsqlCommand(
+            "UPDATE splice.raid_results SET breached_rings=0 WHERE id=@result", connection);
+        command.Parameters.AddWithValue("result", Guid.Parse(resultId));
+        await command.ExecuteNonQueryAsync();
+        throw new Exception("TEST_FAILED: immutable raid result accepted direct update");
+    }
+    catch (PostgresException exception)
+    {
+        True(exception.MessageText.StartsWith("IMMUTABLE_RAID_RESULT", StringComparison.Ordinal),
+            "database immutable raid result trigger");
+    }
+}
+
+static async Task AssertC4DatabaseAsync(string connectionString, string settledRaidId, string recoveredRaidId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("""
+        SELECT
+          (SELECT balance FROM splice.ledger_accounts WHERE id='21000000-0000-0000-0000-000000000001'),
+          (SELECT balance FROM splice.ledger_accounts WHERE id='22000000-0000-0000-0000-000000000001'),
+          (SELECT balance FROM splice.ledger_accounts a JOIN splice.raid_escrows e ON e.ledger_account_id=a.id
+             WHERE e.raid_id=@settled),
+          (SELECT count(*) FROM splice.raid_results WHERE raid_id=@settled),
+          (SELECT count(*) FROM splice.raid_results WHERE result_payload ? 'ticket'),
+          (SELECT state FROM splice.raid_sessions WHERE id=@recovered),
+          (SELECT count(*) FROM splice.raid_sessions WHERE state IN ('PREPARED','FUNDED','ACTIVE','SETTLING')),
+          (SELECT count(*) FROM splice.ledger_transactions t WHERE t.status='POSTED' AND
+             (SELECT COALESCE(sum(p.amount),0) FROM splice.ledger_postings p
+               WHERE p.ledger_transaction_id=t.id)<>0)
+        """, connection);
+    command.Parameters.AddWithValue("settled", Guid.Parse(settledRaidId));
+    command.Parameters.AddWithValue("recovered", Guid.Parse(recoveredRaidId));
+    await using var reader = await command.ExecuteReaderAsync();
+    await reader.ReadAsync();
+    Equal(980L, reader.GetInt64(0), "C4 final attacker balance");
+    Equal(20L, reader.GetInt64(1), "full victory removes only backed defender loss");
+    Equal(0L, reader.GetInt64(2), "settled raid escrow drains to zero");
+    Equal(1L, reader.GetInt64(3), "one immutable result per raid");
+    Equal(0L, reader.GetInt64(4), "immutable result artifact never stores raw allocation ticket");
+    Equal("REFUNDED", reader.GetString(5), "active infrastructure timeout closes raid");
+    Equal(0L, reader.GetInt64(6), "C4 leaves no open raid");
+    Equal(0L, reader.GetInt64(7), "C4 ledger remains double-entry balanced");
 }
 
 static async Task RunC3Async(TestHost host, string connectionString)

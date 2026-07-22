@@ -220,6 +220,32 @@ namespace Splice.UI
                 return;
             }
 
+            RaidAllocationDto allocation;
+            try
+            {
+                allocation = await SpliceServiceHub.RaidContracts.AllocateAsync(start.raidId,
+                    Guid.NewGuid().ToString("N"), lifetimeCancellation.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                allocation = new RaidAllocationDto { success = false, error = exception.Message };
+            }
+            if (allocation?.success != true || !RaidSessionContext.BindAllocation(allocation))
+            {
+                var allocationRefund = await SpliceServiceHub.Wallet.CancelRaidBeforeStartAsync(
+                    start.raidId, "ALLOCATION_FAILED", Guid.NewGuid().ToString("N"),
+                    lifetimeCancellation.Token);
+                wallet = allocationRefund.wallet ?? wallet;
+                confirming = false;
+                feedback = "RAID SERVER ALLOCATION FAILED — STAKE REFUNDED. " + allocation?.error;
+                RefreshOffer();
+                return;
+            }
+
             var startup = await raidSceneAdapter.StartPreparedRaidAsync(
                 start.raidId, lifetimeCancellation.Token);
             if (!startup.success)

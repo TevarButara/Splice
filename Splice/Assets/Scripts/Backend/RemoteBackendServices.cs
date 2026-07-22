@@ -25,6 +25,10 @@ namespace Splice.Backend
             "/v1/town-snapshots/" + Segment(snapshotId);
         public static string StartupRefund(string raidId) =>
             "/v1/raids/" + Segment(raidId) + "/startup-refund";
+        public static string RaidAllocation(string raidId) =>
+            "/v1/raids/" + Segment(raidId) + "/allocation";
+        public static string RaidLifecycle(string raidId) =>
+            "/v1/raids/" + Segment(raidId);
 
         private static string Segment(string value)
         {
@@ -45,6 +49,12 @@ namespace Splice.Backend
     {
         public string raidId;
         public string reasonCode;
+    }
+
+    [Serializable]
+    public sealed class AllocateRaidRequest
+    {
+        public string raidId;
     }
 
     [Serializable]
@@ -207,10 +217,34 @@ namespace Splice.Backend
                 };
             }
         }
+
+        public async Task<RaidAllocationDto> AllocateAsync(string raidId, string idempotencyKey,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await client.SendAsync<AllocateRaidRequest, RaidAllocationDto>(
+                    BackendHttpMethods.Post, BackendRoutes.RaidAllocation(raidId),
+                    new AllocateRaidRequest { raidId = raidId }, idempotencyKey, true, cancellationToken);
+            }
+            catch (BackendServiceException exception)
+            {
+                return new RaidAllocationDto
+                {
+                    success = false,
+                    raidId = raidId,
+                    error = RemoteWalletService.Format(exception),
+                };
+            }
+        }
+
+        public Task<RaidLifecycleDto> GetLifecycleAsync(string raidId,
+            CancellationToken cancellationToken) =>
+            client.GetAsync<RaidLifecycleDto>(BackendRoutes.RaidLifecycle(raidId), cancellationToken);
     }
 
-    // Deliberately installed in remote player-client mode until C4 supplies a trusted Raid Server result path.
-    // This prevents a Unity client from silently falling back to local report/settlement authority.
+    // Deliberately retained after C4A: only the trusted /internal result route may settle shared economy.
+    // The player client can allocate/read lifecycle state but cannot write reports or settlement results.
     public sealed class ClientAuthorityGuardRaidReportService : IRaidReportService
     {
         private const string Error = BackendErrorCodes.ClientAuthorityForbidden +

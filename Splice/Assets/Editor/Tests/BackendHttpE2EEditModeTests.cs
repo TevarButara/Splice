@@ -26,12 +26,14 @@ namespace Splice.Tests.EditMode
         private const string LoadoutId = "51000000-0000-0000-0000-000000000001";
         private const string QuoteId = "61000000-0000-0000-0000-000000000001";
         private const string RaidId = "71000000-0000-0000-0000-000000000001";
+        private const string AllocationId = "81000000-0000-0000-0000-000000000001";
+        private const string Ticket = "c4-local-ticket";
 
         [UnityTest]
         public IEnumerator RemoteServices_RunCheckoutDeployTargetQuoteFundOverRealHttp()
         {
             var port = FreePort();
-            using var server = new ContractServer(port, 6);
+            using var server = new ContractServer(port, 8);
             server.Start();
             var flow = RunFlowAsync(port);
             while (!flow.IsCompleted) yield return null;
@@ -47,12 +49,15 @@ namespace Splice.Tests.EditMode
                 "/v1/town-snapshots/latest/query",
                 "/v1/raid-quotes",
                 "/v1/raids",
+                "/v1/raids/" + RaidId + "/allocation",
+                "/v1/raids/" + RaidId,
                 "/v1/wallet",
             }));
             Assert.That(server.AuthorizationHeaders,
                 Has.All.EqualTo("Bearer dev:" + AttackerId));
             Assert.That(server.MutationIdempotencyHeaders,
-                Is.EqualTo(new[] { "checkout-e2e", "deploy-e2e", "quote-e2e", "fund-e2e" }));
+                Is.EqualTo(new[]
+                    { "checkout-e2e", "deploy-e2e", "quote-e2e", "fund-e2e", "allocate-e2e" }));
         }
 
         private static async Task RunFlowAsync(int port)
@@ -101,6 +106,13 @@ namespace Splice.Tests.EditMode
             Assert.That(funded.success, Is.True, funded.error);
             Assert.That(funded.raidId, Is.EqualTo(RaidId));
             Assert.That(funded.wallet.warGemBalance, Is.EqualTo(900));
+            var allocation = await raids.AllocateAsync(funded.raidId, "allocate-e2e", CancellationToken.None);
+            Assert.That(allocation.success, Is.True, allocation.error);
+            Assert.That(allocation.allocationId, Is.EqualTo(AllocationId));
+            Assert.That(allocation.ticket, Is.EqualTo(Ticket));
+            var lifecycle = await raids.GetLifecycleAsync(funded.raidId, CancellationToken.None);
+            Assert.That(lifecycle.state, Is.EqualTo("FUNDED"));
+            Assert.That(lifecycle.allocationState, Is.EqualTo("ALLOCATED"));
             var refreshed = await wallet.GetWalletAsync(CancellationToken.None);
             Assert.That(refreshed.hasPendingRaid, Is.True);
         }
@@ -144,7 +156,8 @@ namespace Splice.Tests.EditMode
                     Paths.Add(request.Url.AbsolutePath);
                     AuthorizationHeaders.Add(request.Headers["Authorization"] ?? string.Empty);
                     if (request.Url.AbsolutePath is "/v1/towns/1/draft" or
-                        "/v1/towns/1/deployments" or "/v1/raid-quotes" or "/v1/raids")
+                        "/v1/towns/1/deployments" or "/v1/raid-quotes" or "/v1/raids" ||
+                        request.Url.AbsolutePath.EndsWith("/allocation", StringComparison.Ordinal))
                         MutationIdempotencyHeaders.Add(request.Headers["Idempotency-Key"] ?? string.Empty);
                     using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
                         _ = await reader.ReadToEndAsync();
@@ -172,6 +185,17 @@ namespace Splice.Tests.EditMode
                     "\"innerExtractionPayout\":90,\"coreExtractionPayout\":120,\"expiresUtc\":\"2099-01-01T00:00:00Z\"}",
                 "/v1/raids" => "{\"success\":true,\"error\":\"\",\"raidId\":\"" + RaidId +
                     "\",\"quoteId\":\"" + QuoteId + "\",\"wallet\":" + Wallet() + "}",
+                var value when value == "/v1/raids/" + RaidId + "/allocation" =>
+                    "{\"success\":true,\"error\":\"\",\"raidId\":\"" + RaidId +
+                    "\",\"allocationId\":\"" + AllocationId +
+                    "\",\"raidServerId\":\"local-authoritative-raid-1\",\"ticket\":\"" + Ticket +
+                    "\",\"targetSnapshotId\":\"" + DefenderSnapshotId +
+                    "\",\"sceneContractVersion\":\"raid-scene-c4-v1\",\"expiresUtc\":\"2099-01-01T00:00:00Z\"}",
+                var value when value == "/v1/raids/" + RaidId =>
+                    "{\"raidId\":\"" + RaidId + "\",\"state\":\"FUNDED\",\"targetSnapshotId\":\"" +
+                    DefenderSnapshotId + "\",\"allocationState\":\"ALLOCATED\",\"resultId\":\"\"," +
+                    "\"outcome\":\"\",\"breachedRings\":0,\"warGemPayout\":0," +
+                    "\"updatedUtc\":\"2099-01-01T00:00:00Z\"}",
                 "/v1/wallet" => Wallet(),
                 _ => "{\"error\":{\"code\":\"NOT_FOUND\",\"message\":\"missing\",\"requestId\":\"test\",\"retryable\":false}}",
             };

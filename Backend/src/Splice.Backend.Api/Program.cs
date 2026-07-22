@@ -31,6 +31,7 @@ public static class SpliceApi
         });
         app.MapWalletEndpoints();
         app.MapRaidEndpoints();
+        app.MapRaidAuthorityEndpoints();
         app.MapTownEndpoints();
         return app;
     }

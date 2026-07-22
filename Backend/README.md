@@ -55,3 +55,13 @@ bash Tools/run-local-backend-dev.sh <unity-player-uuid>
 จากนั้นใน Unity เลือก `Splice > Backend > Enable Local Remote Meta` เพื่อให้ Meta flow ใช้ API ที่ `http://127.0.0.1:5080`. UUID ที่ส่งให้ launcher ต้องตรงกับ Player ID ที่ Unity พิมพ์ใน Console. โหมดนี้เป็น development bearer และถูกปิดโดยค่าเริ่มต้น; ใช้ production build ไม่ได้.
 
 สคริปต์จะสร้างฐานข้อมูลชั่วคราว `splice_unity_local_dev`, apply migration/seed, เติม wallet และสร้าง defender deployment fixture. กด `Ctrl+C` เพื่อหยุด API และลบฐานข้อมูลชั่วคราว.
+
+## C4A: Authoritative Raid Lifecycle
+
+- player route ทำได้เฉพาะ Fund, Allocate และอ่าน lifecycle
+- trusted routes `/internal/v1/raids/{id}/start|result` ต้องมี `X-Raid-Server-Key` และ `X-Raid-Server-Id`
+- result payout คำนวณที่ backend จาก immutable quote; client ส่งจำนวนเงินไม่ได้
+- attacker stake และ defender reserve ถูกย้ายเข้า raid escrow ตอน Fund จึงไม่มีรางวัลลอยและ settlement เป็น zero-sum
+- result เป็น immutable row; duplicate/retry ไม่จ่ายซ้ำ และ timed-out ACTIVE raid ถูก infrastructure refund
+
+ค่า `RaidServer:DevelopmentKey` ใน launcher ใช้เฉพาะ local Development. Production ต้องเปลี่ยนเป็น workload identity/mTLS และห้ามฝังคีย์ใน Unity player.

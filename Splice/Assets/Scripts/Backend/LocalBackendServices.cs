@@ -254,6 +254,7 @@ namespace Splice.Backend
         private readonly IWalletService walletService;
         private readonly Dictionary<string, RaidQuoteDto> quotes = new();
         private readonly Dictionary<string, RaidStartDto> confirmedQuotes = new();
+        private readonly Dictionary<string, RaidAllocationDto> allocations = new();
         private readonly Dictionary<string, string> idempotencyQuotes = new();
         private readonly Dictionary<string, string> quoteRequestHashes = new();
         private readonly Dictionary<string, RaidQuoteDto> idempotentQuoteResults = new();
@@ -338,6 +339,48 @@ namespace Splice.Backend
             if (result.success) confirmedQuotes.Add(quoteId, result);
             else idempotencyQuotes.Remove(idempotencyKey);
             return result;
+        }
+
+        public Task<RaidAllocationDto> AllocateAsync(string raidId, string idempotencyKey,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(raidId) || string.IsNullOrWhiteSpace(idempotencyKey))
+                return Task.FromResult(new RaidAllocationDto
+                    { success = false, raidId = raidId, error = "Raid ID and idempotency key are required." });
+            if (allocations.TryGetValue(raidId, out var existing)) return Task.FromResult(existing);
+            var confirmed = false;
+            foreach (var start in confirmedQuotes.Values)
+                if (start.raidId == raidId) { confirmed = true; break; }
+            if (!confirmed)
+                return Task.FromResult(new RaidAllocationDto
+                    { success = false, raidId = raidId, error = "Funded raid was not found." });
+            var allocation = new RaidAllocationDto
+            {
+                success = true,
+                raidId = raidId,
+                allocationId = Guid.NewGuid().ToString("D"),
+                raidServerId = "local-prototype",
+                ticket = Guid.NewGuid().ToString("N"),
+                sceneContractVersion = "raid-scene-local-v1",
+                expiresUtc = DateTime.UtcNow.AddMinutes(5).ToString("O"),
+            };
+            allocations.Add(raidId, allocation);
+            return Task.FromResult(allocation);
+        }
+
+        public Task<RaidLifecycleDto> GetLifecycleAsync(string raidId,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var allocated = allocations.ContainsKey(raidId);
+            return Task.FromResult(new RaidLifecycleDto
+            {
+                raidId = raidId,
+                state = allocated ? "ACTIVE" : "FUNDED",
+                allocationState = allocated ? "CLAIMED" : string.Empty,
+                updatedUtc = DateTime.UtcNow.ToString("O"),
+            });
         }
 
         private static RaidStartDto Failed(string quoteId, string error) => new()
