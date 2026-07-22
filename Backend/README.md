@@ -43,3 +43,15 @@ ConnectionStrings__Splice='Host=127.0.0.1;Database=splice;Username=YOUR_USER' \
 - `test-c3.sh` ครอบคลุม rollback, immutable history และ concurrent deployment
 
 ไฟล์ migration ต้องถูกรันตามลำดับชื่อ ห้ามแก้ migration ที่ deploy แล้ว; ให้เพิ่มไฟล์เลขถัดไปแทน.
+
+## Unity local integration (C2/C3)
+
+เริ่ม API + PostgreSQL fixture สำหรับ Unity แบบ local-only ด้วยคำสั่งเดียวจาก root repository:
+
+```bash
+bash Tools/run-local-backend-dev.sh <unity-player-uuid>
+```
+
+จากนั้นใน Unity เลือก `Splice > Backend > Enable Local Remote Meta` เพื่อให้ Meta flow ใช้ API ที่ `http://127.0.0.1:5080`. UUID ที่ส่งให้ launcher ต้องตรงกับ Player ID ที่ Unity พิมพ์ใน Console. โหมดนี้เป็น development bearer และถูกปิดโดยค่าเริ่มต้น; ใช้ production build ไม่ได้.
+
+สคริปต์จะสร้างฐานข้อมูลชั่วคราว `splice_unity_local_dev`, apply migration/seed, เติม wallet และสร้าง defender deployment fixture. กด `Ctrl+C` เพื่อหยุด API และลบฐานข้อมูลชั่วคราว.

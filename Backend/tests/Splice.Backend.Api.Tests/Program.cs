@@ -406,6 +406,8 @@ static async Task RunC3Async(TestHost host, string connectionString)
     Equal(100L, Long(deployV1, "snapshot", "maxCapacity"), "server max capacity");
     Equal(405L, Long(deployV1, "snapshot", "basePowerRating"), "server base power");
     var snapshotV1Id = String(deployV1, "snapshot", "snapshotId");
+    var deploymentV1Id = String(deployV1, "snapshot", "deploymentId");
+    True(Guid.TryParse(deploymentV1Id, out _), "snapshot response includes deployment UUID for quote");
     Equal(900L, Long(await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null),
         "warGemBalance"), "town stake debited once");
     Equal(390L, await PlayerBalanceAsync(connectionString, "GOLD"),
@@ -414,6 +416,8 @@ static async Task RunC3Async(TestHost host, string connectionString)
     var deployReplay = await SendAsync(host.Client, HttpMethod.Post, $"/v1/towns/{faction}/deployments",
         deployBodyV1, "deploy:c3:v1");
     Equal(snapshotV1Id, String(deployReplay, "snapshot", "snapshotId"), "deployment replay identity");
+    Equal(deploymentV1Id, String(deployReplay, "snapshot", "deploymentId"),
+        "deployment replay preserves quote target identity");
     Equal(900L, Long(await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null),
         "warGemBalance"), "deployment replay does not debit town stake");
     Equal(390L, await PlayerBalanceAsync(connectionString, "GOLD"),
@@ -432,8 +436,11 @@ static async Task RunC3Async(TestHost host, string connectionString)
     True(v2Results.All(result => result.Status is HttpStatusCode.Created or HttpStatusCode.OK),
         "concurrent deployment requests succeed/replay");
     var snapshotV2Id = String(v2Results[0], "snapshot", "snapshotId");
+    var deploymentV2Id = String(v2Results[0], "snapshot", "deploymentId");
     Equal(snapshotV2Id, String(v2Results[1], "snapshot", "snapshotId"),
         "concurrent deployment creates one snapshot");
+    Equal(deploymentV2Id, String(v2Results[1], "snapshot", "deploymentId"),
+        "concurrent deployment returns one deployment identity");
     Equal(2L, Long(v2Results[0], "snapshot", "revision"), "snapshot V2 revision");
     Equal(6L, Long(v2Results[0], "snapshot", "usedCapacity"), "snapshot V2 capacity");
     Equal(530L, Long(v2Results[0], "snapshot", "basePowerRating"), "snapshot V2 power");
@@ -445,9 +452,12 @@ static async Task RunC3Async(TestHost host, string connectionString)
     var latest = await SendAsync(host.Client, HttpMethod.Get,
         $"/v1/towns/{faction}/snapshots/latest", null, null);
     Equal(snapshotV2Id, String(latest, "snapshotId"), "latest pointer moves to V2");
+    Equal(deploymentV2Id, String(latest, "deploymentId"), "latest exposes quote target deployment");
     var oldSnapshot = await SendAsync(host.Client, HttpMethod.Get,
         $"/v1/town-snapshots/{snapshotV1Id}", null, null);
     Equal(1L, Long(oldSnapshot, "revision"), "V1 remains readable");
+    Equal(deploymentV1Id, String(oldSnapshot, "deploymentId"),
+        "retired snapshot retains its historical deployment identity");
     Equal(50L, Long(oldSnapshot, "layout", "storedGold"), "V1 payload remains unchanged");
     Equal(1, Element(oldSnapshot, "layout", "towers").GetArrayLength(), "V1 tower list remains unchanged");
 
@@ -457,6 +467,8 @@ static async Task RunC3Async(TestHost host, string connectionString)
     var batchItems = Element(batch, "snapshots");
     Equal(1, batchItems.GetArrayLength(), "batch returns one active C3 town");
     Equal(snapshotV2Id, batchItems[0].GetProperty("snapshotId").GetString()!, "batch returns V2");
+    Equal(deploymentV2Id, batchItems[0].GetProperty("deploymentId").GetString()!,
+        "target pool batch exposes C2 quote deployment UUID");
 
     var revertDraft = await SendAsync(host.Client, HttpMethod.Put, $"/v1/towns/{faction}/draft",
         layoutV1, "draft:c3:revert-v1");

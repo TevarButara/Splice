@@ -12,6 +12,7 @@ namespace Splice.Base
     public class RaidTarget
     {
         public string targetId;
+        public string deploymentId;
         public string displayName;
         public RaidTargetSource source;
         public int baseLevel = 1;
@@ -83,7 +84,10 @@ namespace Splice.Base
             if (snapshot == null) return null;
             return new RaidTarget
             {
-                targetId = "snapshot:" + snapshot.snapshotId,
+                targetId = string.IsNullOrWhiteSpace(snapshot.deploymentId)
+                    ? "snapshot:" + snapshot.snapshotId
+                    : snapshot.deploymentId,
+                deploymentId = snapshot.deploymentId ?? string.Empty,
                 displayName = string.IsNullOrWhiteSpace(name) ? $"{snapshot.factionId} Town" : name,
                 source = RaidTargetSource.PlayerSnapshot,
                 baseLevel = snapshot.baseLevel,

@@ -468,6 +468,9 @@ namespace Splice.Backend
         public static IRaidReportService RaidReports => raidReports ??= new LocalRaidReportService();
         public static IRaidSettlementService RaidSettlement =>
             raidSettlement ??= new LocalRaidSettlementService(RaidReports);
+        public static bool IsRemoteMeta => wallet is RemoteWalletService &&
+                                           townSnapshots is RemoteTownSnapshotService &&
+                                           raidContracts is RemoteRaidContractService;
 
         public static void Configure(IWalletService walletService, ITownSnapshotService townSnapshotService,
             IRaidContractService raidContractService, IRaidReportService raidReportService = null,

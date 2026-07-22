@@ -1,3 +1,6 @@
+using System;
+using System.Threading;
+using Splice.Backend;
 using TMPro;
 using Splice.UI;
 using UnityEngine;
@@ -18,11 +21,15 @@ namespace Splice.Base
         [SerializeField] private Button confirmButton;
         [SerializeField] private Button cancelButton;
         private GameObject modalBackdrop;
+        private CancellationTokenSource lifetimeCancellation;
+        private string checkoutIdempotencyKey;
+        private bool checkoutInFlight;
 
         public bool IsConfirmOpen => confirmPanel != null && confirmPanel.activeSelf;
 
         private void Awake()
         {
+            lifetimeCancellation = new CancellationTokenSource();
             ResolveReferences();
             BuildAndStyleConfirmation();
             WireButtons();
@@ -32,6 +39,8 @@ namespace Splice.Base
 
         private void OnDestroy()
         {
+            lifetimeCancellation?.Cancel();
+            lifetimeCancellation?.Dispose();
             if (openButton != null) openButton.onClick.RemoveListener(OpenConfirm);
             if (confirmButton != null) confirmButton.onClick.RemoveListener(Confirm);
             if (cancelButton != null) cancelButton.onClick.RemoveListener(CancelConfirm);
@@ -53,6 +62,7 @@ namespace Splice.Base
             }
 
             RefreshConfirmation();
+            checkoutIdempotencyKey = Guid.NewGuid().ToString("N");
             if (modalBackdrop != null)
             {
                 modalBackdrop.SetActive(true);
@@ -62,19 +72,54 @@ namespace Splice.Base
             confirmPanel.transform.SetAsLastSibling();
         }
 
-        public void Confirm()
+        public void Confirm() => _ = ConfirmAsync();
+
+        private async System.Threading.Tasks.Task ConfirmAsync()
         {
-            if (buildManager == null) return;
-            if (!buildManager.Checkout())
+            if (buildManager == null || checkoutInFlight) return;
+            checkoutInFlight = true;
+            var success = false;
+            var error = string.Empty;
+            if (SpliceServiceHub.IsRemoteMeta)
+            {
+                if (string.IsNullOrWhiteSpace(checkoutIdempotencyKey))
+                    checkoutIdempotencyKey = Guid.NewGuid().ToString("N");
+                try
+                {
+                    var result = await buildManager.CheckoutRemoteAsync(
+                        checkoutIdempotencyKey, lifetimeCancellation.Token);
+                    success = result.success;
+                    error = result.error;
+                }
+                catch (OperationCanceledException)
+                {
+                    checkoutInFlight = false;
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    success = false;
+                    error = exception.Message;
+                }
+            }
+            else success = buildManager.Checkout();
+
+            if (!success)
             {
                 if (confirmLabel != null)
-                    confirmLabel.text = "<color=#FF6B78><b>CHECKOUT FAILED</b></color>\n<size=22>Not enough Gold or town data is incomplete.</size>";
+                    confirmLabel.text = "<color=#FF6B78><b>CHECKOUT FAILED</b></color>\n<size=22>" +
+                                        (string.IsNullOrWhiteSpace(error)
+                                            ? "Not enough Gold or town data is incomplete."
+                                            : error) + "</size>";
+                checkoutInFlight = false;
                 return;
             }
 
+            checkoutIdempotencyKey = string.Empty;
             if (confirmPanel != null) confirmPanel.SetActive(false);
             if (modalBackdrop != null) modalBackdrop.SetActive(false);
-            Debug.Log("[BaseBuildCheckout] Checkout confirmed and town draft persisted.");
+            checkoutInFlight = false;
+            Debug.Log("[BaseBuildCheckout] Checkout confirmed and authoritative town draft persisted.");
         }
 
         public void CancelConfirm()
@@ -114,12 +159,17 @@ namespace Splice.Base
         private void RefreshConfirmation()
         {
             var net = buildManager.NetCost;
-            var canAfford = net <= buildManager.WalletGold;
-            if (confirmButton != null) confirmButton.interactable = canAfford;
-            SetButtonLabel(confirmButton, canAfford ? "CONFIRM CHECKOUT" : "NOT ENOUGH GOLD");
+            var remote = SpliceServiceHub.IsRemoteMeta;
+            var canAfford = remote || net <= buildManager.WalletGold;
+            if (confirmButton != null) confirmButton.interactable = canAfford && !checkoutInFlight;
+            SetButtonLabel(confirmButton, canAfford
+                ? remote ? "SYNC SERVER DRAFT" : "CONFIRM CHECKOUT"
+                : "NOT ENOUGH GOLD");
 
             if (confirmLabel == null) return;
-            var transaction = net > 0
+            var transaction = remote
+                ? "SERVER VALIDATES NOW • GOLD CHARGED ON DEPLOY"
+                : net > 0
                 ? $"COST  <color=#FFBC57>{net:N0} GOLD</color>"
                 : net < 0
                     ? $"REFUND  <color=#61E6A7>{-net:N0} GOLD</color>"

@@ -54,7 +54,11 @@ namespace Splice.Base
         public async Task<List<RaidTarget>> GenerateTargetsAsync(int seed, CancellationToken cancellationToken)
         {
             var snapshots = await LoadLatestDeployedSnapshotsAsync(cancellationToken);
-            var bots = GenerateBotTargets(Mathf.Max(0, targetCount), seed);
+            // A player client must never invent raidable targets while connected to the authoritative economy.
+            // Production bot towns must be server deployments too, so C2 can lock their snapshot and stake.
+            var bots = SpliceServiceHub.IsRemoteMeta
+                ? new List<RaidTarget>()
+                : GenerateBotTargets(Mathf.Max(0, targetCount), seed);
             LastBuildResult = RaidTargetPool.Compose(snapshots, bots, PlayerProfile.AccountId,
                 Mathf.Max(0, targetCount), includeOwnSnapshotForInspection);
 

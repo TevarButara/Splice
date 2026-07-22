@@ -177,9 +177,16 @@ namespace Splice.Backend
             this.client = client ?? throw new ArgumentNullException(nameof(client));
 
         public Task<RaidQuoteDto> CreateQuoteAsync(CreateRaidQuoteRequest request,
-            string idempotencyKey, CancellationToken cancellationToken) =>
-            client.SendAsync<CreateRaidQuoteRequest, RaidQuoteDto>(BackendHttpMethods.Post,
+            string idempotencyKey, CancellationToken cancellationToken)
+        {
+            if (request == null || !Guid.TryParse(request.targetId, out _) ||
+                !Guid.TryParse(request.attackerLoadoutId, out _))
+                throw new BackendServiceException(0, BackendErrorCodes.InvalidTransportRequest,
+                    "Remote raid quote requires server-issued deployment and attacker loadout UUIDs.",
+                    string.Empty, false);
+            return client.SendAsync<CreateRaidQuoteRequest, RaidQuoteDto>(BackendHttpMethods.Post,
                 BackendRoutes.RaidQuotes, request, idempotencyKey, true, cancellationToken);
+        }
 
         public async Task<RaidStartDto> ConfirmAsync(string quoteId, string idempotencyKey,
             CancellationToken cancellationToken)

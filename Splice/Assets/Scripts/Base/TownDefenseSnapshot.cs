@@ -11,6 +11,7 @@ namespace Splice.Base
     {
         public int schemaVersion = 1;
         public string snapshotId;
+        public string deploymentId;
         public int revision;
         public string committedUtc;
         public string ownerAccountId;

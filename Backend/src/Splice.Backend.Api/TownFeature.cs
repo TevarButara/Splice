@@ -41,7 +41,7 @@ public sealed record SnapshotCommitView(bool Success, string Error, TownDefenseS
 public sealed record SnapshotBatchRequest(IReadOnlyList<string>? FactionIds);
 public sealed record SnapshotBatchView(IReadOnlyList<TownDefenseSnapshotView> Snapshots);
 public sealed record TownDefenseSnapshotView(
-    int SchemaVersion, string SnapshotId, int Revision, string CommittedUtc,
+    int SchemaVersion, string SnapshotId, string DeploymentId, int Revision, string CommittedUtc,
     string OwnerAccountId, string FactionId, int BaseLevel, long BasePowerRating,
     int UsedCapacity, int MaxCapacity, bool MatchmakingEligible,
     string ValidationVersion, IReadOnlyList<string> ValidationWarnings,
@@ -229,7 +229,7 @@ public static partial class TownFeature
                 var townEscrow = await GetOrFundTownEscrowAsync(connection, transaction,
                     town.Value.Id, playerId, deploymentId, town.Value.BaseLevel, cancellationToken);
                 var snapshot = new TownDefenseSnapshotView(
-                    1, snapshotId.ToString("D"), revision, committedAt.ToString("O"),
+                    1, snapshotId.ToString("D"), deploymentId.ToString("D"), revision, committedAt.ToString("O"),
                     layout.OwnerAccountId, factionId, town.Value.BaseLevel, validation.BasePower,
                     validation.UsedCapacity, validation.MaxCapacity, true, ValidatorVersion,
                     validation.Warnings, layout, string.Empty, string.Empty);
@@ -308,7 +308,7 @@ public static partial class TownFeature
                 "FACTION_ID_INVALID", "Faction ID is invalid."));
         await using var connection = await dataSource.OpenConnectionAsync(context.RequestAborted);
         await using var command = new NpgsqlCommand("""
-            SELECT s.payload::text
+            SELECT d.id, s.payload::text
               FROM splice.towns t
               JOIN splice.town_deployments d ON d.town_id = t.id
               JOIN splice.town_snapshots s ON s.id = d.active_snapshot_id
@@ -318,24 +318,35 @@ public static partial class TownFeature
             """, connection);
         command.Parameters.AddWithValue("player", RequestIdentityMiddleware.PlayerId(context));
         command.Parameters.AddWithValue("faction", factionId);
-        var payload = await command.ExecuteScalarAsync(context.RequestAborted) as string;
-        return payload is null
-            ? Results.Text("null", "application/json", Encoding.UTF8, StatusCodes.Status200OK)
-            : Results.Text(payload, "application/json", Encoding.UTF8, StatusCodes.Status200OK);
+        await using var reader = await command.ExecuteReaderAsync(context.RequestAborted);
+        if (!await reader.ReadAsync(context.RequestAborted))
+            return Results.Text("null", "application/json", Encoding.UTF8, StatusCodes.Status200OK);
+        var snapshot = DeserializeSnapshot(reader.GetString(1), reader.GetGuid(0));
+        return Results.Json(snapshot, JsonOptions, statusCode: StatusCodes.Status200OK);
     }
 
     private static async Task<IResult> GetByIdAsync(HttpContext context, Guid snapshotId,
         NpgsqlDataSource dataSource)
     {
         await using var connection = await dataSource.OpenConnectionAsync(context.RequestAborted);
-        await using var command = new NpgsqlCommand(
-            "SELECT payload::text FROM splice.town_snapshots WHERE id = @id", connection);
+        await using var command = new NpgsqlCommand("""
+            SELECT d.id, s.payload::text
+              FROM splice.town_snapshots s
+              LEFT JOIN LATERAL (
+                  SELECT id FROM splice.town_deployments
+                   WHERE active_snapshot_id = s.id
+                   ORDER BY activated_at DESC LIMIT 1
+              ) d ON true
+             WHERE s.id = @id
+            """, connection);
         command.Parameters.AddWithValue("id", snapshotId);
-        var payload = await command.ExecuteScalarAsync(context.RequestAborted) as string;
-        return payload is null
-            ? IdempotencyExecutor.ToResult(ApiErrors.Reply(context, StatusCodes.Status404NotFound,
-                "SNAPSHOT_NOT_FOUND", "Town snapshot was not found."))
-            : Results.Text(payload, "application/json", Encoding.UTF8, StatusCodes.Status200OK);
+        await using var reader = await command.ExecuteReaderAsync(context.RequestAborted);
+        if (!await reader.ReadAsync(context.RequestAborted))
+            return IdempotencyExecutor.ToResult(ApiErrors.Reply(context, StatusCodes.Status404NotFound,
+                "SNAPSHOT_NOT_FOUND", "Town snapshot was not found."));
+        var deploymentId = reader.IsDBNull(0) ? (Guid?)null : reader.GetGuid(0);
+        return Results.Json(DeserializeSnapshot(reader.GetString(1), deploymentId), JsonOptions,
+            statusCode: StatusCodes.Status200OK);
     }
 
     private static async Task<IResult> QueryLatestAsync(HttpContext context, SnapshotBatchRequest request,
@@ -345,7 +356,7 @@ public static partial class TownFeature
         if (factions.Length == 0) return Results.Ok(new SnapshotBatchView([]));
         await using var connection = await dataSource.OpenConnectionAsync(context.RequestAborted);
         await using var command = new NpgsqlCommand("""
-            SELECT s.payload::text
+            SELECT d.id, s.payload::text
               FROM splice.town_deployments d
               JOIN splice.town_snapshots s ON s.id = d.active_snapshot_id
              WHERE d.status IN ('READY', 'ACTIVE', 'PAUSED', 'SHIELDED')
@@ -358,7 +369,7 @@ public static partial class TownFeature
         await using var reader = await command.ExecuteReaderAsync(context.RequestAborted);
         while (await reader.ReadAsync(context.RequestAborted))
         {
-            var snapshot = JsonSerializer.Deserialize<TownDefenseSnapshotView>(reader.GetString(0), JsonOptions);
+            var snapshot = DeserializeSnapshot(reader.GetString(1), reader.GetGuid(0));
             if (snapshot is not null) snapshots.Add(snapshot);
         }
         return Results.Ok(new SnapshotBatchView(snapshots));
@@ -538,7 +549,7 @@ public static partial class TownFeature
         CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand("""
-            SELECT s.payload::text
+            SELECT d.id, s.payload::text
               FROM splice.town_layout_commits c
               JOIN splice.town_snapshots s ON s.layout_commit_id = c.id
               JOIN splice.town_deployments d ON d.active_snapshot_id = s.id
@@ -548,8 +559,10 @@ public static partial class TownFeature
             """, connection, transaction);
         command.Parameters.AddWithValue("town", townId);
         command.Parameters.AddWithValue("hash", payloadHash);
-        var payload = await command.ExecuteScalarAsync(cancellationToken) as string;
-        return payload is null ? null : JsonSerializer.Deserialize<TownDefenseSnapshotView>(payload, JsonOptions);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        return await reader.ReadAsync(cancellationToken)
+            ? DeserializeSnapshot(reader.GetString(1), reader.GetGuid(0))
+            : null;
     }
 
     private static async Task<int> NextRevisionAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
@@ -731,6 +744,13 @@ public static partial class TownFeature
             "CONTENT_VALIDATION_FAILED", string.Join(" ", errors));
 
     private static string Canonical<T>(T value) => JsonSerializer.Serialize(value, JsonOptions);
+    private static TownDefenseSnapshotView? DeserializeSnapshot(string payload, Guid? deploymentId)
+    {
+        var snapshot = JsonSerializer.Deserialize<TownDefenseSnapshotView>(payload, JsonOptions);
+        return snapshot is null || deploymentId is null
+            ? snapshot
+            : snapshot with { DeploymentId = deploymentId.Value.ToString("D") };
+    }
     private static string Sha256(string value) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     private static bool ValidFaction(string value) => !string.IsNullOrWhiteSpace(value) && FactionPattern.IsMatch(value);

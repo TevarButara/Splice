@@ -26,6 +26,7 @@ namespace Splice.Core
         public string snapshotId;
         public int snapshotRevision;
         public string attackerAccountId;
+        public string attackerLoadoutId;
         public string defenderAccountId;
         public string attackerTownSnapshotId;
         public int attackerTownSnapshotRevision;
@@ -87,6 +88,10 @@ namespace Splice.Core
                 snapshotId = target.snapshotId ?? string.Empty,
                 snapshotRevision = target.snapshotRevision,
                 attackerAccountId = attackerAccountId ?? string.Empty,
+                attackerLoadoutId = AttackerLoadoutIdentity.ForFaction(
+                    string.IsNullOrWhiteSpace(PlayerProfile.ActiveFactionId)
+                        ? target.factionId
+                        : PlayerProfile.ActiveFactionId),
                 defenderAccountId = !string.IsNullOrWhiteSpace(target.ownerAccountId)
                     ? target.ownerAccountId
                     : target.layout?.ownerAccountId ?? string.Empty,

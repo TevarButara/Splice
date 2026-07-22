@@ -24,11 +24,12 @@
 - C2 ASP.NET Core Wallet/Escrow API แบบ local-only เสร็จแล้ว: auth boundary, wallet, quote, confirm/fund, startup refund และ reconciliation
 - C3 immutable Town backend เสร็จแล้ว: draft, server checkout, layout commit, snapshot, deployment, vault/escrow และ global snapshot query
 - U1 Live Content Update เสร็จแล้วแบบ local-first: Addressables groups/profile, deterministic Content Catalog + PostgreSQL seed, runtime updater, retry/rollback, automated tests และ content-only build proof
+- U2 Unity ↔ Local Backend Integration เสร็จแล้ว: HTTP transport, development bootstrap, server-authoritative Checkout/Deploy/Target/Quote/Fund และ local launcher
 
 ## Verification ล่าสุด
 
 - Unity compile: Error 0
-- EditMode: 41/41 passed
+- EditMode: 45/45 passed
 - PlayMode: 2/2 passed
 - Content Validator: Errors 0, Warnings 0
 - Target Pool diagnostic: PASS; immutable V1 คงเดิมหลัง commit V2
@@ -40,19 +41,21 @@
 - Addressables content-only proof ผ่าน: baseline `1.0.0` → update `1.0.1`, catalog hash เปลี่ยน, `IsUpdateContentBuild=true` และไม่มี Player rebuild
 - Unity Content Catalog export 7 definitions แบบ deterministic; backend รองรับ composite identity `(content_id, content_kind)` และ C1–C3 regression ยังผ่าน
 - Configurator รันซ้ำได้แบบ idempotent และล้าง stale Addressables groups ที่ไม่มี content definition; มี regression test ป้องกัน group ชื่อซ้ำ/เลขต่อท้าย
+- Unity HTTP contract regression ผ่าน flow Checkout → Deploy → Target → Quote → Fund พร้อมตรวจ Bearer auth และ idempotency headers
+- local ASP.NET/PostgreSQL launcher smoke test ผ่าน; API health, wallet และ defender deployment อ่านได้จริง และฐานข้อมูลชั่วคราวถูกลบหลังหยุด
 
 ## Backend
 
 - Architecture contract: `splice-server-wallet-escrow-snapshot-contract-db.md`
-- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow และ C3 immutable Town API local-only เสร็จแล้ว
+- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API และ Unity local integration เสร็จแล้ว
 - Backend package: `Backend`; ใช้ HTTP เฉพาะ 127.0.0.1 ตอนทดสอบ ยังไม่เปิด Cloud/production
 - Stack ที่เสนอ: ASP.NET Core modular monolith + PostgreSQL; deploy แบบ stateless containers และแยก authoritative Unity Raid Server ในระยะ C4
 
 ## งานถัดไป
 
-1. เชื่อม Unity remote adapters กับ local C2/C3 API พร้อม EditMode/PlayMode tests
-2. ทดสอบ local end-to-end: Checkout → Deploy → Target → Quote → Fund
-3. C4: Trusted authoritative Raid Result/Settlement
+1. C4: Trusted authoritative Raid Allocation/Start/Result/Settlement
+2. เชื่อม Raid Arena กับ raid ticket ที่ server ออก และปิดการส่งผลจาก client โดยตรง
+3. เพิ่ม crash/retry/reconciliation regression สำหรับ raid result และ reward
 4. ก่อน production ค่อยเพิ่ม CDN/object storage, manifest signing, staged rollout และ monitoring
 
 ## สิ่งที่ยังห้ามใน production

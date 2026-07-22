@@ -3,6 +3,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
+using Splice.Base;
 using Splice.Backend;
 using Splice.Combat;
 
@@ -114,11 +115,14 @@ namespace Splice.Tests.EditMode
         [Test]
         public async Task RemoteRaidContract_SendsQuoteAndConfirmAsIdempotentPublicIntents()
         {
+            const string deploymentId = "41000000-0000-0000-0000-000000000001";
+            const string loadoutId = "51000000-0000-0000-0000-000000000001";
             var transport = new LoopbackBackendTransport();
             transport.Register(BackendHttpMethods.Post, BackendRoutes.RaidQuotes, (request, _) =>
             {
                 var body = UnityBackendJsonSerializer.Instance.FromJson<CreateRaidQuoteRequest>(request.bodyJson);
-                Assert.That(body.targetId, Is.EqualTo("target_1"));
+                Assert.That(body.targetId, Is.EqualTo(deploymentId));
+                Assert.That(body.attackerLoadoutId, Is.EqualTo(loadoutId));
                 return Task.FromResult(LoopbackBackendTransport.Json(200,
                     new RaidQuoteDto { quoteId = "quote_1", targetId = body.targetId }));
             });
@@ -132,13 +136,66 @@ namespace Splice.Tests.EditMode
             var service = new RemoteRaidContractService(new BackendApiClient(transport));
 
             var quote = await service.CreateQuoteAsync(
-                new CreateRaidQuoteRequest { targetId = "target_1" },
+                new CreateRaidQuoteRequest
+                {
+                    targetId = deploymentId,
+                    attackerLoadoutId = loadoutId,
+                },
                 "quote_key", CancellationToken.None);
             var start = await service.ConfirmAsync(quote.quoteId, "raid_key", CancellationToken.None);
 
             Assert.That(start.success, Is.True, start.error);
             Assert.That(start.raidId, Is.EqualTo("raid_1"));
             Assert.That(transport.HandlerCalls, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void RemoteRaidContract_RejectsSnapshotAliasAndMissingLoadoutBeforeNetwork()
+        {
+            var transport = new LoopbackBackendTransport();
+            var service = new RemoteRaidContractService(new BackendApiClient(transport));
+
+            var exception = Assert.Throws<BackendServiceException>(() =>
+                service.CreateQuoteAsync(new CreateRaidQuoteRequest
+                {
+                    targetId = "snapshot:legacy-id",
+                    attackerLoadoutId = string.Empty,
+                }, "quote_key", CancellationToken.None));
+
+            Assert.That(exception.Code, Is.EqualTo(BackendErrorCodes.InvalidTransportRequest));
+            Assert.That(transport.HandlerCalls, Is.Zero);
+        }
+
+        [Test]
+        public void SnapshotTarget_UsesServerDeploymentIdentityForQuoteAndKeepsSnapshotLock()
+        {
+            var snapshot = new TownDefenseSnapshot
+            {
+                snapshotId = "32000000-0000-0000-0000-000000000001",
+                deploymentId = "41000000-0000-0000-0000-000000000001",
+                revision = 2,
+                ownerAccountId = "11000000-0000-0000-0000-000000000002",
+                factionId = "1",
+                layout = new BaseLayout { factionId = "1" },
+            };
+
+            var target = RaidTarget.FromSnapshot(snapshot, "Defender", false);
+
+            Assert.That(target.targetId, Is.EqualTo(snapshot.deploymentId));
+            Assert.That(target.deploymentId, Is.EqualTo(snapshot.deploymentId));
+            Assert.That(target.snapshotId, Is.EqualTo(snapshot.snapshotId));
+            Assert.That(target.snapshotRevision, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void HttpTransport_AllowsLoopbackHttpButRejectsInsecureRemoteHost()
+        {
+            Assert.That(UnityWebRequestBackendTransport.ValidateBaseUri("http://127.0.0.1:5080").IsLoopback,
+                Is.True);
+            Assert.Throws<ArgumentException>(() =>
+                UnityWebRequestBackendTransport.ValidateBaseUri("http://example.com/api"));
+            Assert.That(UnityWebRequestBackendTransport.ValidateBaseUri("https://api.example.com/v1").Scheme,
+                Is.EqualTo("https"));
         }
 
         [Test]

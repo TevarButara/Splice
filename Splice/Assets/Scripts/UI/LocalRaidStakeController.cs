@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Splice.Backend;
 using Splice.Base;
+using Splice.Core;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -125,6 +126,7 @@ namespace Splice.UI
                         targetId = target.targetId,
                         targetName = target.displayName,
                         difficultyBand = RaidSceneAdapter.DifficultyBandFor(target),
+                        attackerLoadoutId = RaidSessionContext.Current?.attackerLoadoutId,
                     }, Guid.NewGuid().ToString("N"), lifetimeCancellation.Token);
                     confirmIdempotencyKey = Guid.NewGuid().ToString("N");
                     ApplyQuote(activeQuote);

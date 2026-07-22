@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Splice.Backend;
 using Splice.Core;
 using Splice.Data;
 using Splice.Input;
@@ -266,8 +269,52 @@ namespace Splice.Base
 
         // ---------- checkout / discard ----------
 
+        public async Task<BackendOperationResult> CheckoutRemoteAsync(string idempotencyKey,
+            CancellationToken cancellationToken)
+        {
+            if (!SpliceServiceHub.IsRemoteMeta)
+                return new BackendOperationResult
+                {
+                    success = false,
+                    error = "Remote checkout requires the remote meta service composition.",
+                };
+            var fid = CityFactionId;
+            if (string.IsNullOrWhiteSpace(fid))
+                return new BackendOperationResult { success = false, error = "Town faction is missing." };
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+                return new BackendOperationResult { success = false, error = "Checkout idempotency key is missing." };
+
+            var layout = CaptureCurrentLayout(fid);
+            try
+            {
+                await SpliceServiceHub.TownSnapshots.SaveCheckedOutDraftAsync(
+                    layout, idempotencyKey, cancellationToken);
+            }
+            catch (BackendServiceException exception)
+            {
+                return new BackendOperationResult
+                {
+                    success = false,
+                    error = RemoteWalletService.Format(exception),
+                };
+            }
+
+            foreach (var piece in placed) if (piece != null) piece.Paid = true;
+            pendingRefund = 0;
+            PlayerBaseStore.SaveLayout(layout); // cache only; server remains authoritative in remote mode.
+            hasUnsavedChanges = false;
+            Debug.Log($"[BaseBuild] remote draft checkout '{fid}' accepted; Gold is charged by server on Deploy.");
+            return new BackendOperationResult { success = true, error = string.Empty };
+        }
+
         public bool Checkout()
         {
+            if (SpliceServiceHub.IsRemoteMeta)
+            {
+                Debug.LogError("[BaseBuild] Synchronous local Checkout is forbidden in remote mode. " +
+                               "Use CheckoutRemoteAsync through BaseBuildCheckoutController.");
+                return false;
+            }
             var fid = CityFactionId;
             if (string.IsNullOrEmpty(fid)) { Debug.LogWarning("[BaseBuild] ไม่มี faction — checkout ไม่ได้"); return false; }
 
@@ -298,7 +345,15 @@ namespace Splice.Base
 
         private void PersistCommitted(string fid)
         {
-            var layout = PlayerBaseStore.LoadLayout(fid) ?? new BaseLayout();
+            PlayerBaseStore.SaveLayout(CaptureCurrentLayout(fid));
+        }
+
+        private BaseLayout CaptureCurrentLayout(string fid)
+        {
+            var previous = PlayerBaseStore.LoadLayout(fid);
+            var layout = previous == null
+                ? new BaseLayout()
+                : JsonUtility.FromJson<BaseLayout>(JsonUtility.ToJson(previous));
             layout.factionId = fid;
             layout.ownerAccountId = PlayerProfile.AccountId;
             layout.towers.Clear();
@@ -309,7 +364,7 @@ namespace Splice.Base
                 if (piece.Kind == BuildPieceKind.Tower && piece.TowerData != null) layout.towers.Add(piece.TowerData);
                 else if (piece.Kind == BuildPieceKind.Garrison && piece.GarrisonData != null) layout.garrison.Add(piece.GarrisonData);
             }
-            PlayerBaseStore.SaveLayout(layout);
+            return layout;
         }
 
         // ---------- load / spawn ----------
