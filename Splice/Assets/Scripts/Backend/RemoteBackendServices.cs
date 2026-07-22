@@ -29,6 +29,8 @@ namespace Splice.Backend
             "/v1/raids/" + Segment(raidId) + "/allocation";
         public static string RaidLifecycle(string raidId) =>
             "/v1/raids/" + Segment(raidId);
+        public static string AttackerLoadout(string loadoutId) =>
+            "/v1/attacker-loadouts/" + Segment(loadoutId);
 
         private static string Segment(string value)
         {
@@ -185,6 +187,20 @@ namespace Splice.Backend
 
         public RemoteRaidContractService(BackendApiClient client) =>
             this.client = client ?? throw new ArgumentNullException(nameof(client));
+
+        public Task<AttackerLoadoutDto> SaveAttackerLoadoutAsync(string loadoutId,
+            PutAttackerLoadoutRequest request, string idempotencyKey,
+            CancellationToken cancellationToken)
+        {
+            if (!Guid.TryParse(loadoutId, out _) || request == null ||
+                string.IsNullOrWhiteSpace(request.factionId) || request.entries == null ||
+                request.entries.Count == 0)
+                throw new BackendServiceException(0, BackendErrorCodes.InvalidTransportRequest,
+                    "Remote raid requires a selected non-empty attacker army.", string.Empty, false);
+            return client.SendAsync<PutAttackerLoadoutRequest, AttackerLoadoutDto>(
+                BackendHttpMethods.Put, BackendRoutes.AttackerLoadout(loadoutId), request,
+                idempotencyKey, true, cancellationToken);
+        }
 
         public Task<RaidQuoteDto> CreateQuoteAsync(CreateRaidQuoteRequest request,
             string idempotencyKey, CancellationToken cancellationToken)

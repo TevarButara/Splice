@@ -21,6 +21,7 @@ namespace Splice.Editor.ContentUpdates
         public string contentKind;
         public int defenseCapacityCost;
         public long goldCost;
+        public int raidPower;
         public string serverContentVersion;
         public string addressablesLabel;
         public string address;
@@ -39,7 +40,7 @@ namespace Splice.Editor.ContentUpdates
 
     public static class SpliceContentCatalogExporter
     {
-        public const string ServerContentVersion = "content-c3-v1";
+        public const string ServerContentVersion = "content-c4b-v1";
         public const string CatalogRelativePath = "Backend/content/generated/splice-content-catalog.json";
         public const string SqlRelativePath = "Backend/database/seeds/002_splice_content_catalog.generated.sql";
         public const string ExportMenu = "Splice/Live Content/2. Validate + Export Backend Catalog";
@@ -136,6 +137,9 @@ namespace Splice.Editor.ContentUpdates
             contentKind = kind,
             defenseCapacityCost = Math.Max(0, capacity),
             goldCost = Math.Max(0, goldCost),
+            raidPower = kind == "GARRISON"
+                ? Math.Max(1, checked((int)Math.Min(int.MaxValue, goldCost * 10L + capacity * 25L)))
+                : 0,
             serverContentVersion = ServerContentVersion,
             addressablesLabel = "faction/" + factionId,
             address = id,
@@ -157,7 +161,8 @@ namespace Splice.Editor.ContentUpdates
             foreach (var item in items)
                 canonical.Append(item.contentId).Append('|').Append(item.factionId).Append('|')
                     .Append(item.contentKind).Append('|').Append(item.defenseCapacityCost).Append('|')
-                    .Append(item.goldCost).Append('|').Append(item.addressablesLabel).Append('\n');
+                    .Append(item.goldCost).Append('|').Append(item.raidPower).Append('|')
+                    .Append(item.addressablesLabel).Append('\n');
             return LiveContentManifestValidator.Sha256(canonical.ToString());
         }
 
@@ -168,19 +173,21 @@ namespace Splice.Editor.ContentUpdates
             if (rows.Length > 0)
             {
                 builder.Append("INSERT INTO splice.content_definitions\n")
-                    .Append("  (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost, enabled, content_version) VALUES\n");
+                    .Append("  (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost, raid_power, enabled, content_version) VALUES\n");
                 for (var i = 0; i < rows.Length; i++)
                 {
                     var item = rows[i];
                     builder.Append("  ('").Append(Sql(item.contentId)).Append("','")
                         .Append(Sql(item.factionId)).Append("','").Append(Sql(item.contentKind)).Append("',")
-                        .Append(item.defenseCapacityCost).Append(',').Append(item.goldCost)
+                        .Append(item.defenseCapacityCost).Append(',').Append(item.goldCost).Append(',')
+                        .Append(item.raidPower)
                         .Append(",true,'").Append(Sql(item.serverContentVersion)).Append("')")
                         .Append(i == rows.Length - 1 ? "\n" : ",\n");
                 }
                 builder.Append("ON CONFLICT (content_id, content_kind) DO UPDATE SET\n")
                     .Append("  faction_id=EXCLUDED.faction_id,\n")
                     .Append("  defense_capacity_cost=EXCLUDED.defense_capacity_cost, gold_cost=EXCLUDED.gold_cost,\n")
+                    .Append("  raid_power=EXCLUDED.raid_power,\n")
                     .Append("  enabled=true, content_version=EXCLUDED.content_version;\n");
             }
             builder.Append("COMMIT;\n");

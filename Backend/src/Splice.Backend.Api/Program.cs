@@ -30,6 +30,7 @@ public static class SpliceApi
             return Results.Ok(new { status = "ok", database = "ok" });
         });
         app.MapWalletEndpoints();
+        app.MapLoadoutEndpoints();
         app.MapRaidEndpoints();
         app.MapRaidAuthorityEndpoints();
         app.MapTownEndpoints();

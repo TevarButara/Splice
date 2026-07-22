@@ -264,6 +264,25 @@ namespace Splice.Backend
             this.walletService = walletService ?? throw new ArgumentNullException(nameof(walletService));
         }
 
+        public Task<AttackerLoadoutDto> SaveAttackerLoadoutAsync(string loadoutId,
+            PutAttackerLoadoutRequest request, string idempotencyKey,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new AttackerLoadoutDto
+            {
+                success = true,
+                loadoutId = loadoutId,
+                revision = 1,
+                factionId = request?.factionId ?? string.Empty,
+                heroId = request?.heroId ?? string.Empty,
+                entries = request?.entries ?? new List<AttackerLoadoutEntryDto>(),
+                raidPower = 1,
+                contentVersion = "local-prototype",
+                updatedUtc = DateTime.UtcNow.ToString("O"),
+            });
+        }
+
         public Task<RaidQuoteDto> CreateQuoteAsync(CreateRaidQuoteRequest request, string idempotencyKey,
             CancellationToken cancellationToken)
         {
@@ -514,6 +533,25 @@ namespace Splice.Backend
         public static bool IsRemoteMeta => wallet is RemoteWalletService &&
                                            townSnapshots is RemoteTownSnapshotService &&
                                            raidContracts is RemoteRaidContractService;
+
+        // UI asks the service boundary for player intent; PlayerPrefs-backed stores stay behind this adapter.
+        public static PutAttackerLoadoutRequest SelectedAttackerLoadout(string factionId)
+        {
+            var selected = PlayerBaseStore.LoadArmies(factionId).Selected;
+            if (selected?.entries == null || selected.entries.Count == 0) return null;
+            var request = new PutAttackerLoadoutRequest
+            {
+                factionId = factionId,
+                heroId = PlayerHeroProfile.SelectedHeroId,
+            };
+            foreach (var entry in selected.entries)
+                request.entries.Add(new AttackerLoadoutEntryDto
+                {
+                    cardId = entry.cardId,
+                    count = entry.count,
+                });
+            return request;
+        }
 
         public static void Configure(IWalletService walletService, ITownSnapshotService townSnapshotService,
             IRaidContractService raidContractService, IRaidReportService raidReportService = null,

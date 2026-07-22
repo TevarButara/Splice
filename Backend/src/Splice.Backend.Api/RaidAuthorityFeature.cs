@@ -15,7 +15,7 @@ public sealed record TrustedRaidStartRequest(string AllocationId, string Ticket)
 public sealed record TrustedRaidStartView(bool Success, string Error, string RaidId,
     string AllocationId, string TargetSnapshotId, string AttackerLoadoutId,
     string SceneContractVersion, JsonElement TargetSnapshot, string StartedUtc);
-public sealed record TrustedRaidResultRequest(string AllocationId, string Ticket, string ResultId,
+public sealed record TrustedRaidResultRequest(string AllocationId, string Ticket, string WorkerId, string ResultId,
     string Outcome, int BreachedRings, int DurationMs, string SimulationHash);
 public sealed record TrustedRaidResultView(bool Success, string Error, string RaidId,
     string ResultId, string Outcome, int BreachedRings, long WarGemPayout,
@@ -36,6 +36,7 @@ public static partial class RaidAuthorityFeature
         app.MapGet("/v1/raids/{raidId:guid}", GetLifecycleAsync);
         app.MapPost("/internal/v1/raids/{raidId:guid}/start", StartAsync);
         app.MapPost("/internal/v1/raids/{raidId:guid}/result", SubmitResultAsync);
+        MapRaidWorkerEndpoints(app);
     }
 
     private static async Task<IResult> AllocateAsync(HttpContext context, Guid raidId,
@@ -209,7 +210,7 @@ public static partial class RaidAuthorityFeature
             {
                 if (!Guid.TryParse(request.AllocationId, out var allocationId) ||
                     !Guid.TryParse(request.ResultId, out var resultId) ||
-                    string.IsNullOrWhiteSpace(request.Ticket) ||
+                    (string.IsNullOrWhiteSpace(request.Ticket) && string.IsNullOrWhiteSpace(request.WorkerId)) ||
                     request.Outcome is not ("FULL_VICTORY" or "EXTRACTED" or "DEFEAT") ||
                     request.BreachedRings is < 0 or > 3 || request.DurationMs is < 1000 or > 3600000 ||
                     !HashPattern.IsMatch(request.SimulationHash ?? string.Empty))
@@ -238,7 +239,8 @@ public static partial class RaidAuthorityFeature
                            e.id, e.ledger_account_id, e.funded_amount, e.defender_reserved_amount,
                            e.defender_town_escrow_id, e.state, te.ledger_account_id,
                            q.attacker_stake, q.full_victory_payout, q.outer_payout,
-                           q.inner_payout, q.core_payout, q.target_deployment_id
+                           q.inner_payout, q.core_payout, q.target_deployment_id,
+                           COALESCE(a.worker_id,''), a.lease_expires_at
                       FROM splice.raid_sessions r
                       JOIN splice.raid_allocations a ON a.raid_id = r.id
                       JOIN splice.raid_escrows e ON e.raid_id = r.id
@@ -271,11 +273,19 @@ public static partial class RaidAuthorityFeature
                 var inner = reader.GetInt64(15);
                 var core = reader.GetInt64(16);
                 var deploymentId = reader.GetGuid(17);
+                var workerId = reader.GetString(18);
+                var leaseExpiresAt = reader.IsDBNull(19)
+                    ? (DateTimeOffset?)null : reader.GetFieldValue<DateTimeOffset>(19);
                 await reader.DisposeAsync();
 
-                if (assignedServer != serverId || !TicketMatches(ticketHash, request.Ticket))
+                var trustedTicket = !string.IsNullOrWhiteSpace(request.Ticket) &&
+                                    TicketMatches(ticketHash, request.Ticket);
+                var trustedWorker = !string.IsNullOrWhiteSpace(request.WorkerId) &&
+                                    workerId == request.WorkerId.Trim() &&
+                                    leaseExpiresAt > DateTimeOffset.UtcNow;
+                if (assignedServer != serverId || (!trustedTicket && !trustedWorker))
                     return ApiErrors.Reply(context, StatusCodes.Status403Forbidden,
-                        "RAID_TICKET_INVALID", "Raid ticket is invalid for this server.");
+                        "RAID_WORKER_AUTH_INVALID", "Raid result does not match the assigned worker lease.");
                 if (raidState != "ACTIVE" || allocationState != "CLAIMED" || escrowState != "ACTIVE")
                     return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
                         "RAID_NOT_ACTIVE", "Only an active claimed raid can accept a result.");
@@ -307,6 +317,7 @@ public static partial class RaidAuthorityFeature
                 var payload = JsonSerializer.Serialize(new
                 {
                     request.AllocationId,
+                    request.WorkerId,
                     request.ResultId,
                     request.Outcome,
                     request.BreachedRings,

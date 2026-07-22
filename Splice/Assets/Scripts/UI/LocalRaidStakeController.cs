@@ -121,6 +121,21 @@ namespace Splice.UI
                 var target = preparation.target;
                 try
                 {
+                    if (SpliceServiceHub.IsRemoteMeta)
+                    {
+                        var factionId = string.IsNullOrWhiteSpace(PlayerProfile.ActiveFactionId)
+                            ? target.factionId
+                            : PlayerProfile.ActiveFactionId;
+                        var loadoutRequest = SpliceServiceHub.SelectedAttackerLoadout(factionId);
+                        if (loadoutRequest == null)
+                            throw new InvalidOperationException(
+                                "SELECT AND SAVE AN ATTACKER ARMY BEFORE RAIDING");
+                        var saved = await SpliceServiceHub.RaidContracts.SaveAttackerLoadoutAsync(
+                            RaidSessionContext.Current.attackerLoadoutId, loadoutRequest,
+                            Guid.NewGuid().ToString("N"), lifetimeCancellation.Token);
+                        if (saved?.success != true)
+                            throw new InvalidOperationException(saved?.error ?? "ATTACKER LOADOUT REJECTED");
+                    }
                     activeQuote = await SpliceServiceHub.RaidContracts.CreateQuoteAsync(new CreateRaidQuoteRequest
                     {
                         targetId = target.targetId,

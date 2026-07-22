@@ -1,8 +1,8 @@
 {
     "schemaVersion": 1,
     "liveContentVersion": "1.0.0",
-    "serverContentVersion": "content-c3-v1",
-    "sourceSha256": "c705866853703301715db4ecb3c7479dcc6f40846fb84f784ff197db0e436e0e",
+    "serverContentVersion": "content-c4b-v1",
+    "sourceSha256": "4dbd8ea846139e6b9cd896f210d8f252d7f6d1d639403936db8272b5d6e01b2f",
     "items": [
         {
             "contentId": "1/0",
@@ -10,7 +10,8 @@
             "contentKind": "MINER",
             "defenseCapacityCost": 0,
             "goldCost": 10,
-            "serverContentVersion": "content-c3-v1",
+            "raidPower": 0,
+            "serverContentVersion": "content-c4b-v1",
             "addressablesLabel": "faction/1",
             "address": "1/0",
             "backendAuthoritative": true
@@ -21,7 +22,8 @@
             "contentKind": "GARRISON",
             "defenseCapacityCost": 1,
             "goldCost": 4,
-            "serverContentVersion": "content-c3-v1",
+            "raidPower": 65,
+            "serverContentVersion": "content-c4b-v1",
             "addressablesLabel": "faction/1",
             "address": "1/1",
             "backendAuthoritative": true
@@ -32,7 +34,8 @@
             "contentKind": "TOWER",
             "defenseCapacityCost": 2,
             "goldCost": 10,
-            "serverContentVersion": "content-c3-v1",
+            "raidPower": 0,
+            "serverContentVersion": "content-c4b-v1",
             "addressablesLabel": "faction/1",
             "address": "1/1",
             "backendAuthoritative": true
@@ -43,7 +46,8 @@
             "contentKind": "GARRISON",
             "defenseCapacityCost": 2,
             "goldCost": 5,
-            "serverContentVersion": "content-c3-v1",
+            "raidPower": 100,
+            "serverContentVersion": "content-c4b-v1",
             "addressablesLabel": "faction/1",
             "address": "1/2",
             "backendAuthoritative": true
@@ -54,7 +58,8 @@
             "contentKind": "GARRISON",
             "defenseCapacityCost": 2,
             "goldCost": 10,
-            "serverContentVersion": "content-c3-v1",
+            "raidPower": 150,
+            "serverContentVersion": "content-c4b-v1",
             "addressablesLabel": "faction/1",
             "address": "1/3",
             "backendAuthoritative": true
@@ -65,7 +70,8 @@
             "contentKind": "GARRISON",
             "defenseCapacityCost": 2,
             "goldCost": 4,
-            "serverContentVersion": "content-c3-v1",
+            "raidPower": 90,
+            "serverContentVersion": "content-c4b-v1",
             "addressablesLabel": "faction/1",
             "address": "1/4",
             "backendAuthoritative": true
@@ -76,7 +82,8 @@
             "contentKind": "HERO",
             "defenseCapacityCost": 0,
             "goldCost": 0,
-            "serverContentVersion": "content-c3-v1",
+            "raidPower": 0,
+            "serverContentVersion": "content-c4b-v1",
             "addressablesLabel": "hero/hero_test",
             "address": "hero/hero_test",
             "backendAuthoritative": false

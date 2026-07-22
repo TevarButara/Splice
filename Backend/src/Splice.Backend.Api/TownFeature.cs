@@ -50,7 +50,7 @@ public sealed record TownDefenseSnapshotView(
 public static partial class TownFeature
 {
     private const string ValidatorVersion = "server-c3-v1";
-    private const string ContentVersion = "content-c3-v1";
+    private const string ContentVersion = LoadoutFeature.ContentVersion;
     private const int MaxCitySlots = 3;
     private const int MaxDefensePieces = 200;
     private const int MaxPayloadBytes = 512 * 1024;

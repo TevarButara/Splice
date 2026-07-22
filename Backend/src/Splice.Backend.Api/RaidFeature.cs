@@ -38,6 +38,31 @@ public static class RaidFeature
                     return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
                         "INVALID_REQUEST", "Target and loadout IDs must be UUIDs.");
 
+                await using var loadoutCommand = new NpgsqlCommand("""
+                    SELECT faction_id, revision, hero_id, entries::text, payload_sha256,
+                           raid_power, content_version
+                      FROM splice.attacker_loadouts
+                     WHERE id=@loadout AND owner_player_id=@attacker
+                     FOR SHARE
+                    """, connection, transaction);
+                loadoutCommand.Parameters.AddWithValue("loadout", loadoutId);
+                loadoutCommand.Parameters.AddWithValue("attacker", attackerId);
+                await using var loadoutReader = await loadoutCommand.ExecuteReaderAsync(cancellationToken);
+                if (!await loadoutReader.ReadAsync(cancellationToken))
+                    return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                        "LOADOUT_NOT_READY", "Save a server-validated attacker loadout before requesting a quote.");
+                var loadoutFaction = loadoutReader.GetString(0);
+                var loadoutRevision = loadoutReader.GetInt64(1);
+                var heroId = loadoutReader.GetString(2);
+                var loadoutEntries = loadoutReader.GetString(3);
+                var loadoutHash = loadoutReader.GetString(4);
+                var loadoutPower = loadoutReader.GetInt64(5);
+                var loadoutContentVersion = loadoutReader.GetString(6);
+                await loadoutReader.DisposeAsync();
+                if (loadoutContentVersion != LoadoutFeature.ContentVersion || loadoutPower <= 0)
+                    return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                        "LOADOUT_STALE", "Attacker loadout must be revalidated against the current content catalog.");
+
                 await using var targetCommand = new NpgsqlCommand("""
                     SELECT d.active_snapshot_id, d.stake_band, d.status,
                            t.owner_player_id, p.display_name
@@ -69,6 +94,7 @@ public static class RaidFeature
 
                 var stake = band switch { "HIGH" => 600L, "RISKY" => 300L, _ => 100L };
                 var quoteId = Guid.NewGuid();
+                var loadoutSnapshotId = Guid.NewGuid();
                 var expiresAt = DateTimeOffset.UtcNow.AddMinutes(5);
                 var full = stake * 18 / 10;
                 var outer = stake * 6 / 10;
@@ -76,19 +102,36 @@ public static class RaidFeature
                 var core = stake * 12 / 10;
 
                 await using var insert = new NpgsqlCommand("""
+                    INSERT INTO splice.attacker_loadout_snapshots
+                        (id, loadout_id, owner_player_id, faction_id, revision, hero_id, entries,
+                         payload_sha256, raid_power, content_version, validator_version)
+                    VALUES (@loadoutSnapshot, @loadout, @attacker, @loadoutFaction, @loadoutRevision,
+                            @hero, @loadoutEntries, @loadoutHash, @loadoutPower,
+                            @loadoutContentVersion, @loadoutValidator);
                     INSERT INTO splice.raid_quotes (
                         id, attacker_player_id, target_deployment_id, target_snapshot_id,
-                        attacker_loadout_id, difficulty_band, attacker_stake, defender_max_loss,
+                        attacker_loadout_id, attacker_loadout_snapshot_id,
+                        difficulty_band, attacker_stake, defender_max_loss,
                         full_victory_payout, outer_payout, inner_payout, core_payout,
                         rules_version, expires_at)
-                    VALUES (@id, @attacker, @deployment, @snapshot, @loadout, @band, @stake, @loss,
+                    VALUES (@id, @attacker, @deployment, @snapshot, @loadout, @loadoutSnapshot,
+                            @band, @stake, @loss,
                             @full, @outer, @inner, @core, @rules, @expires)
                     """, connection, transaction);
                 insert.Parameters.AddWithValue("id", quoteId);
+                insert.Parameters.AddWithValue("loadoutSnapshot", loadoutSnapshotId);
                 insert.Parameters.AddWithValue("attacker", attackerId);
                 insert.Parameters.AddWithValue("deployment", deploymentId);
                 insert.Parameters.AddWithValue("snapshot", snapshotId);
                 insert.Parameters.AddWithValue("loadout", loadoutId);
+                insert.Parameters.AddWithValue("loadoutFaction", loadoutFaction);
+                insert.Parameters.AddWithValue("loadoutRevision", loadoutRevision);
+                insert.Parameters.AddWithValue("hero", heroId);
+                insert.Parameters.AddWithValue("loadoutEntries", NpgsqlDbType.Jsonb, loadoutEntries);
+                insert.Parameters.AddWithValue("loadoutHash", loadoutHash);
+                insert.Parameters.AddWithValue("loadoutPower", loadoutPower);
+                insert.Parameters.AddWithValue("loadoutContentVersion", loadoutContentVersion);
+                insert.Parameters.AddWithValue("loadoutValidator", LoadoutFeature.ValidatorVersion);
                 insert.Parameters.AddWithValue("band", band);
                 insert.Parameters.AddWithValue("stake", stake);
                 insert.Parameters.AddWithValue("loss", full - stake);

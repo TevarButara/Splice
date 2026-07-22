@@ -37,6 +37,23 @@ try
     Equal(1000L, Long(initialWallet, "warGemBalance"), "initial War Gem balance");
     False(Bool(initialWallet, "hasPendingRaid"), "initial pending raid");
 
+    var forgedLoadout = await SendAsync(host.Client, HttpMethod.Put,
+        $"/v1/attacker-loadouts/{loadoutId}",
+        new { factionId = "1", heroId = "hero/local", entries = new[] { new { cardId = "1/unknown", count = 1 } } },
+        "loadout:forged");
+    Equal(HttpStatusCode.Conflict, forgedLoadout.Status, "unknown attacker card rejected");
+    ErrorCode(forgedLoadout, "LOADOUT_CONTENT_INVALID");
+    var validLoadoutBody = new
+    {
+        factionId = "1",
+        heroId = "hero/local",
+        entries = new[] { new { cardId = "1/1", count = 2 } },
+    };
+    var validLoadout = await SendAsync(host.Client, HttpMethod.Put,
+        $"/v1/attacker-loadouts/{loadoutId}", validLoadoutBody, "loadout:valid");
+    Equal(HttpStatusCode.OK, validLoadout.Status, "server validates attacker loadout");
+    Equal(130L, Long(validLoadout, "raidPower"), "server computes attacker power from catalog");
+
     var missingKey = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
         QuoteBody(fairTargetId), null);
     Equal(HttpStatusCode.BadRequest, missingKey.Status, "mutation requires idempotency key");
@@ -210,6 +227,7 @@ static async Task<TestHost> StartAsync(string connectionString)
         "--Reconciliation:ActiveTimeoutSeconds=1",
         $"--RaidServer:DevelopmentKey={trustedServerKey}",
         $"--RaidServer:DefaultServerId={trustedServerId}",
+        "--RaidServer:WorkerLeaseSeconds=90",
     ]);
     await app.StartAsync();
     var server = app.Services.GetRequiredService<IServer>();
@@ -254,6 +272,16 @@ static async Task SeedAsync(string connectionString)
           ('11000000-0000-0000-0000-000000000001', 'Attacker'),
           ('11000000-0000-0000-0000-000000000002', 'Defender Alpha'),
           ('11000000-0000-0000-0000-000000000003', 'Defender Beta')
+        ON CONFLICT (id) DO NOTHING;
+
+        INSERT INTO attacker_loadouts
+          (id, owner_player_id, faction_id, revision, hero_id, entries, payload_sha256,
+           raid_power, content_version) VALUES
+          ('51000000-0000-0000-0000-000000000001',
+           '11000000-0000-0000-0000-000000000001', '1', 1, 'hero/local',
+           '[{"cardId":"1/1","count":2}]'::jsonb,
+           'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+           130, 'content-c4b-v1')
         ON CONFLICT (id) DO NOTHING;
 
         INSERT INTO ledger_accounts (id, account_key, owner_type, owner_id, currency_code) VALUES
@@ -361,6 +389,11 @@ static async Task RunC4Async(TestHost host, string connectionString)
 {
     var quote = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
         QuoteBody(fairTargetId), "quote:c4:full");
+    var changedAfterQuote = await SendAsync(host.Client, HttpMethod.Put,
+        $"/v1/attacker-loadouts/{loadoutId}",
+        new { factionId = "1", heroId = "hero/local", entries = new[] { new { cardId = "1/3", count = 2 } } },
+        "loadout:changed-after-quote");
+    Equal(300L, Long(changedAfterQuote, "raidPower"), "mutable loadout advances after quote");
     var confirm = await SendAsync(host.Client, HttpMethod.Post, "/v1/raids",
         new { quoteId = String(quote, "quoteId") }, "raid:c4:full");
     var raidId = String(confirm, "raidId");
@@ -389,12 +422,22 @@ static async Task RunC4Async(TestHost host, string connectionString)
     var wrongTrustedStart = await SendTrustedAsync(host.Client, HttpMethod.Post,
         $"/internal/v1/raids/{raidId}/start", startBody, "trusted:start:wrong", "wrong-server-key-value");
     Equal(HttpStatusCode.Unauthorized, wrongTrustedStart.Status, "wrong Raid Server key rejected");
-    var start = await SendTrustedAsync(host.Client, HttpMethod.Post,
-        $"/internal/v1/raids/{raidId}/start", startBody, "trusted:start:c4:full");
-    Equal(HttpStatusCode.OK, start.Status, "trusted server claims ticket");
-    Equal(loadoutId, String(start, "attackerLoadoutId"), "trusted start pins quoted loadout");
-    Equal("32000000-0000-0000-0000-000000000001", String(start, "targetSnapshotId"),
-        "trusted start pins immutable target snapshot");
+    var untrustedClaim = await SendAsync(host.Client, HttpMethod.Post,
+        "/internal/v1/raid-jobs/claim", new { workerId = "worker-c4-a" }, "worker:claim:untrusted");
+    Equal(HttpStatusCode.Unauthorized, untrustedClaim.Status, "player cannot claim a worker job");
+    var claim = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        "/internal/v1/raid-jobs/claim", new { workerId = "worker-c4-a" }, "worker:claim:c4:full");
+    Equal(HttpStatusCode.OK, claim.Status, "trusted worker claims queued raid");
+    True(Bool(claim, "hasJob"), "claim returns an authoritative raid job");
+    Equal(raidId, String(claim, "raidId"), "worker receives funded raid");
+    Equal(allocationId, String(claim, "allocationId"), "worker receives assigned allocation");
+    Equal(130L, Long(claim, "attackerPower"),
+        "job uses quoted immutable loadout power after mutable loadout changes");
+    Equal("32000000-0000-0000-0000-000000000001", String(claim, "targetSnapshotId"),
+        "worker job pins immutable target snapshot");
+    var loadoutSnapshotId = String(claim, "loadoutSnapshotId");
+    True(Guid.TryParse(loadoutSnapshotId, out _),
+        "worker job pins immutable loadout snapshot");
 
     var lateRefund = await SendAsync(host.Client, HttpMethod.Post,
         $"/v1/raids/{raidId}/startup-refund",
@@ -406,13 +449,27 @@ static async Task RunC4Async(TestHost host, string connectionString)
     var resultBody = new
     {
         allocationId,
-        ticket,
+        workerId = "worker-c4-a",
         resultId,
         outcome = "FULL_VICTORY",
         breachedRings = 3,
         durationMs = 60000,
         simulationHash = new string('a', 64),
     };
+    var stolenResult = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{raidId}/result",
+        new
+        {
+            allocationId,
+            workerId = "worker-c4-other",
+            resultId,
+            outcome = "FULL_VICTORY",
+            breachedRings = 3,
+            durationMs = 60000,
+            simulationHash = new string('a', 64),
+        }, "trusted:result:c4:stolen");
+    Equal(HttpStatusCode.Forbidden, stolenResult.Status, "another worker cannot steal active lease");
+    ErrorCode(stolenResult, "RAID_WORKER_AUTH_INVALID");
     var result = await SendTrustedAsync(host.Client, HttpMethod.Post,
         $"/internal/v1/raids/{raidId}/result", resultBody, "trusted:result:c4:full");
     Equal(HttpStatusCode.Created, result.Status, "trusted result settles raid");
@@ -427,7 +484,7 @@ static async Task RunC4Async(TestHost host, string connectionString)
     var conflictBody = new
     {
         allocationId,
-        ticket,
+        workerId = "worker-c4-a",
         resultId = Guid.NewGuid().ToString("D"),
         outcome = "DEFEAT",
         breachedRings = 0,
@@ -443,6 +500,10 @@ static async Task RunC4Async(TestHost host, string connectionString)
     Equal("SETTLED", String(lifecycle, "state"), "player reads authoritative settled state");
     Equal(resultId, String(lifecycle, "resultId"), "lifecycle exposes immutable result identity");
     await AssertImmutableRaidResultAsync(connectionString, resultId);
+    await AssertImmutableLoadoutSnapshotAsync(connectionString, loadoutSnapshotId);
+    var noJob = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        "/internal/v1/raid-jobs/claim", new { workerId = "worker-c4-a" }, "worker:claim:none");
+    False(Bool(noJob, "hasJob"), "worker polling returns an explicit empty queue response");
 
     var recoveryQuote = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
         QuoteBody(highTargetAId), "quote:c4:active-recovery");
@@ -496,6 +557,25 @@ static async Task AssertImmutableRaidResultAsync(string connectionString, string
     {
         True(exception.MessageText.StartsWith("IMMUTABLE_RAID_RESULT", StringComparison.Ordinal),
             "database immutable raid result trigger");
+    }
+}
+
+static async Task AssertImmutableLoadoutSnapshotAsync(string connectionString, string snapshotId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    try
+    {
+        await using var command = new NpgsqlCommand(
+            "UPDATE splice.attacker_loadout_snapshots SET raid_power=1 WHERE id=@snapshot", connection);
+        command.Parameters.AddWithValue("snapshot", Guid.Parse(snapshotId));
+        await command.ExecuteNonQueryAsync();
+        throw new Exception("TEST_FAILED: immutable attacker loadout snapshot accepted direct update");
+    }
+    catch (PostgresException exception)
+    {
+        True(exception.MessageText.StartsWith("IMMUTABLE_LOADOUT_SNAPSHOT", StringComparison.Ordinal),
+            "database immutable attacker loadout snapshot trigger");
     }
 }
 
@@ -788,13 +868,13 @@ static async Task SeedC3Async(string connectionString)
             jsonb_build_object('account_id','21000000-0000-0000-0000-000000000002','amount',500)));
         INSERT INTO content_definitions
           (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost, content_version) VALUES
-          ('c3-natural/tower-1','c3-natural','TOWER',2,20,'content-c3-v1'),
-          ('c3-natural/tower-2','c3-natural','TOWER',1,10,'content-c3-v1'),
-          ('c3-natural/garrison-1','c3-natural','GARRISON',3,30,'content-c3-v1'),
-          ('c3-natural/miner-1','c3-natural','MINER',0,10,'content-c3-v1'),
-          ('c3-expensive/tower-1','c3-expensive','TOWER',1,1000,'content-c3-v1'),
-          ('c3-natural/shared-1','c3-natural','TOWER',2,20,'content-c3-v1'),
-          ('c3-natural/shared-1','c3-natural','GARRISON',3,30,'content-c3-v1')
+          ('c3-natural/tower-1','c3-natural','TOWER',2,20,'content-c4b-v1'),
+          ('c3-natural/tower-2','c3-natural','TOWER',1,10,'content-c4b-v1'),
+          ('c3-natural/garrison-1','c3-natural','GARRISON',3,30,'content-c4b-v1'),
+          ('c3-natural/miner-1','c3-natural','MINER',0,10,'content-c4b-v1'),
+          ('c3-expensive/tower-1','c3-expensive','TOWER',1,1000,'content-c4b-v1'),
+          ('c3-natural/shared-1','c3-natural','TOWER',2,20,'content-c4b-v1'),
+          ('c3-natural/shared-1','c3-natural','GARRISON',3,30,'content-c4b-v1')
         ON CONFLICT (content_id, content_kind) DO UPDATE SET
           faction_id=EXCLUDED.faction_id,
           defense_capacity_cost=EXCLUDED.defense_capacity_cost,

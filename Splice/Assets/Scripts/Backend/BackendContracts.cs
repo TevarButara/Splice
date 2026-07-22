@@ -115,6 +115,37 @@ namespace Splice.Backend
     }
 
     [Serializable]
+    public sealed class AttackerLoadoutEntryDto
+    {
+        public string cardId;
+        public int count;
+    }
+
+    [Serializable]
+    public sealed class PutAttackerLoadoutRequest
+    {
+        public string factionId;
+        public string heroId;
+        public List<AttackerLoadoutEntryDto> entries = new();
+    }
+
+    [Serializable]
+    public sealed class AttackerLoadoutDto
+    {
+        public bool success;
+        public string error;
+        public string loadoutId;
+        public long revision;
+        public string factionId;
+        public string heroId;
+        public List<AttackerLoadoutEntryDto> entries = new();
+        public long raidPower;
+        public string contentVersion;
+        public string payloadSha256;
+        public string updatedUtc;
+    }
+
+    [Serializable]
     public sealed class RaidQuoteDto
     {
         public string quoteId;
@@ -192,6 +223,9 @@ namespace Splice.Backend
 
     public interface IRaidContractService
     {
+        Task<AttackerLoadoutDto> SaveAttackerLoadoutAsync(string loadoutId,
+            PutAttackerLoadoutRequest request, string idempotencyKey,
+            CancellationToken cancellationToken);
         Task<RaidQuoteDto> CreateQuoteAsync(CreateRaidQuoteRequest request, string idempotencyKey,
             CancellationToken cancellationToken);
         Task<RaidStartDto> ConfirmAsync(string quoteId, string idempotencyKey,
