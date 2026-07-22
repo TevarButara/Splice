@@ -201,6 +201,34 @@ namespace Splice.Editor.Tests
 
             Assert.That(changed.simulationHash, Is.Not.EqualTo(first.simulationHash));
         }
+
+        [Test]
+        public void CommandStreamPresentationAcceptsOnlyCompletedOrderedFixedTickResults()
+        {
+            var valid = FixedTickRaidSimulator.Simulate(FixedInput());
+            Assert.That(RaidCommandStreamPresentationController.TryValidateStream(valid, out var validError),
+                Is.True, validError);
+
+            var forged = FixedTickRaidSimulator.Simulate(FixedInput());
+            forged.commands[1].tick = -1;
+            Assert.That(RaidCommandStreamPresentationController.TryValidateStream(forged, out var error),
+                Is.False);
+            Assert.That(error, Does.Contain("order"));
+        }
+
+        [Test]
+        public void VisibleRaidAnchorsStayOrderedInsideRealSpawnToCoreLane()
+        {
+            var spawn = new Vector3(10f, 3f, -90f);
+            var core = new Vector3(6f, 3f, 60f);
+            RaidCommandStreamPresentationController.CalculateVisibleRaidAnchors(spawn, core,
+                out var entry, out var outer, out var inner, out var coreRing);
+
+            Assert.That(entry.z, Is.GreaterThan(spawn.z));
+            Assert.That(outer.z, Is.GreaterThan(entry.z));
+            Assert.That(inner.z, Is.GreaterThan(outer.z));
+            Assert.That(coreRing.z, Is.GreaterThan(inner.z).And.LessThan(core.z));
+        }
     }
 }
 #endif

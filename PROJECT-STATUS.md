@@ -1,6 +1,6 @@
 # Splice — Project Status
 
-อัปเดตล่าสุด: 2026-07-22
+อัปเดตล่าสุด: 2026-07-23
 
 ## ทิศทางเกม
 
@@ -29,12 +29,13 @@
 - C4B Authoritative Loadout + Headless Worker เสร็จแล้วแบบ local-only: validated army, immutable loadout snapshot, worker queue/lease และ deterministic Unity batchmode proxy
 - C4C1 Authoritative Hero + Gear เสร็จแล้วแบบ local-only: ownership inventory, Gear instance UUID, server combat stats/power และ immutable raid payload
 - C4C2A Fixed-Tick Combat Kernel เสร็จแล้ว: worker ใช้ immutable town positions/loadout/Hero/Gear จำลอง 3 breach rings และสร้าง deterministic command-stream hash
+- C4C2B Command-Stream Presentation เสร็จแล้ว: `RaidArena` แสดง Hero + Army, ring breach, ability pulse และผล authoritative จาก stream แบบ read-only ในมุมผู้ป้องกัน
 
 ## Verification ล่าสุด
 
 - Unity compile: Error 0
-- EditMode: 54/54 passed
-- PlayMode: 2/2 passed
+- EditMode: 57/57 passed
+- PlayMode: 4/4 passed
 - Content Validator: Errors 0, Warnings 0
 - Target Pool diagnostic: PASS; immutable V1 คงเดิมหลัง commit V2
 - Pre-debit snapshot gate ปฏิเสธ snapshot ที่หายหรือ identity/revision ไม่ตรงก่อนหัก stake
@@ -51,19 +52,20 @@
 - C4B regression ผ่าน: loadout ปลอมถูก reject, quote ตรึง immutable army, worker อื่นขโมย lease/result ไม่ได้ และ empty queue ตอบแบบ explicit
 - C4C1 regression ผ่าน: Hero/Gear ที่ไม่ได้เป็นเจ้าของถูก reject, power breakdown 130+2,830+200=3,160 และ worker ได้ immutable Hero combat/Gear payload แม้แก้ loadout ภายหลัง
 - C4C2A regression ผ่าน: command stream replay ตรงกัน, collection order ไม่เปลี่ยน hash, forged power ถูก reject และตำแหน่งเมืองเปลี่ยนทำให้ simulation hash เปลี่ยน
+- C4C2B visual smoke ผ่านด้วย Unity MCP: role picker ไม่บัง, Hero + Army 8 ตัวอยู่ใน DefenderCamera, actor proxy ไม่หายตาม network prefab lifecycle และ replay จบที่ `COMPLETE`
 
 ## Backend
 
 - Architecture contract: `splice-server-wallet-escrow-snapshot-contract-db.md`
-- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle, C4B worker, C4C1 Hero/Gear authority และ C4C2A fixed-tick kernel เสร็จแล้ว
+- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle, C4B worker, C4C1 Hero/Gear authority และ C4C2A–B kernel/presentation เสร็จแล้ว
 - Backend package: `Backend`; ใช้ HTTP เฉพาะ 127.0.0.1 ตอนทดสอบ ยังไม่เปิด Cloud/production
 - Stack ที่เสนอ: ASP.NET Core modular monolith + PostgreSQL; deploy แบบ stateless containers และแยก authoritative Unity Raid Server ในระยะ C4
 
 ## งานถัดไป
 
-1. C4C2B: ทำ RaidArena command-stream presentation adapter ให้เห็น Hero/Army เคลื่อนที่ โจมตี และ breach ตามผล authoritative
-2. เพิ่ม authoritative combat payload รายตัวสำหรับ Monster/Tower เพื่อแทน aggregate power ใน kernel
-3. ให้ player Raid Arena subscribe/poll authoritative lifecycle แล้วแสดง Pending/Completed/Replay
+1. C4C2C: เพิ่ม authoritative combat payload รายตัวสำหรับ Monster/Tower เพื่อแทน aggregate power ใน kernel
+2. ให้ player Raid Arena subscribe/poll authoritative lifecycle แล้วแสดง Pending/Completed/Replay
+3. บันทึก/เรียก replay stream จาก backend ด้วย simulation version + hash ที่ตรวจสอบได้
 4. เพิ่ม headless executable end-to-end smoke; ก่อน production ค่อยเพิ่ม autoscaling/metrics/secrets
 
 ## สิ่งที่ยังห้ามใน production

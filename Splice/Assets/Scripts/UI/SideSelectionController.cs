@@ -140,6 +140,13 @@ namespace Splice.UI
             if (selectionPanel != null) selectionPanel.SetActive(false);
         }
 
+        // Presentation-only escape hatch for replay/test routes that have already selected the defender view.
+        // Kept separate from scene routing so the role picker can be regression-tested without loading scenes.
+        public void CloseSelectionPanelForReplay()
+        {
+            if (selectionPanel != null) selectionPanel.SetActive(false);
+        }
+
         private void ActivateMirroredLegacyDefenderCamera()
         {
             if (fortCamera == null || monsterCamera == null)

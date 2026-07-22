@@ -1400,6 +1400,59 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 106328756}
   m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &123093372
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 123093374}
+  - component: {fileID: 123093373}
+  m_Layer: 0
+  m_Name: '[Authoritative Raid Replay]'
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &123093373
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 123093372}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c28f0c5b3ac42af85b8f9137af851c9, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.RaidWorker.RaidCommandStreamPresentationController
+  autoStartOnPlay: 1
+  developmentBuildOnly: 1
+  initialDelaySeconds: 1.2
+  playbackSpeed: 1.5
+  preferContentPrefabs: 1
+  entryPoint: {x: 0, y: 3, z: -90}
+  outerRingPoint: {x: 0, y: 3, z: 80}
+  innerRingPoint: {x: 0, y: 3, z: 270}
+  coreRingPoint: {x: 0, y: 3, z: 470}
+--- !u!4 &123093374
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 123093372}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &126645466
 GameObject:
   m_ObjectHideFlags: 0
@@ -28190,7 +28243,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2d7769cd166f44aa9a94ae79d0c96b86, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Base.IncomingRaidScenarioController
-  autoStartOnPlay: 1
+  autoStartOnPlay: 0
   startupDelaySeconds: 0.8
   serverReadyTimeoutSeconds: 15
   scenarioTimeLimitSeconds: 150
@@ -35096,3 +35149,4 @@ SceneRoots:
   - {fileID: 1544317099}
   - {fileID: 1068031754}
   - {fileID: 2064281926}
+  - {fileID: 123093374}
