@@ -1,4 +1,6 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using Splice.RaidWorker;
 using UnityEngine;
@@ -14,6 +16,78 @@ namespace Splice.Editor.Tests
             loadoutSnapshotId = "30000000-0000-0000-0000-000000000001",
             attackerPower = 1000,
             defenderPower = 800,
+        };
+
+        private static FixedTickRaidSimulationInput FixedInput() => new()
+        {
+            raidId = "10000000-0000-0000-0000-000000000001",
+            targetSnapshotId = "20000000-0000-0000-0000-000000000001",
+            loadoutSnapshotId = "30000000-0000-0000-0000-000000000001",
+            attackerPower = 3160,
+            armyPower = 130,
+            heroPower = 2830,
+            gearPower = 200,
+            defenderPower = 405,
+            hero = new RaidWorkerHeroAuthority
+            {
+                contentId = "hero/hero_test",
+                level = 1,
+                basePower = 2830,
+                scaledPower = 2830,
+                combat = new RaidWorkerCombatPayload
+                {
+                    maxHealth = 30000,
+                    armor = 10,
+                    attackDamage = 1000,
+                    attackCooldownMs = 800,
+                    moveSpeedMilli = 9000,
+                    abilityId = "breach_charge",
+                    abilityDamage = 300,
+                },
+            },
+            gearItems = new List<RaidWorkerGearAuthority>
+            {
+                new()
+                {
+                    instanceId = "61000000-0000-0000-0000-000000000001",
+                    contentId = "gear/test-blade",
+                    level = 1,
+                    basePower = 200,
+                    scaledPower = 200,
+                    combat = new RaidWorkerCombatPayload(),
+                },
+            },
+            loadoutEntries = new List<RaidWorkerLoadoutEntry>
+            {
+                new() { cardId = "1/1", count = 2 },
+            },
+            targetSnapshot = new RaidWorkerBaseLayout
+            {
+                version = 1,
+                factionId = "1",
+                towers = new List<RaidWorkerTower>
+                {
+                    new()
+                    {
+                        towerId = "1/1",
+                        position = new RaidWorkerVector3 { x = 0f, z = 12f },
+                        attackLevel = 1,
+                    },
+                    new()
+                    {
+                        towerId = "1/1",
+                        position = new RaidWorkerVector3 { x = 2f, z = 3f },
+                    },
+                },
+                garrison = new List<RaidWorkerGarrison>
+                {
+                    new()
+                    {
+                        cardId = "1/1",
+                        position = new RaidWorkerVector3 { x = -2f, z = 7f },
+                    },
+                },
+            },
         };
 
         [Test]
@@ -57,7 +131,10 @@ namespace Splice.Editor.Tests
                 "\"maxHealth\":30000,\"attackDamage\":1000,\"abilityId\":\"breach_charge\"}}," +
                 "\"gearItems\":[{\"instanceId\":\"61000000-0000-0000-0000-000000000001\"," +
                 "\"contentId\":\"gear/test-blade\",\"level\":1,\"basePower\":200," +
-                "\"scaledPower\":200,\"combat\":{}}]}";
+                "\"scaledPower\":200,\"combat\":{}}]," +
+                "\"targetSnapshot\":{\"version\":1,\"factionId\":\"1\"," +
+                "\"towers\":[{\"towerId\":\"1/1\",\"position\":{\"x\":2,\"y\":0,\"z\":7}}]," +
+                "\"garrison\":[],\"minerCardIds\":[],\"storedGold\":100}}";
 
             var job = JsonUtility.FromJson<RaidJobResponse>(json);
 
@@ -68,6 +145,61 @@ namespace Splice.Editor.Tests
             Assert.That(job.gearItems, Has.Count.EqualTo(1));
             Assert.That(job.gearItems[0].instanceId,
                 Is.EqualTo("61000000-0000-0000-0000-000000000001"));
+            Assert.That(job.targetSnapshot.towers, Has.Count.EqualTo(1));
+            Assert.That(job.targetSnapshot.towers[0].position.z, Is.EqualTo(7f));
+        }
+
+        [Test]
+        public void FixedTickKernelProducesDeterministicCommandStream()
+        {
+            var first = FixedTickRaidSimulator.Simulate(FixedInput());
+            var second = FixedTickRaidSimulator.Simulate(FixedInput());
+
+            Assert.That(first.outcome, Is.EqualTo("FULL_VICTORY"));
+            Assert.That(first.breachedRings, Is.EqualTo(3));
+            Assert.That(second.simulationHash, Is.EqualTo(first.simulationHash));
+            Assert.That(second.commandStreamHash, Is.EqualTo(first.commandStreamHash));
+            Assert.That(first.simulationVersion, Is.EqualTo("fixed-tick-c4c2a-v1"));
+            Assert.That(first.durationMs % FixedTickRaidSimulator.TickMilliseconds, Is.Zero);
+            Assert.That(first.commands.Last().type, Is.EqualTo("COMPLETE"));
+            Assert.That(first.commands.Select(command => command.tick), Is.Ordered);
+            StringAssert.IsMatch("^[0-9a-f]{64}$", first.commandStreamHash);
+        }
+
+        [Test]
+        public void FixedTickKernelCanonicalizesImmutableCollectionOrder()
+        {
+            var original = FixedInput();
+            var reordered = FixedInput();
+            reordered.targetSnapshot.towers.Reverse();
+
+            var first = FixedTickRaidSimulator.Simulate(original);
+            var second = FixedTickRaidSimulator.Simulate(reordered);
+
+            Assert.That(second.simulationHash, Is.EqualTo(first.simulationHash));
+            Assert.That(second.commandStreamHash, Is.EqualTo(first.commandStreamHash));
+        }
+
+        [Test]
+        public void FixedTickKernelRejectsForgedPowerBreakdown()
+        {
+            var input = FixedInput();
+            input.attackerPower++;
+
+            Assert.Throws<System.ArgumentException>(() => FixedTickRaidSimulator.Simulate(input));
+        }
+
+        [Test]
+        public void FixedTickKernelHashChangesWhenImmutableTownPositionChanges()
+        {
+            var firstInput = FixedInput();
+            var changedInput = FixedInput();
+            changedInput.targetSnapshot.towers[0].position.z += 1f;
+
+            var first = FixedTickRaidSimulator.Simulate(firstInput);
+            var changed = FixedTickRaidSimulator.Simulate(changedInput);
+
+            Assert.That(changed.simulationHash, Is.Not.EqualTo(first.simulationHash));
         }
     }
 }

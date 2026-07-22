@@ -50,16 +50,12 @@ namespace Splice.RaidWorker
                     var job = await client.ClaimAsync(workerId, cancellationToken);
                     if (job?.hasJob == true)
                     {
-                        var result = DeterministicRaidSimulator.Simulate(new RaidSimulationInput
-                        {
-                            raidId = job.raidId,
-                            targetSnapshotId = job.targetSnapshotId,
-                            loadoutSnapshotId = job.loadoutSnapshotId,
-                            attackerPower = job.attackerPower,
-                            defenderPower = job.defenderPower,
-                        });
+                        var result = FixedTickRaidSimulator.Simulate(
+                            FixedTickRaidSimulationInput.FromJob(job));
                         await client.SubmitResultAsync(job, result, cancellationToken);
-                        Debug.Log($"[RaidWorker] settled {job.raidId}: {result.outcome}/{result.breachedRings}");
+                        Debug.Log($"[RaidWorker] settled {job.raidId}: {result.outcome}/" +
+                                  $"{result.breachedRings}, ticks={result.tickCount}, " +
+                                  $"commands={result.commandCount}, hash={result.commandStreamHash}");
                     }
                     if (once) break;
                     await Task.Delay(job?.hasJob == true ? 250 : 2000, cancellationToken);

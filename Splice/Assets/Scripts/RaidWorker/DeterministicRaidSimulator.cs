@@ -15,12 +15,36 @@ namespace Splice.RaidWorker
     }
 
     [Serializable]
+    public sealed class RaidSimulationCommand
+    {
+        public int tick;
+        public string type;
+        public string actor;
+        public string target;
+        public long value;
+
+        public RaidSimulationCommand(int tick, string type, string actor, string target, long value)
+        {
+            this.tick = tick;
+            this.type = type;
+            this.actor = actor;
+            this.target = target;
+            this.value = value;
+        }
+    }
+
+    [Serializable]
     public sealed class RaidSimulationResult
     {
         public string outcome;
         public int breachedRings;
         public int durationMs;
         public string simulationHash;
+        public string simulationVersion;
+        public int tickCount;
+        public int commandCount;
+        public string commandStreamHash;
+        public System.Collections.Generic.List<RaidSimulationCommand> commands = new();
     }
 
     // C4B deterministic proxy. It is deliberately pure and integer-only so replaying the same immutable

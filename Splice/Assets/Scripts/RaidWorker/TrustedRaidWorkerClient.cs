@@ -12,6 +12,40 @@ namespace Splice.RaidWorker
     public sealed class RaidWorkerLoadoutEntry { public string cardId; public int count; }
 
     [Serializable]
+    public sealed class RaidWorkerVector3 { public float x; public float y; public float z; }
+
+    [Serializable]
+    public sealed class RaidWorkerTower
+    {
+        public string towerId;
+        public RaidWorkerVector3 position = new();
+        public int attackLevel;
+        public int healthLevel;
+        public int armorLevel;
+        public int rangeLevel;
+        public int targetsLevel;
+    }
+
+    [Serializable]
+    public sealed class RaidWorkerGarrison
+    {
+        public string cardId;
+        public RaidWorkerVector3 position = new();
+    }
+
+    [Serializable]
+    public sealed class RaidWorkerBaseLayout
+    {
+        public int version;
+        public string ownerAccountId;
+        public string factionId;
+        public List<RaidWorkerTower> towers = new();
+        public List<RaidWorkerGarrison> garrison = new();
+        public List<string> minerCardIds = new();
+        public int storedGold;
+    }
+
+    [Serializable]
     public sealed class RaidWorkerCombatPayload
     {
         public int maxHealth;
@@ -64,6 +98,7 @@ namespace Splice.RaidWorker
         public long heroPower;
         public long gearPower;
         public long defenderPower;
+        public RaidWorkerBaseLayout targetSnapshot;
         public List<RaidWorkerLoadoutEntry> loadoutEntries;
         public RaidWorkerHeroAuthority hero;
         public List<RaidWorkerGearAuthority> gearItems;
