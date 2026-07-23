@@ -45,11 +45,12 @@ public sealed record TownDefenseSnapshotView(
     string OwnerAccountId, string FactionId, int BaseLevel, long BasePowerRating,
     int UsedCapacity, int MaxCapacity, bool MatchmakingEligible,
     string ValidationVersion, IReadOnlyList<string> ValidationWarnings,
-    BaseLayoutView Layout, string ArmyShowcasePresetName, string HeroAppearanceId);
+    IReadOnlyList<CombatUnitAuthorityView> DefenseUnits, BaseLayoutView Layout,
+    string ArmyShowcasePresetName, string HeroAppearanceId);
 
 public static partial class TownFeature
 {
-    private const string ValidatorVersion = "server-c3-v1";
+    private const string ValidatorVersion = "server-town-c4c2-v1";
     private const string ContentVersion = LoadoutFeature.ContentVersion;
     private const int MaxCitySlots = 3;
     private const int MaxDefensePieces = 200;
@@ -229,10 +230,10 @@ public static partial class TownFeature
                 var townEscrow = await GetOrFundTownEscrowAsync(connection, transaction,
                     town.Value.Id, playerId, deploymentId, town.Value.BaseLevel, cancellationToken);
                 var snapshot = new TownDefenseSnapshotView(
-                    1, snapshotId.ToString("D"), deploymentId.ToString("D"), revision, committedAt.ToString("O"),
+                    2, snapshotId.ToString("D"), deploymentId.ToString("D"), revision, committedAt.ToString("O"),
                     layout.OwnerAccountId, factionId, town.Value.BaseLevel, validation.BasePower,
                     validation.UsedCapacity, validation.MaxCapacity, true, ValidatorVersion,
-                    validation.Warnings, layout, string.Empty, string.Empty);
+                    validation.Warnings, validation.DefenseUnits, layout, string.Empty, string.Empty);
                 var snapshotJson = JsonSerializer.Serialize(snapshot, JsonOptions);
 
                 await using (var snapshotCommand = new NpgsqlCommand("""
@@ -417,7 +418,8 @@ public static partial class TownFeature
         if (ids.Length > 0)
         {
             await using var command = new NpgsqlCommand("""
-                SELECT content_id, faction_id, content_kind, defense_capacity_cost, gold_cost, content_version
+                SELECT content_id, faction_id, content_kind, defense_capacity_cost, gold_cost,
+                       content_version, raid_power, combat_payload::text
                   FROM splice.content_definitions
                  WHERE enabled AND content_id = ANY(@ids)
                 """, connection, transaction);
@@ -427,14 +429,18 @@ public static partial class TownFeature
             {
                 var id = reader.GetString(0);
                 var kind = reader.GetString(2);
-                definitions[(id, kind)] = new(reader.GetString(1), kind,
-                    reader.GetInt32(3), reader.GetInt64(4), reader.GetString(5));
+                var combat = JsonSerializer.Deserialize<CombatStatsView>(reader.GetString(7), JsonOptions);
+                if (combat is not null)
+                    definitions[(id, kind)] = new(reader.GetString(1), kind,
+                        reader.GetInt32(3), reader.GetInt64(4), reader.GetString(5),
+                        reader.GetInt32(6), combat);
             }
         }
 
         var occupied = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var tower in layout.Towers)
+        for (var towerIndex = 0; towerIndex < layout.Towers.Count; towerIndex++)
         {
+            var tower = layout.Towers[towerIndex];
             if (!ValidPosition(tower.Position) || !occupied.Add(PositionKey(tower.Position)))
                 result.Errors.Add("Tower position is invalid or overlaps another defense piece.");
             if (!definitions.TryGetValue((tower.TowerId ?? string.Empty, "TOWER"), out var definition) ||
@@ -445,15 +451,23 @@ public static partial class TownFeature
             }
             if (definition.Version != ContentVersion)
                 result.Errors.Add($"Tower content version is stale: {tower.TowerId}");
+            if (!LoadoutFeature.ValidCombat(definition.Combat, mobile: false))
+                result.Errors.Add($"Tower combat payload is invalid: {tower.TowerId}");
             var upgrades = new[] { tower.AttackLevel, tower.HealthLevel, tower.ArmorLevel,
                 tower.RangeLevel, tower.TargetsLevel };
             if (upgrades.Any(level => level is < 0 or > 10)) result.Errors.Add("Tower upgrade level is invalid.");
+            var scaledPower = checked(definition.Power * (100L + upgrades.Sum() * 5L) / 100L);
+            result.DefenseUnits.Add(new CombatUnitAuthorityView(
+                $"tower:{towerIndex:D3}:{tower.TowerId}", tower.TowerId ?? string.Empty, "TOWER", 1,
+                definition.Power, Math.Max(1, scaledPower),
+                ScaleTowerCombat(definition.Combat, tower), tower.Position));
             result.UsedCapacity += definition.Capacity;
             result.BuildValue += definition.GoldCost + upgrades.Sum() * Math.Max(1, definition.GoldCost / 2);
             result.BasePower += 100 + upgrades.Sum() * 20;
         }
-        foreach (var unit in layout.Garrison)
+        for (var unitIndex = 0; unitIndex < layout.Garrison.Count; unitIndex++)
         {
+            var unit = layout.Garrison[unitIndex];
             if (!ValidPosition(unit.Position) || !occupied.Add(PositionKey(unit.Position)))
                 result.Errors.Add("Garrison position is invalid or overlaps another defense piece.");
             if (!definitions.TryGetValue((unit.CardId ?? string.Empty, "GARRISON"), out var definition) ||
@@ -464,9 +478,22 @@ public static partial class TownFeature
             }
             if (definition.Version != ContentVersion)
                 result.Errors.Add($"Garrison content version is stale: {unit.CardId}");
+            if (!LoadoutFeature.ValidCombat(definition.Combat, mobile: true))
+                result.Errors.Add($"Garrison combat payload is invalid: {unit.CardId}");
+            result.DefenseUnits.Add(new CombatUnitAuthorityView(
+                $"garrison:{unitIndex:D3}:{unit.CardId}", unit.CardId ?? string.Empty, "GARRISON", 1,
+                definition.Power, definition.Power, definition.Combat, unit.Position));
             result.UsedCapacity += definition.Capacity;
             result.BuildValue += definition.GoldCost;
             result.BasePower += 80;
+        }
+
+        if (requireDefense)
+        {
+            var coreCombat = CoreCombat(baseLevel);
+            var corePower = CombatPower(coreCombat);
+            result.DefenseUnits.Add(new CombatUnitAuthorityView("core", "town-core", "CORE", 1,
+                corePower, corePower, coreCombat, new Vector3View()));
         }
         foreach (var minerId in layout.MinerCardIds)
         {
@@ -766,7 +793,31 @@ public static partial class TownFeature
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$", RegexOptions.CultureInvariant)]
     private static partial Regex FactionRegex();
 
-    private sealed record ContentDefinition(string Faction, string Kind, int Capacity, long GoldCost, string Version);
+    private static CombatStatsView ScaleTowerCombat(CombatStatsView combat, PlacedTowerView tower) =>
+        combat with
+        {
+            MaxHealth = ScaleStat(combat.MaxHealth, tower.HealthLevel, 10),
+            AttackDamage = ScaleStat(combat.AttackDamage, tower.AttackLevel, 10),
+            Armor = checked(combat.Armor + tower.ArmorLevel * 5),
+            AttackRangeMilli = ScaleStat(combat.AttackRangeMilli, tower.RangeLevel, 5),
+            MaxTargets = Math.Clamp(checked(combat.MaxTargets + tower.TargetsLevel), 1, 32),
+        };
+
+    private static int ScaleStat(int value, int level, int percent) =>
+        checked((int)Math.Min(int.MaxValue, value * (100L + Math.Max(0, level) * percent) / 100L));
+
+    private static CombatStatsView CoreCombat(int baseLevel) => new(
+        checked(5000 + Math.Max(1, baseLevel) * 1000), 20 + Math.Max(1, baseLevel) * 2,
+        40 + Math.Max(1, baseLevel) * 10, 1000, 10000, 0, string.Empty,
+        0, 0, 0, 0, 1);
+
+    private static long CombatPower(CombatStatsView combat) => Math.Max(1,
+        checked(combat.MaxHealth / 20L + combat.Armor * 2L +
+                combat.AttackDamage * 1000L / Math.Max(1, combat.AttackCooldownMs) +
+                combat.AbilityDamage / 5L));
+
+    private sealed record ContentDefinition(string Faction, string Kind, int Capacity,
+        long GoldCost, string Version, int Power, CombatStatsView Combat);
     private sealed class LayoutValidation
     {
         public List<string> Errors { get; } = [];
@@ -775,6 +826,7 @@ public static partial class TownFeature
         public int MaxCapacity { get; set; }
         public long BuildValue { get; set; }
         public long BasePower { get; set; }
+        public List<CombatUnitAuthorityView> DefenseUnits { get; } = [];
         public bool Valid => Errors.Count == 0;
     }
 }

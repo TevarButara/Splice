@@ -14,7 +14,7 @@ using UnityEngine;
 namespace Splice.Editor.ContentUpdates
 {
     [Serializable]
-    public sealed class SpliceHeroCombatCatalog
+    public sealed class SpliceCombatCatalog
     {
         public int maxHealth;
         public int armor;
@@ -27,6 +27,7 @@ namespace Splice.Editor.ContentUpdates
         public int abilityCooldownMs;
         public int abilityCastRangeMilli;
         public int abilityRadiusMilli;
+        public int maxTargets = 1;
     }
 
     [Serializable]
@@ -38,7 +39,7 @@ namespace Splice.Editor.ContentUpdates
         public int defenseCapacityCost;
         public long goldCost;
         public int raidPower;
-        public SpliceHeroCombatCatalog heroCombat;
+        public SpliceCombatCatalog combat;
         public string serverContentVersion;
         public string addressablesLabel;
         public string address;
@@ -48,7 +49,7 @@ namespace Splice.Editor.ContentUpdates
     [Serializable]
     public sealed class SpliceContentCatalogDocument
     {
-        public int schemaVersion = 1;
+        public int schemaVersion = 2;
         public string liveContentVersion = LiveContentRuntime.EmbeddedContentVersion;
         public string serverContentVersion = SpliceContentCatalogExporter.ServerContentVersion;
         public string sourceSha256;
@@ -57,7 +58,7 @@ namespace Splice.Editor.ContentUpdates
 
     public static class SpliceContentCatalogExporter
     {
-        public const string ServerContentVersion = "content-c4c1-v1";
+        public const string ServerContentVersion = "content-c4c2-v1";
         public const string CatalogRelativePath = "Backend/content/generated/splice-content-catalog.json";
         public const string SqlRelativePath = "Backend/database/seeds/002_splice_content_catalog.generated.sql";
         public const string ExportMenu = "Splice/Live Content/2. Validate + Export Backend Catalog";
@@ -91,15 +92,21 @@ namespace Splice.Editor.ContentUpdates
                 foreach (var tower in faction.towers)
                 {
                     if (tower == null || string.IsNullOrWhiteSpace(tower.towerId)) continue;
+                    var combat = TowerCombat(tower);
                     Add(byId, Item(FactionRegistrySO.TowerId(faction, tower), faction.factionId,
-                        "TOWER", tower.defenseCapacityCost, tower.goldCost));
+                        "TOWER", tower.defenseCapacityCost, tower.goldCost, combat,
+                        CombatPower(combat)));
                 }
                 foreach (var card in faction.cards.Concat(faction.minerCards))
                 {
                     if (card == null || string.IsNullOrWhiteSpace(card.cardId)) continue;
                     if (card.cardType == CardType.Monster && card.linkedMonster != null)
+                    {
+                        var combat = MonsterCombat(card.linkedMonster);
                         Add(byId, Item(FactionRegistrySO.CardId(faction, card), faction.factionId,
-                            "GARRISON", card.linkedMonster.defenseCapacityCost, card.goldCost));
+                            "GARRISON", card.linkedMonster.defenseCapacityCost, card.goldCost,
+                            combat, CombatPower(combat)));
+                    }
                     else if (card.cardType == CardType.Miner && card.linkedMiner != null)
                         Add(byId, Item(FactionRegistrySO.CardId(faction, card), faction.factionId,
                             "MINER", 0, card.goldCost));
@@ -115,7 +122,7 @@ namespace Splice.Editor.ContentUpdates
                     factionId = string.Empty,
                     contentKind = "HERO",
                     raidPower = HeroRaidPower(hero),
-                    heroCombat = HeroCombat(hero),
+                    combat = HeroCombat(hero),
                     serverContentVersion = ServerContentVersion,
                     addressablesLabel = "hero/" + hero.heroId,
                     address = "hero/" + hero.heroId,
@@ -149,16 +156,15 @@ namespace Splice.Editor.ContentUpdates
         }
 
         private static SpliceContentCatalogItem Item(string id, string factionId, string kind,
-            int capacity, long goldCost) => new()
+            int capacity, long goldCost, SpliceCombatCatalog combat = null, int raidPower = 0) => new()
         {
             contentId = id,
             factionId = factionId,
             contentKind = kind,
             defenseCapacityCost = Math.Max(0, capacity),
             goldCost = Math.Max(0, goldCost),
-            raidPower = kind == "GARRISON"
-                ? Math.Max(1, checked((int)Math.Min(int.MaxValue, goldCost * 10L + capacity * 25L)))
-                : 0,
+            raidPower = Math.Max(0, raidPower),
+            combat = combat,
             serverContentVersion = ServerContentVersion,
             addressablesLabel = "faction/" + factionId,
             address = id,
@@ -218,10 +224,10 @@ namespace Splice.Editor.ContentUpdates
 
         private static string Sql(string value) => (value ?? string.Empty).Replace("'", "''");
 
-        private static SpliceHeroCombatCatalog HeroCombat(HeroDefinitionSO hero)
+        private static SpliceCombatCatalog HeroCombat(HeroDefinitionSO hero)
         {
             var ability = hero.tacticalAbility;
-            return new SpliceHeroCombatCatalog
+            return new SpliceCombatCatalog
             {
                 maxHealth = hero.maxHealth,
                 armor = hero.armor,
@@ -234,19 +240,45 @@ namespace Splice.Editor.ContentUpdates
                 abilityCooldownMs = ability != null ? Milliseconds(ability.cooldownSeconds) : 0,
                 abilityCastRangeMilli = ability != null ? Milli(ability.castRange) : 0,
                 abilityRadiusMilli = ability != null ? Milli(ability.effectRadius) : 0,
+                maxTargets = 1,
             };
         }
 
-        private static int HeroRaidPower(HeroDefinitionSO hero)
+        private static SpliceCombatCatalog MonsterCombat(MonsterDefinitionSO monster) => new()
         {
-            var cooldownMs = Math.Max(1, Milliseconds(hero.attackCooldown));
-            var abilityPower = hero.tacticalAbility != null ? hero.tacticalAbility.damage / 5 : 0;
-            return Math.Max(1, checked(hero.maxHealth / 20 + hero.armor * 2 +
-                                       hero.attackDamage * 1000 / cooldownMs + abilityPower));
+            maxHealth = monster.maxHealth,
+            armor = 0,
+            attackDamage = monster.attackDamage,
+            attackCooldownMs = Milliseconds(monster.attackCooldown),
+            attackRangeMilli = Milli(monster.attackRange),
+            moveSpeedMilli = Milli(monster.moveSpeed),
+            abilityId = string.Empty,
+            maxTargets = 1,
+        };
+
+        private static SpliceCombatCatalog TowerCombat(TowerDefinitionSO tower) => new()
+        {
+            maxHealth = tower.maxHealth,
+            armor = tower.armor,
+            attackDamage = tower.attackDamage,
+            attackCooldownMs = Milliseconds(tower.attackCooldown),
+            attackRangeMilli = Milli(tower.attackRange),
+            moveSpeedMilli = 0,
+            abilityId = string.Empty,
+            maxTargets = Math.Max(1, tower.maxTargets),
+        };
+
+        private static int HeroRaidPower(HeroDefinitionSO hero) => CombatPower(HeroCombat(hero));
+
+        private static int CombatPower(SpliceCombatCatalog combat)
+        {
+            var cooldownMs = Math.Max(1, combat.attackCooldownMs);
+            return Math.Max(1, checked(combat.maxHealth / 20 + combat.armor * 2 +
+                combat.attackDamage * 1000 / cooldownMs + combat.abilityDamage / 5));
         }
 
         private static string CombatJson(SpliceContentCatalogItem item) =>
-            item.heroCombat == null ? "{}" : JsonUtility.ToJson(item.heroCombat);
+            item.combat == null ? "{}" : JsonUtility.ToJson(item.combat);
 
         private static int Milliseconds(float seconds) =>
             Math.Max(1, Mathf.RoundToInt(seconds * 1000f));

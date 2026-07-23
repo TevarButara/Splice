@@ -41,7 +41,7 @@ public static class RaidFeature
                 await using var loadoutCommand = new NpgsqlCommand("""
                     SELECT faction_id, revision, hero_id, entries::text, payload_sha256,
                            army_power, hero_power, gear_power, raid_power,
-                           hero_payload::text, gear_items::text, content_version
+                           hero_payload::text, gear_items::text, army_items::text, content_version
                       FROM splice.attacker_loadouts
                      WHERE id=@loadout AND owner_player_id=@attacker
                      FOR SHARE
@@ -63,7 +63,8 @@ public static class RaidFeature
                 var loadoutPower = loadoutReader.GetInt64(8);
                 var heroPayload = loadoutReader.GetString(9);
                 var gearItems = loadoutReader.GetString(10);
-                var loadoutContentVersion = loadoutReader.GetString(11);
+                var armyItems = loadoutReader.GetString(11);
+                var loadoutContentVersion = loadoutReader.GetString(12);
                 await loadoutReader.DisposeAsync();
                 if (loadoutContentVersion != LoadoutFeature.ContentVersion || loadoutPower <= 0)
                     return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
@@ -71,10 +72,17 @@ public static class RaidFeature
 
                 await using var targetCommand = new NpgsqlCommand("""
                     SELECT d.active_snapshot_id, d.stake_band, d.status,
-                           t.owner_player_id, p.display_name
+                           t.owner_player_id, p.display_name,
+                           COALESCE((s.payload->>'schemaVersion')::integer, 0),
+                           CASE
+                             WHEN jsonb_typeof(s.payload->'defenseUnits') = 'array'
+                             THEN jsonb_array_length(s.payload->'defenseUnits')
+                             ELSE 0
+                           END
                       FROM splice.town_deployments d
                       JOIN splice.towns t ON t.id = d.town_id
                       JOIN splice.players p ON p.id = t.owner_player_id
+                      JOIN splice.town_snapshots s ON s.id = d.active_snapshot_id
                      WHERE d.id = @deployment
                      FOR SHARE OF d
                     """, connection, transaction);
@@ -89,6 +97,8 @@ public static class RaidFeature
                 var status = reader.GetString(2);
                 var defenderId = reader.GetGuid(3);
                 var targetName = reader.GetString(4);
+                var targetSnapshotSchema = reader.GetInt32(5);
+                var targetDefenseUnitCount = reader.GetInt32(6);
                 await reader.DisposeAsync();
 
                 if (defenderId == attackerId)
@@ -97,6 +107,10 @@ public static class RaidFeature
                 if (status is not ("READY" or "ACTIVE"))
                     return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
                         "TARGET_INELIGIBLE", "Raid target is not currently active.");
+                if (targetSnapshotSchema < 2 || targetDefenseUnitCount < 1)
+                    return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                        "TARGET_COMBAT_SNAPSHOT_STALE",
+                        "Raid target must redeploy its town with the current combat snapshot schema.");
 
                 var stake = band switch { "HIGH" => 600L, "RISKY" => 300L, _ => 100L };
                 var quoteId = Guid.NewGuid();
@@ -111,10 +125,10 @@ public static class RaidFeature
                     INSERT INTO splice.attacker_loadout_snapshots
                         (id, loadout_id, owner_player_id, faction_id, revision, hero_id, entries,
                          payload_sha256, army_power, hero_power, gear_power, hero_payload,
-                         gear_items, content_version, validator_version)
+                         gear_items, army_items, content_version, validator_version)
                     VALUES (@loadoutSnapshot, @loadout, @attacker, @loadoutFaction, @loadoutRevision,
                             @hero, @loadoutEntries, @loadoutHash, @armyPower, @heroPower,
-                            @gearPower, @heroPayload, @gearItems,
+                            @gearPower, @heroPayload, @gearItems, @armyItems,
                             @loadoutContentVersion, @loadoutValidator);
                     INSERT INTO splice.raid_quotes (
                         id, attacker_player_id, target_deployment_id, target_snapshot_id,
@@ -142,6 +156,7 @@ public static class RaidFeature
                 insert.Parameters.AddWithValue("gearPower", gearPower);
                 insert.Parameters.AddWithValue("heroPayload", NpgsqlDbType.Jsonb, heroPayload);
                 insert.Parameters.AddWithValue("gearItems", NpgsqlDbType.Jsonb, gearItems);
+                insert.Parameters.AddWithValue("armyItems", NpgsqlDbType.Jsonb, armyItems);
                 insert.Parameters.AddWithValue("loadoutContentVersion", loadoutContentVersion);
                 insert.Parameters.AddWithValue("loadoutValidator", LoadoutFeature.ValidatorVersion);
                 insert.Parameters.AddWithValue("band", band);

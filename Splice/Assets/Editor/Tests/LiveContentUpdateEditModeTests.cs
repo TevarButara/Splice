@@ -108,14 +108,32 @@ namespace Splice.Tests.EditMode
             var document = SpliceContentCatalogExporter.BuildDocument();
             var hero = document.items.Single(item => item.contentId == "hero/hero_test");
 
-            Assert.That(document.serverContentVersion, Is.EqualTo("content-c4c1-v1"));
+            Assert.That(document.schemaVersion, Is.EqualTo(2));
+            Assert.That(document.serverContentVersion, Is.EqualTo("content-c4c2-v1"));
             Assert.That(hero.contentKind, Is.EqualTo("HERO"));
             Assert.That(hero.backendAuthoritative, Is.True);
             Assert.That(hero.raidPower, Is.EqualTo(2830));
-            Assert.That(hero.heroCombat, Is.Not.Null);
-            Assert.That(hero.heroCombat.maxHealth, Is.EqualTo(30000));
-            Assert.That(hero.heroCombat.attackDamage, Is.EqualTo(1000));
-            Assert.That(hero.heroCombat.abilityId, Is.EqualTo("breach_charge"));
+            Assert.That(hero.combat, Is.Not.Null);
+            Assert.That(hero.combat.maxHealth, Is.EqualTo(30000));
+            Assert.That(hero.combat.attackDamage, Is.EqualTo(1000));
+            Assert.That(hero.combat.abilityId, Is.EqualTo("breach_charge"));
+        }
+
+        [Test]
+        public void BackendCatalogExport_MonstersAndTowersHaveAuthoritativeCombatPayloads()
+        {
+            var document = SpliceContentCatalogExporter.BuildDocument();
+            var monster = document.items.Single(item =>
+                item.contentId == "1/1" && item.contentKind == "GARRISON");
+            var tower = document.items.Single(item =>
+                item.contentId == "1/1" && item.contentKind == "TOWER");
+
+            Assert.That(monster.combat.maxHealth, Is.GreaterThan(0));
+            Assert.That(monster.combat.attackDamage, Is.GreaterThan(0));
+            Assert.That(monster.raidPower, Is.GreaterThan(0));
+            Assert.That(tower.combat.maxHealth, Is.GreaterThan(0));
+            Assert.That(tower.combat.attackCooldownMs, Is.GreaterThanOrEqualTo(100));
+            Assert.That(tower.raidPower, Is.GreaterThan(0));
         }
 
         [Test]

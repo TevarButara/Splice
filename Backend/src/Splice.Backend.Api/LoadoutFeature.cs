@@ -14,11 +14,17 @@ public sealed record AttackerLoadoutView(bool Success, string Error, string Load
     long Revision, string FactionId, string HeroId, IReadOnlyList<string> GearInstanceIds,
     IReadOnlyList<AttackerLoadoutEntryRequest> Entries, long ArmyPower, long HeroPower,
     long GearPower, long RaidPower, string ContentVersion, string PayloadSha256, string UpdatedUtc);
+public sealed record CombatStatsView(int MaxHealth, int Armor, int AttackDamage,
+    int AttackCooldownMs, int AttackRangeMilli, int MoveSpeedMilli, string AbilityId,
+    int AbilityDamage, int AbilityCooldownMs, int AbilityCastRangeMilli,
+    int AbilityRadiusMilli, int MaxTargets);
+public sealed record CombatUnitAuthorityView(string ActorId, string ContentId, string UnitKind,
+    int Count, long BasePower, long ScaledPower, CombatStatsView Combat, Vector3View Position);
 
 public static class LoadoutFeature
 {
-    public const string ContentVersion = "content-c4c1-v1";
-    public const string ValidatorVersion = "server-loadout-c4c1-v1";
+    public const string ContentVersion = "content-c4c2-v1";
+    public const string ValidatorVersion = "server-loadout-c4c2-v1";
     private const int MaxUniqueCards = 20;
     private const int MaxUnits = 50;
     private const int MaxGearItems = 6;
@@ -61,22 +67,24 @@ public static class LoadoutFeature
                 var gearPower = gear.Items!.Sum(item => item.ScaledPower);
                 var heroPayload = JsonSerializer.Serialize(hero.Value, JsonOptions);
                 var gearPayload = JsonSerializer.Serialize(gear.Items, JsonOptions);
+                var armyPayload = JsonSerializer.Serialize(army.Items, JsonOptions);
                 var payload = JsonSerializer.Serialize(new
                 {
                     factionId = normalized.FactionId,
                     hero = hero.Value,
                     gear = gear.Items,
                     entries = normalized.Entries,
+                    army = army.Items,
                 }, JsonOptions);
                 var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
 
                 await using var write = new NpgsqlCommand("""
                     INSERT INTO splice.attacker_loadouts
                         (id, owner_player_id, faction_id, revision, hero_id, entries,
-                         payload_sha256, army_power, hero_power, gear_power, hero_payload,
-                         gear_items, content_version, updated_at)
+                        payload_sha256, army_power, hero_power, gear_power, hero_payload,
+                         gear_items, army_items, content_version, updated_at)
                     VALUES (@id, @owner, @faction, 1, @hero, @entries, @hash, @armyPower,
-                            @heroPower, @gearPower, @heroPayload, @gearItems, @version,
+                            @heroPower, @gearPower, @heroPayload, @gearItems, @armyItems, @version,
                             clock_timestamp())
                     ON CONFLICT (id) DO UPDATE SET
                         faction_id=EXCLUDED.faction_id,
@@ -89,6 +97,7 @@ public static class LoadoutFeature
                         gear_power=EXCLUDED.gear_power,
                         hero_payload=EXCLUDED.hero_payload,
                         gear_items=EXCLUDED.gear_items,
+                        army_items=EXCLUDED.army_items,
                         content_version=EXCLUDED.content_version,
                         updated_at=clock_timestamp()
                     WHERE splice.attacker_loadouts.owner_player_id = @owner
@@ -106,6 +115,7 @@ public static class LoadoutFeature
                 write.Parameters.AddWithValue("gearPower", gearPower);
                 write.Parameters.AddWithValue("heroPayload", NpgsqlDbType.Jsonb, heroPayload);
                 write.Parameters.AddWithValue("gearItems", NpgsqlDbType.Jsonb, gearPayload);
+                write.Parameters.AddWithValue("armyItems", NpgsqlDbType.Jsonb, armyPayload);
                 write.Parameters.AddWithValue("version", ContentVersion);
                 await using var written = await write.ExecuteReaderAsync(cancellationToken);
                 if (!await written.ReadAsync(cancellationToken))
@@ -123,15 +133,17 @@ public static class LoadoutFeature
             });
     }
 
-    private static async Task<(long Power, ApiReply? Error)> ValidateArmyAsync(
+    private static async Task<(long Power, IReadOnlyList<CombatUnitAuthorityView>? Items,
+        ApiReply? Error)> ValidateArmyAsync(
         NpgsqlConnection connection, NpgsqlTransaction transaction, PutAttackerLoadoutRequest request,
         HttpContext context, CancellationToken cancellationToken)
     {
         var ids = request.Entries!.Select(entry => entry.CardId).ToArray();
-        var definitions = new Dictionary<string, (string Faction, int Power, string Version)>(
+        var definitions = new Dictionary<string,
+            (string Faction, int Power, string Version, CombatStatsView Combat)>(
             StringComparer.Ordinal);
         await using (var content = new NpgsqlCommand("""
-            SELECT content_id, faction_id, raid_power, content_version
+            SELECT content_id, faction_id, raid_power, content_version, combat_payload::text
               FROM splice.content_definitions
              WHERE enabled AND content_kind='GARRISON' AND content_id = ANY(@ids)
             """, connection, transaction))
@@ -139,23 +151,33 @@ public static class LoadoutFeature
             content.Parameters.AddWithValue("ids", ids);
             await using var reader = await content.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
-                definitions[reader.GetString(0)] =
-                    (reader.GetString(1), reader.GetInt32(2), reader.GetString(3));
+            {
+                var combat = JsonSerializer.Deserialize<CombatStatsView>(reader.GetString(4), JsonOptions);
+                if (combat is not null)
+                    definitions[reader.GetString(0)] =
+                        (reader.GetString(1), reader.GetInt32(2), reader.GetString(3), combat);
+            }
         }
 
         long power = 0;
+        var items = new List<CombatUnitAuthorityView>();
         foreach (var entry in request.Entries!)
         {
             if (!definitions.TryGetValue(entry.CardId, out var definition) ||
                 definition.Faction != request.FactionId || definition.Power <= 0)
-                return (0, ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                return (0, null, ApiErrors.Reply(context, StatusCodes.Status409Conflict,
                     "LOADOUT_CONTENT_INVALID", $"Unknown, disabled, or mismatched army card: {entry.CardId}"));
             if (definition.Version != ContentVersion)
-                return (0, ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                return (0, null, ApiErrors.Reply(context, StatusCodes.Status409Conflict,
                     "LOADOUT_CONTENT_STALE", $"Army card content is stale: {entry.CardId}"));
+            if (!ValidCombat(definition.Combat, mobile: true))
+                return (0, null, ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                    "LOADOUT_COMBAT_INVALID", $"Army card combat payload is invalid: {entry.CardId}"));
             power = checked(power + (long)definition.Power * entry.Count);
+            items.Add(new CombatUnitAuthorityView("army:" + entry.CardId, entry.CardId, "ARMY",
+                entry.Count, definition.Power, definition.Power, definition.Combat, new Vector3View()));
         }
-        return (power, null);
+        return (power, items, null);
     }
 
     private static async Task<(HeroAuthority? Value, ApiReply? Error)> ValidateHeroAsync(
@@ -227,6 +249,12 @@ public static class LoadoutFeature
 
     private static long ScalePower(long basePower, int level, int percentPerLevel) =>
         checked(basePower * (100L + Math.Max(0, level - 1) * percentPerLevel) / 100L);
+
+    internal static bool ValidCombat(CombatStatsView? combat, bool mobile) =>
+        combat is not null && combat.MaxHealth > 0 && combat.Armor >= 0 &&
+        combat.AttackDamage > 0 && combat.AttackCooldownMs is >= 100 and <= 60000 &&
+        combat.AttackRangeMilli >= 0 && (!mobile || combat.MoveSpeedMilli > 0) &&
+        combat.MaxTargets is >= 1 and <= 32;
 
     private static PutAttackerLoadoutRequest? Normalize(PutAttackerLoadoutRequest request,
         out string? error)

@@ -30,11 +30,20 @@
 - C4C1 Authoritative Hero + Gear เสร็จแล้วแบบ local-only: ownership inventory, Gear instance UUID, server combat stats/power และ immutable raid payload
 - C4C2A Fixed-Tick Combat Kernel เสร็จแล้ว: worker ใช้ immutable town positions/loadout/Hero/Gear จำลอง 3 breach rings และสร้าง deterministic command-stream hash
 - C4C2B Command-Stream Presentation เสร็จแล้ว: `RaidArena` แสดง Hero + Army, ring breach, ability pulse และผล authoritative จาก stream แบบ read-only ในมุมผู้ป้องกัน
+- C4C2C Per-Unit Combat Authority เสร็จแล้ว: backend ตรึง combat payload ของ Monster/Tower/Core รายตัวใน immutable snapshot และ kernel คำนวณ HP/armor/damage/cooldown/target/defeat ต่อ actor
+- Quote gate ปฏิเสธ town snapshot schema เก่าก่อน reserve stake; ผู้เล่นเจ้าของเมืองต้อง redeploy เพื่อสร้าง snapshot schema 2
+
+## ความพร้อมโดยประมาณ
+
+- Prototype ที่เล่นและสาธิต loop หลักได้: 65–68%
+- MVP สำหรับ closed playtest ที่มี backend จริง: 48–50%
+- Production-ready สำหรับขายและรองรับผู้เล่นจำนวนมาก: 28–30%
+- เปอร์เซ็นต์ production นับรวม security hardening, observability, load/soak test, backup/restore, deployment automation, live operations, content/polish และ store compliance—not แค่ feature ที่มองเห็นใน Unity
 
 ## Verification ล่าสุด
 
 - Unity compile: Error 0
-- EditMode: 57/57 passed
+- EditMode: 60/60 passed
 - PlayMode: 4/4 passed
 - Content Validator: Errors 0, Warnings 0
 - Target Pool diagnostic: PASS; immutable V1 คงเดิมหลัง commit V2
@@ -50,23 +59,25 @@
 - local ASP.NET/PostgreSQL launcher smoke test ผ่าน; API health, wallet และ defender deployment อ่านได้จริง และฐานข้อมูลชั่วคราวถูกลบหลังหยุด
 - C4 trusted-route regression ผ่าน: player ปลอม start/result ไม่ได้, result replay ไม่จ่ายซ้ำ, conflicting result ถูกปฏิเสธ และ deployment ถูก Pause เมื่อ backing ต่ำกว่าเกณฑ์
 - C4B regression ผ่าน: loadout ปลอมถูก reject, quote ตรึง immutable army, worker อื่นขโมย lease/result ไม่ได้ และ empty queue ตอบแบบ explicit
-- C4C1 regression ผ่าน: Hero/Gear ที่ไม่ได้เป็นเจ้าของถูก reject, power breakdown 130+2,830+200=3,160 และ worker ได้ immutable Hero combat/Gear payload แม้แก้ loadout ภายหลัง
+- C4C1 regression ผ่าน: Hero/Gear ที่ไม่ได้เป็นเจ้าของถูก reject และ worker ได้ immutable Hero combat/Gear payload แม้แก้ loadout ภายหลัง
 - C4C2A regression ผ่าน: command stream replay ตรงกัน, collection order ไม่เปลี่ยน hash, forged power ถูก reject และตำแหน่งเมืองเปลี่ยนทำให้ simulation hash เปลี่ยน
 - C4C2B visual smoke ผ่านด้วย Unity MCP: role picker ไม่บัง, Hero + Army 8 ตัวอยู่ใน DefenderCamera, actor proxy ไม่หายตาม network prefab lifecycle และ replay จบที่ `COMPLETE`
+- C4C2C regression ผ่าน: per-actor target/defeat deterministic, forged aggregate power ถูก reject, Monster/Tower/Core payload มาจาก server catalog/snapshot และ legacy combat snapshot ถูกปฏิเสธก่อน reserve stake
+- C4C2C visual smoke ผ่านด้วย Unity MCP: replay สร้างยูนิตจริง, breach ครบ 3 rings และจบ `FULL VICTORY` ที่ tick 82
 
 ## Backend
 
 - Architecture contract: `splice-server-wallet-escrow-snapshot-contract-db.md`
-- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle, C4B worker, C4C1 Hero/Gear authority และ C4C2A–B kernel/presentation เสร็จแล้ว
+- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle, C4B worker, C4C1 Hero/Gear authority และ C4C2A–C kernel/presentation/per-unit authority เสร็จแล้ว
 - Backend package: `Backend`; ใช้ HTTP เฉพาะ 127.0.0.1 ตอนทดสอบ ยังไม่เปิด Cloud/production
 - Stack ที่เสนอ: ASP.NET Core modular monolith + PostgreSQL; deploy แบบ stateless containers และแยก authoritative Unity Raid Server ในระยะ C4
 
 ## งานถัดไป
 
-1. C4C2C: เพิ่ม authoritative combat payload รายตัวสำหรับ Monster/Tower เพื่อแทน aggregate power ใน kernel
-2. ให้ player Raid Arena subscribe/poll authoritative lifecycle แล้วแสดง Pending/Completed/Replay
-3. บันทึก/เรียก replay stream จาก backend ด้วย simulation version + hash ที่ตรวจสอบได้
-4. เพิ่ม headless executable end-to-end smoke; ก่อน production ค่อยเพิ่ม autoscaling/metrics/secrets
+1. C4C2D: ให้ player Raid Arena subscribe/poll authoritative lifecycle แล้วแสดง Pending/Completed/Replay
+2. บันทึก/เรียก replay stream จาก backend ด้วย simulation version + hash ที่ตรวจสอบได้
+3. เพิ่ม headless executable end-to-end smoke และ worker crash/retry regression
+4. ทำ performance budget + load-test harness สำหรับ API/queue/PostgreSQL ก่อนออกแบบ autoscaling production
 
 ## สิ่งที่ยังห้ามใน production
 

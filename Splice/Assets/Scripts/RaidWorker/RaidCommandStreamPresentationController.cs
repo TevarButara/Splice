@@ -227,6 +227,10 @@ namespace Splice.RaidWorker
                     SetStatus("RING " + breached + " BREACHED", "The assault force is pushing deeper.",
                         breached, Gold());
                     break;
+                case "DEFEATED":
+                    SetStatus("UNIT DEFEATED", command.actor + " was eliminated.",
+                        RingIndex(command.target), Red());
+                    break;
                 case "COMPLETE":
                     var victory = command.target == "FULL_VICTORY";
                     SetStatus(victory ? "FULL VICTORY" : command.target.Replace('_', ' '),
@@ -558,12 +562,15 @@ namespace Splice.RaidWorker
                     ? heroDefinition.tacticalAbility.abilityId : "breach_charge",
                 abilityDamage = heroDefinition?.tacticalAbility != null
                     ? heroDefinition.tacticalAbility.damage : 300,
+                maxTargets = 1,
             };
             var heroPower = Mathf.Max(1, heroCombat.maxHealth / 20 + heroCombat.armor * 2 +
                 heroCombat.attackDamage * 1000 / Mathf.Max(1, heroCombat.attackCooldownMs) +
                 heroCombat.abilityDamage / 5);
             var cardId = "1/1";
             var towerId = "1/1";
+            MonsterDefinitionSO monsterDefinition = null;
+            TowerDefinitionSO towerDefinition = null;
             foreach (var registry in Resources.FindObjectsOfTypeAll<FactionRegistrySO>())
             {
                 var faction = registry.Factions.FirstOrDefault(value => value != null);
@@ -571,9 +578,25 @@ namespace Splice.RaidWorker
                 var tower = faction?.towers.FirstOrDefault(value => value != null);
                 if (card != null) cardId = registry.IdOf(card);
                 if (tower != null) towerId = registry.IdOf(tower);
+                monsterDefinition = card?.linkedMonster;
+                towerDefinition = tower;
                 if (card != null || tower != null) break;
             }
-            const long armyPower = 130;
+            var monsterCombat = MonsterCombat(monsterDefinition);
+            var towerCombat = TowerCombat(towerDefinition);
+            var armyUnitPower = CombatPower(monsterCombat);
+            var towerPower = CombatPower(towerCombat);
+            var coreCombat = new RaidWorkerCombatPayload
+            {
+                maxHealth = 6000,
+                armor = 20,
+                attackDamage = 50,
+                attackCooldownMs = 1000,
+                attackRangeMilli = 10000,
+                maxTargets = 1,
+            };
+            var corePower = CombatPower(coreCombat);
+            var armyPower = armyUnitPower * 8L;
             const long gearPower = 200;
             return new FixedTickRaidSimulationInput
             {
@@ -584,7 +607,7 @@ namespace Splice.RaidWorker
                 heroPower = heroPower,
                 gearPower = gearPower,
                 attackerPower = armyPower + heroPower + gearPower,
-                defenderPower = 405,
+                defenderPower = towerPower * 3L + armyUnitPower + corePower,
                 hero = new RaidWorkerHeroAuthority
                 {
                     contentId = "hero/" + heroId,
@@ -608,6 +631,28 @@ namespace Splice.RaidWorker
                 loadoutEntries = new List<RaidWorkerLoadoutEntry>
                 {
                     new() { cardId = cardId, count = 8 },
+                },
+                armyUnits = new List<RaidWorkerUnitAuthority>
+                {
+                    new()
+                    {
+                        actorId = "army:" + cardId,
+                        contentId = cardId,
+                        unitKind = "ARMY",
+                        count = 8,
+                        basePower = armyUnitPower,
+                        scaledPower = armyUnitPower,
+                        combat = monsterCombat,
+                    },
+                },
+                defenseUnits = new List<RaidWorkerUnitAuthority>
+                {
+                    Unit("tower:outer", towerId, "TOWER", towerPower, towerCombat, outerRingPoint),
+                    Unit("tower:inner", towerId, "TOWER", towerPower, towerCombat, innerRingPoint),
+                    Unit("tower:core", towerId, "TOWER", towerPower, towerCombat, coreRingPoint),
+                    Unit("garrison:demo", cardId, "GARRISON", armyUnitPower, monsterCombat,
+                        innerRingPoint + Vector3.right * 5f),
+                    Unit("core", "town-core", "CORE", corePower, coreCombat, coreRingPoint),
                 },
                 targetSnapshot = new RaidWorkerBaseLayout
                 {
@@ -637,6 +682,47 @@ namespace Splice.RaidWorker
 
         private static RaidWorkerVector3 Point(Vector3 value) =>
             new() { x = value.x, y = value.y, z = value.z };
+
+        private static RaidWorkerUnitAuthority Unit(string actorId, string contentId, string kind,
+            long power, RaidWorkerCombatPayload combat, Vector3 position) => new()
+        {
+            actorId = actorId,
+            contentId = contentId,
+            unitKind = kind,
+            count = 1,
+            basePower = power,
+            scaledPower = power,
+            combat = combat,
+            position = Point(position),
+        };
+
+        private static RaidWorkerCombatPayload MonsterCombat(MonsterDefinitionSO definition) => new()
+        {
+            maxHealth = definition != null ? definition.maxHealth : 450,
+            armor = 0,
+            attackDamage = definition != null ? definition.attackDamage : 35,
+            attackCooldownMs = definition != null
+                ? Mathf.Max(100, Mathf.RoundToInt(definition.attackCooldown * 1000f)) : 2000,
+            attackRangeMilli = definition != null ? Mathf.RoundToInt(definition.attackRange * 1000f) : 3000,
+            moveSpeedMilli = definition != null ? Mathf.RoundToInt(definition.moveSpeed * 1000f) : 5000,
+            maxTargets = 1,
+        };
+
+        private static RaidWorkerCombatPayload TowerCombat(TowerDefinitionSO definition) => new()
+        {
+            maxHealth = definition != null ? definition.maxHealth : 1000,
+            armor = definition != null ? definition.armor : 50,
+            attackDamage = definition != null ? definition.attackDamage : 10,
+            attackCooldownMs = definition != null
+                ? Mathf.Max(100, Mathf.RoundToInt(definition.attackCooldown * 1000f)) : 500,
+            attackRangeMilli = definition != null ? Mathf.RoundToInt(definition.attackRange * 1000f) : 15000,
+            maxTargets = definition != null ? Mathf.Max(1, definition.maxTargets) : 1,
+        };
+
+        private static long CombatPower(RaidWorkerCombatPayload combat) =>
+            Mathf.Max(1, combat.maxHealth / 20 + combat.armor * 2 +
+                combat.attackDamage * 1000 / Mathf.Max(1, combat.attackCooldownMs) +
+                combat.abilityDamage / 5);
 
         private Vector3 TargetPosition(string target) => target switch
         {

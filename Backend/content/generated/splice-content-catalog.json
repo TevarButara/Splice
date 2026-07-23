@@ -1,8 +1,8 @@
 {
-    "schemaVersion": 1,
+    "schemaVersion": 2,
     "liveContentVersion": "1.0.0",
-    "serverContentVersion": "content-c4c1-v1",
-    "sourceSha256": "78d31a618db91cba11c653ce4576d76f4d31dd5ff744cfcd978398ae39fbb800",
+    "serverContentVersion": "content-c4c2-v1",
+    "sourceSha256": "7218641a3ec1977cbb5815c76536ab5ac362122079e1c108d8b5406740d2527b",
     "items": [
         {
             "contentId": "1/0",
@@ -11,7 +11,7 @@
             "defenseCapacityCost": 0,
             "goldCost": 10,
             "raidPower": 0,
-            "heroCombat": {
+            "combat": {
                 "maxHealth": 0,
                 "armor": 0,
                 "attackDamage": 0,
@@ -22,9 +22,10 @@
                 "abilityDamage": 0,
                 "abilityCooldownMs": 0,
                 "abilityCastRangeMilli": 0,
-                "abilityRadiusMilli": 0
+                "abilityRadiusMilli": 0,
+                "maxTargets": 1
             },
-            "serverContentVersion": "content-c4c1-v1",
+            "serverContentVersion": "content-c4c2-v1",
             "addressablesLabel": "faction/1",
             "address": "1/0",
             "backendAuthoritative": true
@@ -35,21 +36,22 @@
             "contentKind": "GARRISON",
             "defenseCapacityCost": 1,
             "goldCost": 4,
-            "raidPower": 65,
-            "heroCombat": {
-                "maxHealth": 0,
+            "raidPower": 39,
+            "combat": {
+                "maxHealth": 450,
                 "armor": 0,
-                "attackDamage": 0,
-                "attackCooldownMs": 0,
-                "attackRangeMilli": 0,
-                "moveSpeedMilli": 0,
+                "attackDamage": 35,
+                "attackCooldownMs": 2000,
+                "attackRangeMilli": 3000,
+                "moveSpeedMilli": 5000,
                 "abilityId": "",
                 "abilityDamage": 0,
                 "abilityCooldownMs": 0,
                 "abilityCastRangeMilli": 0,
-                "abilityRadiusMilli": 0
+                "abilityRadiusMilli": 0,
+                "maxTargets": 1
             },
-            "serverContentVersion": "content-c4c1-v1",
+            "serverContentVersion": "content-c4c2-v1",
             "addressablesLabel": "faction/1",
             "address": "1/1",
             "backendAuthoritative": true
@@ -60,21 +62,22 @@
             "contentKind": "TOWER",
             "defenseCapacityCost": 2,
             "goldCost": 10,
-            "raidPower": 0,
-            "heroCombat": {
-                "maxHealth": 0,
-                "armor": 0,
-                "attackDamage": 0,
-                "attackCooldownMs": 0,
-                "attackRangeMilli": 0,
+            "raidPower": 170,
+            "combat": {
+                "maxHealth": 1000,
+                "armor": 50,
+                "attackDamage": 10,
+                "attackCooldownMs": 500,
+                "attackRangeMilli": 15500,
                 "moveSpeedMilli": 0,
                 "abilityId": "",
                 "abilityDamage": 0,
                 "abilityCooldownMs": 0,
                 "abilityCastRangeMilli": 0,
-                "abilityRadiusMilli": 0
+                "abilityRadiusMilli": 0,
+                "maxTargets": 3
             },
-            "serverContentVersion": "content-c4c1-v1",
+            "serverContentVersion": "content-c4c2-v1",
             "addressablesLabel": "faction/1",
             "address": "1/1",
             "backendAuthoritative": true
@@ -85,21 +88,22 @@
             "contentKind": "GARRISON",
             "defenseCapacityCost": 2,
             "goldCost": 5,
-            "raidPower": 100,
-            "heroCombat": {
-                "maxHealth": 0,
+            "raidPower": 57,
+            "combat": {
+                "maxHealth": 700,
                 "armor": 0,
-                "attackDamage": 0,
-                "attackCooldownMs": 0,
-                "attackRangeMilli": 0,
-                "moveSpeedMilli": 0,
+                "attackDamage": 55,
+                "attackCooldownMs": 2500,
+                "attackRangeMilli": 20000,
+                "moveSpeedMilli": 2000,
                 "abilityId": "",
                 "abilityDamage": 0,
                 "abilityCooldownMs": 0,
                 "abilityCastRangeMilli": 0,
-                "abilityRadiusMilli": 0
+                "abilityRadiusMilli": 0,
+                "maxTargets": 1
             },
-            "serverContentVersion": "content-c4c1-v1",
+            "serverContentVersion": "content-c4c2-v1",
             "addressablesLabel": "faction/1",
             "address": "1/2",
             "backendAuthoritative": true
@@ -110,21 +114,22 @@
             "contentKind": "GARRISON",
             "defenseCapacityCost": 2,
             "goldCost": 10,
-            "raidPower": 150,
-            "heroCombat": {
-                "maxHealth": 0,
+            "raidPower": 70,
+            "combat": {
+                "maxHealth": 1000,
                 "armor": 0,
-                "attackDamage": 0,
-                "attackCooldownMs": 0,
-                "attackRangeMilli": 0,
-                "moveSpeedMilli": 0,
+                "attackDamage": 20,
+                "attackCooldownMs": 1000,
+                "attackRangeMilli": 2000,
+                "moveSpeedMilli": 4000,
                 "abilityId": "",
                 "abilityDamage": 0,
                 "abilityCooldownMs": 0,
                 "abilityCastRangeMilli": 0,
-                "abilityRadiusMilli": 0
+                "abilityRadiusMilli": 0,
+                "maxTargets": 1
             },
-            "serverContentVersion": "content-c4c1-v1",
+            "serverContentVersion": "content-c4c2-v1",
             "addressablesLabel": "faction/1",
             "address": "1/3",
             "backendAuthoritative": true
@@ -135,21 +140,22 @@
             "contentKind": "GARRISON",
             "defenseCapacityCost": 2,
             "goldCost": 4,
-            "raidPower": 90,
-            "heroCombat": {
-                "maxHealth": 0,
+            "raidPower": 50,
+            "combat": {
+                "maxHealth": 800,
                 "armor": 0,
-                "attackDamage": 0,
-                "attackCooldownMs": 0,
-                "attackRangeMilli": 0,
-                "moveSpeedMilli": 0,
+                "attackDamage": 30,
+                "attackCooldownMs": 3000,
+                "attackRangeMilli": 5000,
+                "moveSpeedMilli": 3000,
                 "abilityId": "",
                 "abilityDamage": 0,
                 "abilityCooldownMs": 0,
                 "abilityCastRangeMilli": 0,
-                "abilityRadiusMilli": 0
+                "abilityRadiusMilli": 0,
+                "maxTargets": 1
             },
-            "serverContentVersion": "content-c4c1-v1",
+            "serverContentVersion": "content-c4c2-v1",
             "addressablesLabel": "faction/1",
             "address": "1/4",
             "backendAuthoritative": true
@@ -161,7 +167,7 @@
             "defenseCapacityCost": 0,
             "goldCost": 0,
             "raidPower": 2830,
-            "heroCombat": {
+            "combat": {
                 "maxHealth": 30000,
                 "armor": 10,
                 "attackDamage": 1000,
@@ -172,9 +178,10 @@
                 "abilityDamage": 300,
                 "abilityCooldownMs": 200,
                 "abilityCastRangeMilli": 7000,
-                "abilityRadiusMilli": 2500
+                "abilityRadiusMilli": 2500,
+                "maxTargets": 1
             },
-            "serverContentVersion": "content-c4c1-v1",
+            "serverContentVersion": "content-c4c2-v1",
             "addressablesLabel": "hero/hero_test",
             "address": "hero/hero_test",
             "backendAuthoritative": true

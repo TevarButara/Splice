@@ -16,6 +16,7 @@ const string fairTargetId = "41000000-0000-0000-0000-000000000001";
 const string highTargetAId = "41000000-0000-0000-0000-000000000002";
 const string highTargetBId = "41000000-0000-0000-0000-000000000003";
 const string selfTargetId = "41000000-0000-0000-0000-000000000004";
+const string staleTargetId = "41000000-0000-0000-0000-000000000005";
 const string loadoutId = "51000000-0000-0000-0000-000000000001";
 const string attackerGearId = "61000000-0000-0000-0000-000000000001";
 const string foreignGearId = "61000000-0000-0000-0000-000000000002";
@@ -61,10 +62,16 @@ try
     var validLoadout = await SendAsync(host.Client, HttpMethod.Put,
         $"/v1/attacker-loadouts/{loadoutId}", validLoadoutBody, "loadout:valid");
     Equal(HttpStatusCode.OK, validLoadout.Status, "server validates attacker loadout");
-    Equal(130L, Long(validLoadout, "armyPower"), "server computes army power from catalog");
+    Equal(78L, Long(validLoadout, "armyPower"), "server computes army power from combat catalog");
     Equal(2830L, Long(validLoadout, "heroPower"), "server computes owned Hero power from catalog");
     Equal(200L, Long(validLoadout, "gearPower"), "server computes owned gear power from catalog");
-    Equal(3160L, Long(validLoadout, "raidPower"), "server composes total authoritative raid power");
+    Equal(3108L, Long(validLoadout, "raidPower"), "server composes total authoritative raid power");
+
+    var staleTarget = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
+        QuoteBody(staleTargetId), "quote:stale-combat-snapshot");
+    Equal(HttpStatusCode.Conflict, staleTarget.Status,
+        "legacy town snapshot rejected before stake can be reserved");
+    ErrorCode(staleTarget, "TARGET_COMBAT_SNAPSHOT_STALE");
 
     var unownedHero = await SendAsync(host.Client, HttpMethod.Put,
         $"/v1/attacker-loadouts/{Guid.NewGuid():D}",
@@ -307,12 +314,13 @@ static async Task SeedAsync(string connectionString)
         INSERT INTO players (id, display_name) VALUES
           ('11000000-0000-0000-0000-000000000001', 'Attacker'),
           ('11000000-0000-0000-0000-000000000002', 'Defender Alpha'),
-          ('11000000-0000-0000-0000-000000000003', 'Defender Beta')
+          ('11000000-0000-0000-0000-000000000003', 'Defender Beta'),
+          ('11000000-0000-0000-0000-000000000004', 'Legacy Defender')
         ON CONFLICT (id) DO NOTHING;
 
         INSERT INTO content_definitions
           (content_id, faction_id, content_kind, raid_power, enabled, content_version, combat_payload)
-        VALUES ('gear/test-blade','','GEAR',200,true,'content-c4c1-v1',
+        VALUES ('gear/test-blade','','GEAR',200,true,'content-c4c2-v1',
                 '{"slot":"weapon","attackBonus":20}'::jsonb)
         ON CONFLICT (content_id, content_kind) DO UPDATE SET
           raid_power=EXCLUDED.raid_power, enabled=true,
@@ -338,7 +346,8 @@ static async Task SeedAsync(string connectionString)
           ('31000000-0000-0000-0000-000000000001','11000000-0000-0000-0000-000000000002','human'),
           ('31000000-0000-0000-0000-000000000002','11000000-0000-0000-0000-000000000002','natural'),
           ('31000000-0000-0000-0000-000000000003','11000000-0000-0000-0000-000000000003','darkside'),
-          ('31000000-0000-0000-0000-000000000004','11000000-0000-0000-0000-000000000001','human')
+          ('31000000-0000-0000-0000-000000000004','11000000-0000-0000-0000-000000000001','human'),
+          ('31000000-0000-0000-0000-000000000005','11000000-0000-0000-0000-000000000004','human')
         ON CONFLICT (id) DO NOTHING;
 
         INSERT INTO ledger_accounts (id, account_key, owner_type, owner_id, currency_code) VALUES
@@ -363,13 +372,26 @@ static async Task SeedAsync(string connectionString)
           ('42000000-0000-0000-0000-000000000004','31000000-0000-0000-0000-000000000004','22000000-0000-0000-0000-000000000004','WAR_GEM',100,'ACTIVE',(SELECT id FROM ledger_transactions WHERE idempotency_key='test:c4:mint:town-backing'))
         ON CONFLICT (id) DO NOTHING;
 
+        WITH valid_snapshot(payload) AS (
+          VALUES ('{"schemaVersion":2,"layout":{"version":1},"defenseUnits":[{"actorId":"core","contentId":"core/default","contentKind":"CORE","count":1,"ring":3,"position":{"x":0,"y":0,"z":0},"raidPower":100,"combat":{"maxHealth":5000,"armor":100,"attackDamage":50,"attackCooldownMs":1000,"moveSpeedMilli":0,"attackRangeMilli":10000,"maxTargets":1}}]}'::jsonb)
+        )
         INSERT INTO town_snapshots
           (id, town_id, revision, payload, payload_sha256, faction_id, base_level,
-           base_power, content_version, validator_version) VALUES
-          ('32000000-0000-0000-0000-000000000001','31000000-0000-0000-0000-000000000001',1,'{}',repeat('a',64),'human',1,100,'test','test'),
-          ('32000000-0000-0000-0000-000000000002','31000000-0000-0000-0000-000000000002',1,'{}',repeat('b',64),'natural',1,600,'test','test'),
-          ('32000000-0000-0000-0000-000000000003','31000000-0000-0000-0000-000000000003',1,'{}',repeat('c',64),'darkside',1,600,'test','test'),
-          ('32000000-0000-0000-0000-000000000004','31000000-0000-0000-0000-000000000004',1,'{}',repeat('d',64),'human',1,100,'test','test')
+           base_power, content_version, validator_version)
+        SELECT row_data.id::uuid, row_data.town_id::uuid, 1, valid_snapshot.payload,
+               repeat(row_data.hash_character, 64), row_data.faction_id, 1,
+               row_data.base_power, 'test', 'test'
+          FROM (VALUES
+            ('32000000-0000-0000-0000-000000000001','31000000-0000-0000-0000-000000000001','a','human',100),
+            ('32000000-0000-0000-0000-000000000002','31000000-0000-0000-0000-000000000002','b','natural',600),
+            ('32000000-0000-0000-0000-000000000003','31000000-0000-0000-0000-000000000003','c','darkside',600),
+            ('32000000-0000-0000-0000-000000000004','31000000-0000-0000-0000-000000000004','d','human',100)
+          ) AS row_data(id, town_id, hash_character, faction_id, base_power)
+          CROSS JOIN valid_snapshot
+        UNION ALL
+        SELECT '32000000-0000-0000-0000-000000000005',
+               '31000000-0000-0000-0000-000000000005', 1, '{}',
+               repeat('e',64), 'human', 1, 100, 'legacy', 'legacy'
         ON CONFLICT (id) DO NOTHING;
 
         INSERT INTO town_deployments
@@ -377,7 +399,8 @@ static async Task SeedAsync(string connectionString)
           ('41000000-0000-0000-0000-000000000001','31000000-0000-0000-0000-000000000001','32000000-0000-0000-0000-000000000001','42000000-0000-0000-0000-000000000001','ACTIVE','FAIR'),
           ('41000000-0000-0000-0000-000000000002','31000000-0000-0000-0000-000000000002','32000000-0000-0000-0000-000000000002','42000000-0000-0000-0000-000000000002','ACTIVE','HIGH'),
           ('41000000-0000-0000-0000-000000000003','31000000-0000-0000-0000-000000000003','32000000-0000-0000-0000-000000000003','42000000-0000-0000-0000-000000000003','ACTIVE','HIGH'),
-          ('41000000-0000-0000-0000-000000000004','31000000-0000-0000-0000-000000000004','32000000-0000-0000-0000-000000000004','42000000-0000-0000-0000-000000000004','ACTIVE','FAIR')
+          ('41000000-0000-0000-0000-000000000004','31000000-0000-0000-0000-000000000004','32000000-0000-0000-0000-000000000004','42000000-0000-0000-0000-000000000004','ACTIVE','FAIR'),
+          ('41000000-0000-0000-0000-000000000005','31000000-0000-0000-0000-000000000005','32000000-0000-0000-0000-000000000005',NULL,'ACTIVE','FAIR')
         ON CONFLICT (id) DO NOTHING;
         """, connection);
     await command.ExecuteNonQueryAsync();
@@ -438,7 +461,7 @@ static async Task RunC4Async(TestHost host, string connectionString)
             entries = new[] { new { cardId = "1/3", count = 2 } }
         },
         "loadout:changed-after-quote");
-    Equal(3330L, Long(changedAfterQuote, "raidPower"), "mutable loadout advances after quote");
+    Equal(3170L, Long(changedAfterQuote, "raidPower"), "mutable loadout advances after quote");
     var confirm = await SendAsync(host.Client, HttpMethod.Post, "/v1/raids",
         new { quoteId = String(quote, "quoteId") }, "raid:c4:full");
     var raidId = String(confirm, "raidId");
@@ -476,9 +499,14 @@ static async Task RunC4Async(TestHost host, string connectionString)
     True(Bool(claim, "hasJob"), "claim returns an authoritative raid job");
     Equal(raidId, String(claim, "raidId"), "worker receives funded raid");
     Equal(allocationId, String(claim, "allocationId"), "worker receives assigned allocation");
-    Equal(3160L, Long(claim, "attackerPower"),
+    Equal(3108L, Long(claim, "attackerPower"),
         "job uses quoted immutable loadout power after mutable loadout changes");
-    Equal(130L, Long(claim, "armyPower"), "job exposes immutable army power breakdown");
+    Equal(78L, Long(claim, "armyPower"), "job exposes immutable army power breakdown");
+    Equal(1, Element(claim, "armyUnits").GetArrayLength(),
+        "job includes immutable per-unit army authority");
+    Equal(450L, Element(claim, "armyUnits")[0].GetProperty("combat")
+            .GetProperty("maxHealth").GetInt64(),
+        "army authority includes server combat stats");
     Equal(2830L, Long(claim, "heroPower"), "job exposes immutable Hero power breakdown");
     Equal(200L, Long(claim, "gearPower"), "job exposes immutable gear power breakdown");
     Equal("hero/hero_test", String(claim, "hero", "contentId"),
@@ -757,6 +785,8 @@ static async Task RunC3Async(TestHost host, string connectionString)
     Equal(5L, Long(deployV1, "snapshot", "usedCapacity"), "server capacity calculation");
     Equal(100L, Long(deployV1, "snapshot", "maxCapacity"), "server max capacity");
     Equal(405L, Long(deployV1, "snapshot", "basePowerRating"), "server base power");
+    Equal(3, Element(deployV1, "snapshot", "defenseUnits").GetArrayLength(),
+        "snapshot pins tower, garrison, and Core combat authority");
     var snapshotV1Id = String(deployV1, "snapshot", "snapshotId");
     var deploymentV1Id = String(deployV1, "snapshot", "deploymentId");
     True(Guid.TryParse(deploymentV1Id, out _), "snapshot response includes deployment UUID for quote");
@@ -921,18 +951,27 @@ static async Task SeedC3Async(string connectionString)
             jsonb_build_object('account_id','00000000-0000-0000-0000-000000000101','amount',-500),
             jsonb_build_object('account_id','21000000-0000-0000-0000-000000000002','amount',500)));
         INSERT INTO content_definitions
-          (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost, content_version) VALUES
-          ('c3-natural/tower-1','c3-natural','TOWER',2,20,'content-c4c1-v1'),
-          ('c3-natural/tower-2','c3-natural','TOWER',1,10,'content-c4c1-v1'),
-          ('c3-natural/garrison-1','c3-natural','GARRISON',3,30,'content-c4c1-v1'),
-          ('c3-natural/miner-1','c3-natural','MINER',0,10,'content-c4c1-v1'),
-          ('c3-expensive/tower-1','c3-expensive','TOWER',1,1000,'content-c4c1-v1'),
-          ('c3-natural/shared-1','c3-natural','TOWER',2,20,'content-c4c1-v1'),
-          ('c3-natural/shared-1','c3-natural','GARRISON',3,30,'content-c4c1-v1')
+          (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost,
+           raid_power, content_version, combat_payload) VALUES
+          ('c3-natural/tower-1','c3-natural','TOWER',2,20,120,'content-c4c2-v1',
+           '{"maxHealth":1000,"armor":20,"attackDamage":25,"attackCooldownMs":1000,"attackRangeMilli":15000,"moveSpeedMilli":0,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}'),
+          ('c3-natural/tower-2','c3-natural','TOWER',1,10,100,'content-c4c2-v1',
+           '{"maxHealth":800,"armor":10,"attackDamage":20,"attackCooldownMs":1000,"attackRangeMilli":12000,"moveSpeedMilli":0,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}'),
+          ('c3-natural/garrison-1','c3-natural','GARRISON',3,30,80,'content-c4c2-v1',
+           '{"maxHealth":500,"armor":0,"attackDamage":30,"attackCooldownMs":1000,"attackRangeMilli":3000,"moveSpeedMilli":5000,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}'),
+          ('c3-natural/miner-1','c3-natural','MINER',0,10,0,'content-c4c2-v1','{}'),
+          ('c3-expensive/tower-1','c3-expensive','TOWER',1,1000,120,'content-c4c2-v1',
+           '{"maxHealth":1000,"armor":20,"attackDamage":25,"attackCooldownMs":1000,"attackRangeMilli":15000,"moveSpeedMilli":0,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}'),
+          ('c3-natural/shared-1','c3-natural','TOWER',2,20,120,'content-c4c2-v1',
+           '{"maxHealth":1000,"armor":20,"attackDamage":25,"attackCooldownMs":1000,"attackRangeMilli":15000,"moveSpeedMilli":0,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}'),
+          ('c3-natural/shared-1','c3-natural','GARRISON',3,30,80,'content-c4c2-v1',
+           '{"maxHealth":500,"armor":0,"attackDamage":30,"attackCooldownMs":1000,"attackRangeMilli":3000,"moveSpeedMilli":5000,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}')
         ON CONFLICT (content_id, content_kind) DO UPDATE SET
           faction_id=EXCLUDED.faction_id,
           defense_capacity_cost=EXCLUDED.defense_capacity_cost,
           gold_cost=EXCLUDED.gold_cost,
+          raid_power=EXCLUDED.raid_power,
+          combat_payload=EXCLUDED.combat_payload,
           enabled=true,
           content_version=EXCLUDED.content_version;
         """, connection);

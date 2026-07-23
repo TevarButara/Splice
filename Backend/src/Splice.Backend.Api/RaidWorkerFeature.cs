@@ -7,8 +7,8 @@ public sealed record ClaimRaidJobRequest(string WorkerId);
 public sealed record RaidJobView(bool HasJob, string Error, string RaidId, string AllocationId,
     string WorkerId, string TargetSnapshotId, string LoadoutSnapshotId, string SceneContractVersion,
     long AttackerPower, long ArmyPower, long HeroPower, long GearPower, long DefenderPower,
-    JsonElement TargetSnapshot, JsonElement LoadoutEntries, JsonElement Hero,
-    JsonElement GearItems, string LeaseExpiresUtc);
+    JsonElement TargetSnapshot, JsonElement LoadoutEntries, JsonElement ArmyUnits,
+    JsonElement DefenseUnits, JsonElement Hero, JsonElement GearItems, string LeaseExpiresUtc);
 public sealed record HeartbeatRaidJobRequest(string WorkerId);
 public sealed record RaidJobHeartbeatView(bool Success, string Error, string AllocationId,
     string LeaseExpiresUtc);
@@ -35,9 +35,10 @@ public static partial class RaidAuthorityFeature
 
                 await using var query = new NpgsqlCommand("""
                     SELECT a.id, a.raid_id, r.target_snapshot_id, q.attacker_loadout_snapshot_id,
-                           r.scene_contract_version, s.payload::text, s.base_power,
-                           ls.entries::text, ls.raid_power, ls.army_power, ls.hero_power,
-                           ls.gear_power, ls.hero_payload::text, ls.gear_items::text
+                           r.scene_contract_version, COALESCE(s.payload->'layout','{}'::jsonb)::text,
+                           COALESCE(s.payload->'defenseUnits','[]'::jsonb)::text, s.base_power,
+                           ls.entries::text, ls.army_items::text, ls.raid_power, ls.army_power,
+                           ls.hero_power, ls.gear_power, ls.hero_payload::text, ls.gear_items::text
                       FROM splice.raid_allocations a
                       JOIN splice.raid_sessions r ON r.id=a.raid_id
                       JOIN splice.raid_quotes q ON q.id=r.quote_id
@@ -59,7 +60,7 @@ public static partial class RaidAuthorityFeature
                     return new ApiReply(StatusCodes.Status200OK,
                         new RaidJobView(false, string.Empty, string.Empty, string.Empty, workerId,
                             string.Empty, string.Empty, string.Empty, 0, 0, 0, 0, 0,
-                            empty, empty, empty, empty, string.Empty));
+                            empty, empty, empty, empty, empty, empty, string.Empty));
                 }
 
                 var allocationId = reader.GetGuid(0);
@@ -68,14 +69,16 @@ public static partial class RaidAuthorityFeature
                 var loadoutSnapshotId = reader.GetGuid(3);
                 var sceneContract = reader.GetString(4);
                 var target = JsonDocument.Parse(reader.GetString(5)).RootElement.Clone();
-                var defenderPower = reader.GetInt64(6);
-                var entries = JsonDocument.Parse(reader.GetString(7)).RootElement.Clone();
-                var attackerPower = reader.GetInt64(8);
-                var armyPower = reader.GetInt64(9);
-                var heroPower = reader.GetInt64(10);
-                var gearPower = reader.GetInt64(11);
-                var hero = JsonDocument.Parse(reader.GetString(12)).RootElement.Clone();
-                var gearItems = JsonDocument.Parse(reader.GetString(13)).RootElement.Clone();
+                var defenseUnits = JsonDocument.Parse(reader.GetString(6)).RootElement.Clone();
+                var defenderPower = reader.GetInt64(7);
+                var entries = JsonDocument.Parse(reader.GetString(8)).RootElement.Clone();
+                var armyUnits = JsonDocument.Parse(reader.GetString(9)).RootElement.Clone();
+                var attackerPower = reader.GetInt64(10);
+                var armyPower = reader.GetInt64(11);
+                var heroPower = reader.GetInt64(12);
+                var gearPower = reader.GetInt64(13);
+                var hero = JsonDocument.Parse(reader.GetString(14)).RootElement.Clone();
+                var gearItems = JsonDocument.Parse(reader.GetString(15)).RootElement.Clone();
                 await reader.DisposeAsync();
 
                 var leaseSeconds = Math.Clamp(configuration.GetValue("RaidServer:WorkerLeaseSeconds", 90), 30, 300);
@@ -103,7 +106,7 @@ public static partial class RaidAuthorityFeature
                     new RaidJobView(true, string.Empty, raidId.ToString("D"), allocationId.ToString("D"),
                         workerId, targetSnapshotId.ToString("D"), loadoutSnapshotId.ToString("D"),
                         sceneContract, attackerPower, armyPower, heroPower, gearPower, defenderPower,
-                        target, entries, hero, gearItems, lease.ToString("O")));
+                        target, entries, armyUnits, defenseUnits, hero, gearItems, lease.ToString("O")));
             });
     }
 

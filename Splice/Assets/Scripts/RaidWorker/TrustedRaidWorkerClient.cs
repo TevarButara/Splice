@@ -59,6 +59,20 @@ namespace Splice.RaidWorker
         public int abilityCooldownMs;
         public int abilityCastRangeMilli;
         public int abilityRadiusMilli;
+        public int maxTargets = 1;
+    }
+
+    [Serializable]
+    public sealed class RaidWorkerUnitAuthority
+    {
+        public string actorId;
+        public string contentId;
+        public string unitKind;
+        public int count = 1;
+        public long basePower;
+        public long scaledPower;
+        public RaidWorkerCombatPayload combat;
+        public RaidWorkerVector3 position = new();
     }
 
     [Serializable]
@@ -100,6 +114,8 @@ namespace Splice.RaidWorker
         public long defenderPower;
         public RaidWorkerBaseLayout targetSnapshot;
         public List<RaidWorkerLoadoutEntry> loadoutEntries;
+        public List<RaidWorkerUnitAuthority> armyUnits;
+        public List<RaidWorkerUnitAuthority> defenseUnits;
         public RaidWorkerHeroAuthority hero;
         public List<RaidWorkerGearAuthority> gearItems;
         public string leaseExpiresUtc;

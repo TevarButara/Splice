@@ -2,13 +2,13 @@
 BEGIN;
 INSERT INTO splice.content_definitions
   (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost, raid_power, enabled, content_version, combat_payload) VALUES
-  ('1/0','1','MINER',0,10,0,true,'content-c4c1-v1','{}'::jsonb),
-  ('1/1','1','GARRISON',1,4,65,true,'content-c4c1-v1','{}'::jsonb),
-  ('1/1','1','TOWER',2,10,0,true,'content-c4c1-v1','{}'::jsonb),
-  ('1/2','1','GARRISON',2,5,100,true,'content-c4c1-v1','{}'::jsonb),
-  ('1/3','1','GARRISON',2,10,150,true,'content-c4c1-v1','{}'::jsonb),
-  ('1/4','1','GARRISON',2,4,90,true,'content-c4c1-v1','{}'::jsonb),
-  ('hero/hero_test','','HERO',0,0,2830,true,'content-c4c1-v1','{"maxHealth":30000,"armor":10,"attackDamage":1000,"attackCooldownMs":800,"attackRangeMilli":1800,"moveSpeedMilli":9000,"abilityId":"breach_charge","abilityDamage":300,"abilityCooldownMs":200,"abilityCastRangeMilli":7000,"abilityRadiusMilli":2500}'::jsonb)
+  ('1/0','1','MINER',0,10,0,true,'content-c4c2-v1','{}'::jsonb),
+  ('1/1','1','GARRISON',1,4,39,true,'content-c4c2-v1','{"maxHealth":450,"armor":0,"attackDamage":35,"attackCooldownMs":2000,"attackRangeMilli":3000,"moveSpeedMilli":5000,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}'::jsonb),
+  ('1/1','1','TOWER',2,10,170,true,'content-c4c2-v1','{"maxHealth":1000,"armor":50,"attackDamage":10,"attackCooldownMs":500,"attackRangeMilli":15500,"moveSpeedMilli":0,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":3}'::jsonb),
+  ('1/2','1','GARRISON',2,5,57,true,'content-c4c2-v1','{"maxHealth":700,"armor":0,"attackDamage":55,"attackCooldownMs":2500,"attackRangeMilli":20000,"moveSpeedMilli":2000,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}'::jsonb),
+  ('1/3','1','GARRISON',2,10,70,true,'content-c4c2-v1','{"maxHealth":1000,"armor":0,"attackDamage":20,"attackCooldownMs":1000,"attackRangeMilli":2000,"moveSpeedMilli":4000,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}'::jsonb),
+  ('1/4','1','GARRISON',2,4,50,true,'content-c4c2-v1','{"maxHealth":800,"armor":0,"attackDamage":30,"attackCooldownMs":3000,"attackRangeMilli":5000,"moveSpeedMilli":3000,"abilityId":"","abilityDamage":0,"abilityCooldownMs":0,"abilityCastRangeMilli":0,"abilityRadiusMilli":0,"maxTargets":1}'::jsonb),
+  ('hero/hero_test','','HERO',0,0,2830,true,'content-c4c2-v1','{"maxHealth":30000,"armor":10,"attackDamage":1000,"attackCooldownMs":800,"attackRangeMilli":1800,"moveSpeedMilli":9000,"abilityId":"breach_charge","abilityDamage":300,"abilityCooldownMs":200,"abilityCastRangeMilli":7000,"abilityRadiusMilli":2500,"maxTargets":1}'::jsonb)
 ON CONFLICT (content_id, content_kind) DO UPDATE SET
   faction_id=EXCLUDED.faction_id,
   defense_capacity_cost=EXCLUDED.defense_capacity_cost, gold_cost=EXCLUDED.gold_cost,
