@@ -15,6 +15,8 @@ namespace Splice.Core
     // PvE runs Netcode as a local host with no real networking; PvBot/PvP connect to a dedicated server.
     public class GameBootstrap : MonoBehaviour
     {
+        public const ushort LocalPveEphemeralPort = 0;
+
         [SerializeField] private GameMode mode = GameMode.PvE;
         [SerializeField] private string serverAddress = "127.0.0.1";
         [SerializeField] private ushort serverPort = 7777;
@@ -35,7 +37,13 @@ namespace Splice.Core
             switch (mode)
             {
                 case GameMode.PvE:
-                    netManager.StartHost();
+                    if (!TryConfigureLocalPveTransport(netManager, out var error))
+                    {
+                        Debug.LogError($"[GameBootstrap] {error}", this);
+                        return;
+                    }
+                    if (!netManager.StartHost())
+                        Debug.LogError("[GameBootstrap] Local PvE host failed to start.", this);
                     break;
                 case GameMode.PvBot:
                 case GameMode.PvP:
@@ -45,8 +53,8 @@ namespace Splice.Core
             }
         }
 
-        // ปิด network ตอนออก play (กด Stop) — บังคับให้ UnityTransport คืน UDP socket ทันที ไม่งั้นพอร์ต 7777
-        // จะค้างในโปรเซส editor จนกว่าจะปิด/รีโหลด domain → รอบ Play ถัดไป bind ซ้ำไม่ได้.
+        // ปิด network ตอนออก play (กด Stop) เพื่อคืน UDP socket และไม่ทิ้ง stale network session
+        // ไว้ใน Editor เมื่อปิด Domain Reload.
         // ใช้ OnApplicationQuit (ยิงตอนหยุด play) ไม่ใช่ OnDestroy — กัน shutdown หลุดตอนสลับซีนระหว่างเกม
         private void OnApplicationQuit()
         {
@@ -66,6 +74,37 @@ namespace Splice.Core
 
             transport.ConnectionData.Address = serverAddress;
             transport.ConnectionData.Port = serverPort;
+        }
+
+        public static bool TryConfigureLocalPveTransport(NetworkManager netManager, out string error)
+        {
+            if (netManager == null)
+            {
+                error = "NetworkManager not found in scene.";
+                return false;
+            }
+
+            var transport = netManager.GetComponent<UnityTransport>();
+            if (transport == null)
+            {
+                error = "UnityTransport component missing on NetworkManager.";
+                return false;
+            }
+
+            ConfigureLocalPveTransport(transport);
+            error = string.Empty;
+            return true;
+        }
+
+        public static void ConfigureLocalPveTransport(UnityTransport transport)
+        {
+            if (transport == null) return;
+
+            // A local host never accepts a remote player. Let the OS choose a free UDP port so an
+            // Editor session left on 7777 cannot block Confirm Raid after a scene/domain reload.
+            transport.ConnectionData.Address = "127.0.0.1";
+            transport.ConnectionData.ServerListenAddress = "127.0.0.1";
+            transport.ConnectionData.Port = LocalPveEphemeralPort;
         }
     }
 }

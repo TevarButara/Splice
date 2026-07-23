@@ -194,6 +194,8 @@ namespace Splice.UI
         {
             if (confirming || preparing) return;
             confirming = true;
+            feedback = "CONNECTING TO LOCAL RAID SERVER…";
+            RefreshOffer();
 
             BackendOperationResult readiness = null;
             if (raidSceneAdapter != null)
@@ -329,6 +331,8 @@ namespace Splice.UI
         private void RefreshOffer()
         {
             var balance = WalletBalance;
+            if (confirmButtonLabel != null)
+                confirmButtonLabel.text = ConfirmButtonText(preparing, confirming);
             if (confirmButton != null) confirmButton.interactable = !preparing && !confirming &&
                 activeQuote != null && balance >= entryStake && !HasPendingStake &&
                 raidSceneAdapter != null && raidSceneAdapter.HasPreparedRaid && string.IsNullOrEmpty(feedback);
@@ -353,6 +357,12 @@ namespace Splice.UI
             if (!string.IsNullOrEmpty(startupNotice)) message += $"\n\n<color=#FFB347>{startupNotice}</color>";
             if (!string.IsNullOrEmpty(feedback)) message += $"\n\n<color=#FF6B6B>{feedback.ToUpperInvariant()}</color>";
             offerText.text = message;
+        }
+
+        public static string ConfirmButtonText(bool preparing, bool confirming)
+        {
+            if (preparing) return "PREPARING...";
+            return confirming ? "STARTING RAID..." : "CONFIRM RAID";
         }
 
         private static string Signed(int value) => value >= 0 ? $"+{value}" : value.ToString();

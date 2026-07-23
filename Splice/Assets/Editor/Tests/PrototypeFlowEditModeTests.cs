@@ -1,8 +1,10 @@
 #if UNITY_EDITOR
 using NUnit.Framework;
 using Splice.Base;
+using Splice.Core;
 using Splice.UI;
 using Splice.RaidWorker;
+using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEditor;
@@ -85,6 +87,39 @@ namespace Splice.Tests.EditMode
             Assert.That(LocalRaidStakeController.IsTransientReadinessError(
                 "Selected immutable snapshot is unavailable before stake debit."), Is.False);
             Assert.That(LocalRaidStakeController.IsTransientReadinessError(null), Is.False);
+        }
+
+        [Test]
+        public void LocalPveHost_UsesEphemeralLoopbackPort_ToAvoidEditorPortCollisions()
+        {
+            var root = new GameObject("LocalTransport", typeof(UnityTransport));
+            try
+            {
+                var transport = root.GetComponent<UnityTransport>();
+                transport.ConnectionData.Port = 7777;
+                transport.ConnectionData.Address = "10.0.0.1";
+                transport.ConnectionData.ServerListenAddress = "0.0.0.0";
+
+                GameBootstrap.ConfigureLocalPveTransport(transport);
+
+                Assert.That(transport.ConnectionData.Port, Is.EqualTo(GameBootstrap.LocalPveEphemeralPort));
+                Assert.That(transport.ConnectionData.Address, Is.EqualTo("127.0.0.1"));
+                Assert.That(transport.ConnectionData.ServerListenAddress, Is.EqualTo("127.0.0.1"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [TestCase(false, false, "CONFIRM RAID")]
+        [TestCase(true, false, "PREPARING...")]
+        [TestCase(false, true, "STARTING RAID...")]
+        public void RaidContract_ConfirmButtonAlwaysShowsCurrentAction(bool preparing,
+            bool confirming, string expected)
+        {
+            Assert.That(LocalRaidStakeController.ConfirmButtonText(preparing, confirming),
+                Is.EqualTo(expected));
         }
 
         [Test]
