@@ -45,10 +45,15 @@ public interface IRaidReplayBlobMaintenance
         CancellationToken cancellationToken);
 }
 
+public interface IRaidReplayBlobHealthCheck
+{
+    Task ProbeWritableAsync(CancellationToken cancellationToken);
+}
+
 // Local-only adapter for development and deterministic integration tests. Production can bind the
 // same contract to S3-compatible storage without changing raid metadata or the Unity API response.
 public sealed class LocalFileRaidReplayBlobStore :
-    IRaidReplayBlobStore, IRaidReplayBlobMaintenance
+    IRaidReplayBlobStore, IRaidReplayBlobMaintenance, IRaidReplayBlobHealthCheck
 {
     public const string ProviderName = "local-filesystem";
     public const int MaximumBlobBytes = 16 * 1024 * 1024;
@@ -67,6 +72,35 @@ public sealed class LocalFileRaidReplayBlobStore :
             ? Path.Combine(Path.GetTempPath(), "splice-replay-blobs")
             : configured);
         Directory.CreateDirectory(root);
+    }
+
+    public async Task ProbeWritableAsync(CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(root);
+        var probePath = Path.Combine(root, $".readiness-{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await using var stream = new FileStream(
+                probePath, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                1, FileOptions.Asynchronous | FileOptions.WriteThrough);
+            await stream.WriteAsync(new byte[] { 0x53 }, cancellationToken);
+            await stream.FlushAsync(cancellationToken);
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(probePath);
+            }
+            catch (IOException)
+            {
+                // A failed cleanup does not hide a successful write probe. Maintenance reclaims it.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // The write probe already proved readiness; cleanup is best effort.
+            }
+        }
     }
 
     public async Task<RaidReplayBlobArtifact> PutAsync(

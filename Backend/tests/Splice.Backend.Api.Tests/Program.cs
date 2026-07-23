@@ -7,6 +7,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Splice.Backend.Api;
@@ -26,14 +27,64 @@ const string attackerGearId = "61000000-0000-0000-0000-000000000001";
 const string foreignGearId = "61000000-0000-0000-0000-000000000002";
 const string trustedServerId = "test-authoritative-raid-1";
 const string trustedServerKey = "test-only-c4-trusted-key-2026";
+const string metricsBearerToken = "test-only-c4d1c-metrics-token-2026";
 
 await SeedAsync(connectionString);
 var host = await StartAsync(connectionString);
 try
 {
+    var liveness = await SendAsync(
+        host.Client, HttpMethod.Get, "/health/live", null, null, false);
+    Equal(HttpStatusCode.OK, liveness.Status, "process liveness probe");
+    Equal("ok", String(liveness, "status"), "process liveness status");
+
+    var readiness = await SendAsync(
+        host.Client, HttpMethod.Get, "/health/ready", null, null, false);
+    Equal(HttpStatusCode.OK, readiness.Status, "dependency readiness probe");
+    Equal("ok", String(readiness, "database"), "readiness database status");
+    Equal("ok", String(readiness, "replayStorage"), "readiness replay storage status");
+    False(Directory.EnumerateFiles(host.ReplayStorageRoot, ".readiness-*.tmp").Any(),
+        "readiness write probe leaves no temporary file");
+
     var health = await SendAsync(host.Client, HttpMethod.Get, "/health", null, null, false);
     Equal(HttpStatusCode.OK, health.Status, "database health probe");
     Equal("ok", String(health, "database"), "database health status");
+    Equal("ok", String(health, "replayStorage"),
+        "legacy health alias includes replay storage");
+
+    var metricsWithoutToken = await SendTextAsync(
+        host.Client, HttpMethod.Get, "/metrics");
+    Equal(HttpStatusCode.Unauthorized, metricsWithoutToken.Status,
+        "metrics reject missing bearer token");
+    var metricsWithWrongToken = await SendTextAsync(
+        host.Client, HttpMethod.Get, "/metrics", "wrong-token");
+    Equal(HttpStatusCode.Unauthorized, metricsWithWrongToken.Status,
+        "metrics reject wrong bearer token");
+    var metrics = await SendTextAsync(
+        host.Client, HttpMethod.Get, "/metrics", metricsBearerToken);
+    Equal(HttpStatusCode.OK, metrics.Status, "metrics accept dedicated bearer token");
+    True(metrics.ContentType.StartsWith("text/plain; version=0.0.4",
+            StringComparison.Ordinal),
+        "metrics use Prometheus text exposition format");
+    True(metrics.Body.Contains("splice_api_requests_total ", StringComparison.Ordinal),
+        "metrics expose bounded request counter");
+    True(metrics.Body.Contains("splice_raid_funded_queue ", StringComparison.Ordinal),
+        "metrics expose operational queue gauge");
+    True(metrics.Body.Contains("splice_ops_healthy 1", StringComparison.Ordinal),
+        "metrics expose healthy state");
+    False(metrics.Body.Contains(attackerId, StringComparison.Ordinal),
+        "metrics do not expose player identifiers");
+    False(metrics.Body.Contains(trustedServerKey, StringComparison.Ordinal),
+        "metrics do not expose trusted credentials");
+    False(metrics.Body.Contains(metricsBearerToken, StringComparison.Ordinal),
+        "metrics do not expose their bearer credential");
+    var configuration = host.App.Services.GetRequiredService<IConfiguration>();
+    configuration["Ops:MetricsBearerToken"] = "too-short";
+    var metricsWithUnsafeConfiguration = await SendTextAsync(
+        host.Client, HttpMethod.Get, "/metrics", "too-short");
+    Equal(HttpStatusCode.ServiceUnavailable, metricsWithUnsafeConfiguration.Status,
+        "metrics fail closed when configured credential is unsafe");
+    configuration["Ops:MetricsBearerToken"] = metricsBearerToken;
 
     var unauthorizedOps = await SendAsync(host.Client, HttpMethod.Get,
         "/internal/v1/ops/status", null, null);
@@ -262,6 +313,7 @@ try
     Console.WriteLine("C4 raid authority tests: PASS (allocation, trusted result, verified immutable replay, settlement, recovery)");
     Console.WriteLine("C4C2G replay storage tests: PASS (object pointer, blob integrity, authorization, dual-read)");
     Console.WriteLine("C4D1 operations tests: PASS (protected status, queue alerts, telemetry, race-safe orphan cleanup)");
+    Console.WriteLine("C4D1C observability tests: PASS (liveness, dependency readiness, protected Prometheus metrics)");
     await RunC4C2FAsync(host, connectionString, settledRaidId);
     Console.WriteLine("C4C2F history/revenge tests: PASS (defender visibility, replay, target binding, cooldown)");
     var workerExecutable = Environment.GetEnvironmentVariable("SPLICE_UNITY_WORKER_EXECUTABLE");
@@ -299,6 +351,7 @@ static async Task<TestHost> StartAsync(string connectionString)
         "--Reconciliation:ActiveTimeoutSeconds=1",
         "--Ops:ActiveRaidWarningSeconds=60",
         "--Ops:OutboxWarningCount=1000000",
+        $"--Ops:MetricsBearerToken={metricsBearerToken}",
         $"--RaidServer:DevelopmentKey={trustedServerKey}",
         $"--RaidServer:DefaultServerId={trustedServerId}",
         "--RaidServer:WorkerLeaseSeconds=90",
@@ -341,6 +394,20 @@ static async Task<ApiResult> SendTrustedAsync(HttpClient client, HttpMethod meth
     using var response = await client.SendAsync(request);
     var text = await response.Content.ReadAsStringAsync();
     return new ApiResult(response.StatusCode, JsonDocument.Parse(text));
+}
+
+static async Task<TextResult> SendTextAsync(
+    HttpClient client, HttpMethod method, string path, string? bearerToken = null)
+{
+    using var request = new HttpRequestMessage(method, path);
+    if (bearerToken is not null)
+        request.Headers.Authorization = new("Bearer", bearerToken);
+    request.Headers.Add("X-Request-Id", Guid.NewGuid().ToString("D"));
+    using var response = await client.SendAsync(request);
+    return new TextResult(
+        response.StatusCode,
+        response.Content.Headers.ContentType?.ToString() ?? string.Empty,
+        await response.Content.ReadAsStringAsync());
 }
 
 static async Task SeedAsync(string connectionString)
@@ -1790,6 +1857,7 @@ static void Equal<T>(T expected, T actual, string name) where T : notnull
 }
 
 sealed record ApiResult(HttpStatusCode Status, JsonDocument Json);
+sealed record TextResult(HttpStatusCode Status, string ContentType, string Body);
 sealed record ReplayStorageRow(string Provider, string Key, string ETag,
     long ContentLength, string Encoding, bool CommandStreamIsNull);
 sealed class TestHost : IAsyncDisposable

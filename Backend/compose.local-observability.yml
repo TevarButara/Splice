@@ -1,0 +1,113 @@
+name: splice-local-observability
+
+services:
+  postgres:
+    image: postgres:16.14-alpine3.24@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+    environment:
+      POSTGRES_DB: splice
+      POSTGRES_USER: splice
+      POSTGRES_PASSWORD: splice-local-only-password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U splice -d splice"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/migrations:/opt/splice-db/migrations:ro
+      - ./database/seeds:/opt/splice-db/seeds:ro
+      - ./database/docker-init/001_apply.sh:/docker-entrypoint-initdb.d/001_apply.sh:ro
+    networks:
+      - database
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Splice: Host=postgres;Port=5432;Database=splice;Username=splice;Password=splice-local-only-password
+      ReplayStorage__LocalRoot: /app/data/replays
+      ReplayStorage__MaintenanceEnabled: "false"
+      RaidServer__DevelopmentKey: local-only-raid-server-key-change-before-sharing
+      RaidServer__DefaultServerId: local-observability-api
+      Ops__MetricsBearerToken: local-only-observability-token-change-before-sharing
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5080:8080"
+    volumes:
+      - replay-data:/app/data/replays
+    networks:
+      - database
+      - observability
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.12.0@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    depends_on:
+      - api
+      - alertmanager
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - observability
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.32.1@sha256:51a825c2a40acc3e338fdd00d622e01ec090f72be2b3ea46be0839cd47a4d286
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    networks:
+      - observability
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+networks:
+  database:
+    internal: true
+  observability:
+
+volumes:
+  postgres-data:
+  replay-data:
+  prometheus-data:
+  alertmanager-data:

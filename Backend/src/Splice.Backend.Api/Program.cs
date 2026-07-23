@@ -20,6 +20,8 @@ public static class SpliceApi
             services.GetRequiredService<LocalFileRaidReplayBlobStore>());
         builder.Services.AddSingleton<IRaidReplayBlobMaintenance>(services =>
             services.GetRequiredService<LocalFileRaidReplayBlobStore>());
+        builder.Services.AddSingleton<IRaidReplayBlobHealthCheck>(services =>
+            services.GetRequiredService<LocalFileRaidReplayBlobStore>());
         builder.Services.AddSingleton<IdempotencyExecutor>();
         builder.Services.AddSingleton<RaidReconciliationService>();
         builder.Services.AddHostedService<RaidReconciliationWorker>();
@@ -32,13 +34,7 @@ public static class SpliceApi
 
         app.UseMiddleware<RequestTelemetryMiddleware>();
         app.UseMiddleware<RequestIdentityMiddleware>();
-        app.MapGet("/health", async (NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
-        {
-            await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-            await using var command = new NpgsqlCommand("SELECT 1", connection);
-            await command.ExecuteScalarAsync(cancellationToken);
-            return Results.Ok(new { status = "ok", database = "ok" });
-        });
+        app.MapHealthAndMetricsEndpoints();
         app.MapWalletEndpoints();
         app.MapLoadoutEndpoints();
         app.MapRaidEndpoints();

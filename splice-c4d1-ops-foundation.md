@@ -1,7 +1,7 @@
 # Splice C4D1 — Ops Foundation
 
 วันที่: 2026-07-23
-สถานะ: **C4D1A–B IMPLEMENTED / AUTOMATED ACCEPTANCE PASS**
+สถานะ: **C4D1A–C IMPLEMENTED / AUTOMATED ACCEPTANCE PASS**
 
 ## เป้าหมาย
 
@@ -104,14 +104,42 @@ load นี้เป็น regression baseline บนเครื่อง local
 
 RPO ของ logical bundle เท่ากับ `snapshot-utc` ของรอบล่าสุด; production RPO จึงขึ้นกับ schedule. ก่อนเปิดเงินจริงยังต้องมี WAL/PITR, object versioning, encrypted/signed off-site copy และ restore drill ตามรอบ.
 
-## งานถัดไป
-
 ### C4D1C — Container + external observability
 
-- reproducible ASP.NET container, non-root user, health/readiness separation
-- local compose สำหรับ API + PostgreSQL + private S3-compatible emulator โดยยังไม่เสียค่า cloud
-- OpenTelemetry exporter, dashboard และ alert routing
-- secret/workload identity boundary สำหรับ production
+สถานะ: **IMPLEMENTED**
+
+- แยก `/health/live` ออกจาก `/health/ready`; readiness ตรวจ PostgreSQL และ replay storage writability จริง
+- คง `/health` เป็น readiness alias เพื่อ backward compatibility
+- เพิ่ม `/metrics` แบบ Prometheus text exposition และ bearer token แยก (ขั้นต่ำ 24 ตัวอักษร)
+- metric names/labels เป็น low-cardinality และไม่แสดง player ID, raid ID, object key หรือ secret
+- เพิ่ม multi-stage .NET 10 image, pin version+manifest digest และรัน runtime ด้วย non-root UID
+- local Compose มี API, PostgreSQL 16, Prometheus และ Alertmanager โดยไม่ใช้ cloud service
+- PostgreSQL ไม่มี host port และอยู่ internal network; API/dashboard bind เฉพาะ `127.0.0.1`
+- API filesystem read-only, drop capabilities, `no-new-privileges`; writable เฉพาะ tmpfs และ replay volume
+- alert rules ครอบ API unavailable, stuck raid, expired lease, outbox backlog และ degraded ops
+- Alertmanager local receiver แสดงสถานะใน UI แต่ไม่ส่งข้อมูลออกภายนอก
+
+ผล automated acceptance:
+
+- .NET API + integration tests build 0 errors / 0 warnings
+- C1 ledger/concurrency: PASS
+- C2/C3/C4/C4C2F/C4C2G/C4D1A/C4D1C integration: PASS
+- liveness/readiness/legacy alias: PASS; write probe ไม่ทิ้ง temp file
+- metrics missing/wrong token ถูกปฏิเสธ; token ถูกต้องอ่านได้และไม่มี identifier/secret
+- Compose config/security regression: PASS
+- full container E2E: image build, migrations/seeds, readiness, protected metrics, Prometheus scrape, Alertmanager และ runtime non-root/read-only/cap-drop assertions: PASS
+- local load 240 requests, concurrency 16, failures 0, 2,832.25 req/s; p95 health 9.45 ms, wallet 16.34 ms, claim 35.60 ms
+
+container E2E พบ tag `.NET 10-bookworm-slim` ที่ไม่มีจริงและ test harness ที่ fail โดยไม่แสดง diagnostics. แก้เป็น official Noble tags, pin version+manifest digest ของทุก image, เพิ่ม static/runtime security regressions และให้ harness รอ successful Prometheus scrape พร้อม dump `compose ps/logs` เมื่อไม่ ready. รอบถัดมาผ่านและ cleanup ไม่เหลือ container/volume.
+
+## งานถัดไป
+
+### C4D1D — Production security/storage boundary
+
+- production auth/workload identity หรือ mTLS แทน development bearer/key
+- private S3-compatible replay adapter พร้อม encryption, versioning และ retention
+- secret injection, TLS ingress, image digest/signing/scanning และ SBOM
+- production alert receiver/routing เมื่อมี environment จริง
 
 ### ก่อน production
 

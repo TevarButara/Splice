@@ -1,0 +1,42 @@
+groups:
+  - name: splice-backend
+    rules:
+      - alert: SpliceApiUnavailable
+        expr: up{job="splice-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Splice API metrics endpoint is unavailable
+
+      - alert: SpliceStuckActiveRaid
+        expr: splice_raid_stuck_active > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: One or more active raids exceeded the configured timeout
+
+      - alert: SpliceExpiredWorkerLease
+        expr: splice_raid_expired_worker_leases > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: One or more active raid worker leases expired
+
+      - alert: SpliceOutboxBacklog
+        expr: splice_outbox_unpublished_events > 10000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: The unpublished outbox backlog exceeded the local threshold
+
+      - alert: SpliceOperationalStatusDegraded
+        expr: splice_ops_healthy == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Splice operational checks report a degraded state

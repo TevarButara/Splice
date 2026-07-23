@@ -153,3 +153,46 @@ bash Backend/database/scripts/test-c4d1-backup-restore.sh
 ```
 
 นี่เป็น logical full-backup proof ไม่ใช่ production PITR. RPO จริงขึ้นกับรอบ backup; production ยังต้องมี encrypted/signed off-site backup, PostgreSQL WAL/PITR, object versioning และ scheduled restore drill.
+
+## C4D1C: Container + external observability
+
+API แยก probe ตามหน้าที่แล้ว:
+
+- `GET /health/live` ตรวจว่า process ตอบสนอง โดยไม่แตะ dependency
+- `GET /health/ready` ตรวจ PostgreSQL และทดลองเขียน replay storage จริง
+- `GET /health` เป็น readiness alias เพื่อไม่ทำให้ client/load test เดิมพัง
+- `GET /metrics` เป็น Prometheus text format และต้องใช้ bearer token แยกที่ `Ops:MetricsBearerToken` (ขั้นต่ำ 24 ตัวอักษร)
+
+local stack ไม่มีค่า cloud และ bind เฉพาะ loopback:
+
+```bash
+cd Backend
+docker compose -f compose.local-observability.yml up --build -d
+```
+
+- API: `http://127.0.0.1:5080`
+- Prometheus: `http://127.0.0.1:9090`
+- Alertmanager: `http://127.0.0.1:9093`
+- PostgreSQL อยู่ใน internal Docker network และไม่ publish port
+
+Compose นี้เป็น Development fixture เท่านั้น ใช้ credential ที่ระบุชัดว่า local-only, ปิด replay cleanup และไม่ส่ง alert ออกภายนอก. ห้ามนำ credential/config นี้ไป production.
+
+รัน config/security regression:
+
+```bash
+bash Backend/database/scripts/test-c4d1c-container.sh
+```
+
+เมื่อ Docker Desktop ทำงานและต้องการ build/start/scrape proof เต็มชุด:
+
+```bash
+SPLICE_CONTAINER_E2E=1 bash Backend/database/scripts/test-c4d1c-container.sh
+```
+
+ทุก base/service image pin ทั้ง version และ manifest digest. API image เป็น multi-stage .NET 10, runtime ทำงานด้วย non-root UID, filesystem เป็น read-only ใน Compose, drop Linux capabilities และเปิด writable path เฉพาะ `/tmp` กับ replay volume. Prometheus/Alertmanager เก็บข้อมูลใน local volumes; ลบ stack และ volumes ด้วย:
+
+```bash
+docker compose -f Backend/compose.local-observability.yml down -v
+```
+
+ก่อน production ต้องเปลี่ยน development bearer/key เป็น workload identity หรือ mTLS, inject secret จาก secret manager, ใช้ private object storage, TLS ingress, image digest/signing/scanning และ alert receiver จริง.

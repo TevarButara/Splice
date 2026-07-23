@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+.artifacts/
+.git/
+database/
+tests/
+tools/
+content/
+*.md
