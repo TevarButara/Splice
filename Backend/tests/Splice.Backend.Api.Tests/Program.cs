@@ -35,6 +35,19 @@ try
     Equal(HttpStatusCode.OK, health.Status, "database health probe");
     Equal("ok", String(health, "database"), "database health status");
 
+    var unauthorizedOps = await SendAsync(host.Client, HttpMethod.Get,
+        "/internal/v1/ops/status", null, null);
+    Equal(HttpStatusCode.Unauthorized, unauthorizedOps.Status,
+        "operations status requires trusted server authentication");
+    ErrorCode(unauthorizedOps, "TRUSTED_RAID_SERVER_AUTH_REQUIRED");
+    var initialOps = await SendTrustedAsync(host.Client, HttpMethod.Get,
+        "/internal/v1/ops/status", null, null);
+    Equal(HttpStatusCode.OK, initialOps.Status, "trusted operations status");
+    Equal("HEALTHY", String(initialOps, "status"),
+        "initial operations status is healthy");
+    True(Long(initialOps, "metrics", "requests") >= 2,
+        "request telemetry is visible without player identifiers");
+
     var unauthorized = await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null, false);
     Equal(HttpStatusCode.Unauthorized, unauthorized.Status, "wallet requires authentication");
     ErrorCode(unauthorized, "AUTH_REQUIRED");
@@ -248,6 +261,7 @@ try
     var settledRaidId = await RunC4Async(host, connectionString);
     Console.WriteLine("C4 raid authority tests: PASS (allocation, trusted result, verified immutable replay, settlement, recovery)");
     Console.WriteLine("C4C2G replay storage tests: PASS (object pointer, blob integrity, authorization, dual-read)");
+    Console.WriteLine("C4D1 operations tests: PASS (protected status, queue alerts, telemetry, race-safe orphan cleanup)");
     await RunC4C2FAsync(host, connectionString, settledRaidId);
     Console.WriteLine("C4C2F history/revenge tests: PASS (defender visibility, replay, target binding, cooldown)");
     var workerExecutable = Environment.GetEnvironmentVariable("SPLICE_UNITY_WORKER_EXECUTABLE");
@@ -283,10 +297,14 @@ static async Task<TestHost> StartAsync(string connectionString)
         "--Reconciliation:Enabled=false",
         "--Reconciliation:TimeoutSeconds=1",
         "--Reconciliation:ActiveTimeoutSeconds=1",
+        "--Ops:ActiveRaidWarningSeconds=60",
+        "--Ops:OutboxWarningCount=1000000",
         $"--RaidServer:DevelopmentKey={trustedServerKey}",
         $"--RaidServer:DefaultServerId={trustedServerId}",
         "--RaidServer:WorkerLeaseSeconds=90",
         $"--ReplayStorage:LocalRoot={replayStorageRoot}",
+        "--ReplayStorage:MaintenanceEnabled=false",
+        "--ReplayStorage:OrphanGraceSeconds=60",
     ]);
     await app.StartAsync();
     var server = app.Services.GetRequiredService<IServer>();
@@ -684,8 +702,65 @@ static async Task<string> RunC4Async(TestHost host, string connectionString)
     ErrorCode(corruptReplay, "REPLAY_BLOB_CORRUPT");
     await File.WriteAllBytesAsync(blobPath, originalBlob);
 
+    File.SetLastWriteTimeUtc(blobPath, DateTime.UtcNow.AddHours(-2));
+    var blobMaintenance = host.App.Services
+        .GetRequiredService<ReplayBlobMaintenanceService>();
+    var referencedMaintenance = await blobMaintenance
+        .RunOnceAsync(CancellationToken.None);
+    Equal(1, referencedMaintenance.Referenced,
+        "maintenance retains a DB-referenced replay blob");
+    Equal(0, referencedMaintenance.Deleted,
+        "maintenance never deletes referenced replay storage");
+    True(File.Exists(blobPath),
+        "referenced replay blob survives maintenance");
+
+    var blobStore = host.App.Services
+        .GetRequiredService<IRaidReplayBlobStore>();
+    var racePayload = Encoding.UTF8.GetBytes("{}");
+    var raceHash = Convert.ToHexStringLower(
+        SHA256.HashData(racePayload));
+    var raceArtifact = await blobStore.PutAsync(
+        Guid.NewGuid(), Guid.NewGuid(), raceHash,
+        racePayload, CancellationToken.None);
+    var racePath = Path.Combine(host.ReplayStorageRoot,
+        raceArtifact.Key.Replace('/', Path.DirectorySeparatorChar));
+    File.SetLastWriteTimeUtc(racePath, DateTime.UtcNow.AddHours(-2));
+    var rawMaintenance = host.App.Services
+        .GetRequiredService<IRaidReplayBlobMaintenance>();
+    var raceCandidate = (await rawMaintenance.ListCandidatesAsync(
+            DateTimeOffset.UtcNow.AddMinutes(-1), 100,
+            CancellationToken.None))
+        .Single(candidate => candidate.Key == raceArtifact.Key);
+    await File.AppendAllTextAsync(racePath, "x");
+    False(await rawMaintenance.DeleteIfUnchangedAsync(
+            raceCandidate, CancellationToken.None),
+        "cleanup skips a blob changed after candidate scan");
+    True(File.Exists(racePath),
+        "concurrently changed blob survives the stale scan");
+    File.SetLastWriteTimeUtc(racePath, DateTime.UtcNow.AddHours(-2));
+
+    var staleTemporaryPath = Path.Combine(
+        host.ReplayStorageRoot, "replays", "stale-write.tmp");
+    Directory.CreateDirectory(Path.GetDirectoryName(staleTemporaryPath)!);
+    await File.WriteAllTextAsync(staleTemporaryPath, "partial");
+    File.SetLastWriteTimeUtc(
+        staleTemporaryPath, DateTime.UtcNow.AddHours(-2));
+
     await ConvertReplayToLegacyStorageAsync(connectionString, raidId,
         Element(replay, "result", "commands").GetRawText());
+    var orphanMaintenance = await blobMaintenance
+        .RunOnceAsync(CancellationToken.None);
+    Equal(2, orphanMaintenance.Deleted,
+        "maintenance deletes only unreferenced aged replay blobs");
+    Equal(1, orphanMaintenance.TemporaryDeleted,
+        "maintenance deletes stale interrupted-write files");
+    False(File.Exists(blobPath),
+        "legacy conversion leaves no orphan object");
+    False(File.Exists(racePath),
+        "unreferenced race fixture is reclaimed after grace");
+    False(File.Exists(staleTemporaryPath),
+        "stale temporary file is reclaimed");
+
     var legacyReplay = await SendAsync(host.Client, HttpMethod.Get,
         $"/v1/raids/{raidId}/replay", null, null);
     Equal(HttpStatusCode.OK, legacyReplay.Status,
@@ -716,9 +791,29 @@ static async Task<string> RunC4Async(TestHost host, string connectionString)
         $"/internal/v1/raids/{recoveryRaidId}/start", recoveryStartBody,
         "trusted:start:c4:active-recovery");
     await BackdateActiveRaidAsync(connectionString, recoveryRaidId);
+    var degradedOps = await SendTrustedAsync(host.Client, HttpMethod.Get,
+        "/internal/v1/ops/status", null, null);
+    Equal("DEGRADED", String(degradedOps, "status"),
+        "operations status detects a stuck active raid");
+    True(Element(degradedOps, "alerts").EnumerateArray()
+            .Any(alert => alert.GetString() == "STUCK_ACTIVE_RAIDS"),
+        "operations alert identifies stuck active raids");
+    True(Long(degradedOps, "metrics", "replayBlobFailures") >= 2,
+        "operations telemetry counts missing and corrupt replay reads");
+    True(Long(degradedOps, "metrics", "orphanBlobsDeleted") >= 2,
+        "operations telemetry counts reclaimed orphan blobs");
+    True(!string.IsNullOrWhiteSpace(
+            String(degradedOps, "metrics", "lastBlobMaintenanceUtc")),
+        "operations telemetry timestamps blob maintenance");
     var recovered = await host.App.Services.GetRequiredService<RaidReconciliationService>()
         .ReconcileOnceAsync(CancellationToken.None);
     Equal(1, recovered, "timed-out active Raid Server session reconciled");
+    var recoveredOps = await SendTrustedAsync(host.Client, HttpMethod.Get,
+        "/internal/v1/ops/status", null, null);
+    Equal("HEALTHY", String(recoveredOps, "status"),
+        "reconciliation clears the stuck-raid alert");
+    True(Long(recoveredOps, "metrics", "reconciledRaids") >= 2,
+        "operations telemetry counts reconciled raids");
     Equal(980L, Long(await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null),
         "warGemBalance"), "infrastructure timeout refunds attacker stake");
     await AssertC4DatabaseAsync(connectionString, raidId, recoveryRaidId);

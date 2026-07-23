@@ -99,3 +99,26 @@ budget ปัจจุบัน: health p95 ≤ 200 ms, wallet p95 ≤ 300 ms, c
 - production ให้ bind `IRaidReplayBlobStore` กับ private S3-compatible bucket, workload identity, encryption/retention policy และ CDN/API authorization ตาม environment
 
 blob ถูก stage ก่อน financial transaction เพื่อไม่ถือ ledger locks ระหว่าง object I/O; หาก process ตายหลัง stage แต่ก่อน commit อาจมี orphan ที่ไม่มี metadata อ้างอิง จึงต้องให้ Ops lifecycle job ลบ object ที่เก่ากว่า grace period และไม่พบใน `raid_replays`. ห้ามลบทันทีระหว่าง concurrent retry เพราะ object เดียวกันอาจถูก transaction อื่น commit สำเร็จ.
+
+## C4D1A: Operations telemetry + replay lifecycle
+
+- `GET /internal/v1/ops/status` ใช้ trusted Raid Server headers เท่านั้น และคืน queue depth, expired lease, stuck active raid, unpublished outbox, alerts และ in-process metric snapshot
+- request telemetry ใช้ route group แบบ low-cardinality (`health`, `player`, `internal`, `other`) ไม่ใส่ player/raid ID ใน metric labels
+- replay write/read/failure, reconciliation และ orphan deletion ถูกนับไว้ พร้อม `System.Diagnostics.Metrics` boundary สำหรับต่อ OpenTelemetry exporter ภายหลัง
+- orphan cleanup ตรวจว่า object เก่ากว่า grace period, query DB pointer ใหม่ก่อนลบ และตรวจ size/mtime ซ้ำเพื่อไม่ลบไฟล์ที่เปลี่ยนระหว่าง scan
+- maintenance ปิดโดยค่าเริ่มต้นเพื่อไม่ให้ process ที่ชี้ test DB กวาด storage ของ DB อื่น ต้องเปิดอย่างตั้งใจหลังยืนยันว่า DB กับ storage root เป็นคู่เดียวกัน
+
+ตัวอย่าง config แบบ environment variables:
+
+```bash
+ReplayStorage__LocalRoot=/absolute/private/replay-root
+ReplayStorage__MaintenanceEnabled=true
+ReplayStorage__OrphanGraceSeconds=3600
+ReplayStorage__MaintenanceIntervalSeconds=900
+ReplayStorage__MaintenanceBatchSize=250
+Ops__ActiveRaidWarningSeconds=1800
+Ops__ExpiredLeaseWarningCount=0
+Ops__OutboxWarningCount=10000
+```
+
+ก่อนเปิด maintenance ใน production ต้องมี backup/restore drill และเปลี่ยน local adapter เป็น private S3-compatible implementation ที่ใช้ workload identity. รายละเอียดอยู่ที่ `splice-c4d1-ops-foundation.md`.

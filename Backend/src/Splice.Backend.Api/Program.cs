@@ -13,15 +13,24 @@ public static class SpliceApi
             ?? throw new InvalidOperationException("ConnectionStrings:Splice is required.");
 
         builder.Services.AddSingleton(_ => new NpgsqlDataSourceBuilder(connectionString).Build());
-        builder.Services.AddSingleton<IRaidReplayBlobStore, LocalFileRaidReplayBlobStore>();
+        builder.Services.AddSingleton<OperationalMetrics>();
+        builder.Services.AddSingleton<OperationalStatusService>();
+        builder.Services.AddSingleton<LocalFileRaidReplayBlobStore>();
+        builder.Services.AddSingleton<IRaidReplayBlobStore>(services =>
+            services.GetRequiredService<LocalFileRaidReplayBlobStore>());
+        builder.Services.AddSingleton<IRaidReplayBlobMaintenance>(services =>
+            services.GetRequiredService<LocalFileRaidReplayBlobStore>());
         builder.Services.AddSingleton<IdempotencyExecutor>();
         builder.Services.AddSingleton<RaidReconciliationService>();
         builder.Services.AddHostedService<RaidReconciliationWorker>();
+        builder.Services.AddSingleton<ReplayBlobMaintenanceService>();
+        builder.Services.AddHostedService<ReplayBlobMaintenanceWorker>();
 
         var app = builder.Build();
         if (!app.Environment.IsDevelopment())
             throw new InvalidOperationException("C2 development bearer authentication cannot run outside Development.");
 
+        app.UseMiddleware<RequestTelemetryMiddleware>();
         app.UseMiddleware<RequestIdentityMiddleware>();
         app.MapGet("/health", async (NpgsqlDataSource dataSource, CancellationToken cancellationToken) =>
         {
@@ -36,6 +45,7 @@ public static class SpliceApi
         app.MapRaidAuthorityEndpoints();
         app.MapRaidHistoryEndpoints();
         app.MapTownEndpoints();
+        app.MapOperationalEndpoints();
         return app;
     }
 }

@@ -26,18 +26,42 @@ public interface IRaidReplayBlobStore
         string encoding, CancellationToken cancellationToken);
 }
 
+public sealed record RaidReplayBlobCandidate(
+    string Key, long ContentLength, DateTimeOffset LastModifiedUtc);
+
+public interface IRaidReplayBlobMaintenance
+{
+    string Provider { get; }
+
+    Task<IReadOnlyList<RaidReplayBlobCandidate>> ListCandidatesAsync(
+        DateTimeOffset olderThanUtc, int maximumCount,
+        CancellationToken cancellationToken);
+
+    Task<bool> DeleteIfUnchangedAsync(
+        RaidReplayBlobCandidate candidate, CancellationToken cancellationToken);
+
+    Task<int> DeleteStaleTemporaryFilesAsync(
+        DateTimeOffset olderThanUtc, int maximumCount,
+        CancellationToken cancellationToken);
+}
+
 // Local-only adapter for development and deterministic integration tests. Production can bind the
 // same contract to S3-compatible storage without changing raid metadata or the Unity API response.
-public sealed class LocalFileRaidReplayBlobStore : IRaidReplayBlobStore
+public sealed class LocalFileRaidReplayBlobStore :
+    IRaidReplayBlobStore, IRaidReplayBlobMaintenance
 {
     public const string ProviderName = "local-filesystem";
     public const int MaximumBlobBytes = 16 * 1024 * 1024;
     public const int MaximumUncompressedBytes = 32 * 1024 * 1024;
 
     private readonly string root;
+    private readonly OperationalMetrics metrics;
+    public string Provider => ProviderName;
 
-    public LocalFileRaidReplayBlobStore(IConfiguration configuration)
+    public LocalFileRaidReplayBlobStore(
+        IConfiguration configuration, OperationalMetrics metrics)
     {
+        this.metrics = metrics;
         var configured = configuration["ReplayStorage:LocalRoot"];
         root = Path.GetFullPath(string.IsNullOrWhiteSpace(configured)
             ? Path.Combine(Path.GetTempPath(), "splice-replay-blobs")
@@ -46,6 +70,25 @@ public sealed class LocalFileRaidReplayBlobStore : IRaidReplayBlobStore
     }
 
     public async Task<RaidReplayBlobArtifact> PutAsync(
+        Guid raidId, Guid resultId, string commandStreamHash,
+        ReadOnlyMemory<byte> uncompressedJson, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var artifact = await PutCoreAsync(
+                raidId, resultId, commandStreamHash,
+                uncompressedJson, cancellationToken);
+            metrics.RecordReplayWrite();
+            return artifact;
+        }
+        catch (RaidReplayBlobException exception)
+        {
+            metrics.RecordReplayFailure("write", exception.Code);
+            throw;
+        }
+    }
+
+    private async Task<RaidReplayBlobArtifact> PutCoreAsync(
         Guid raidId, Guid resultId, string commandStreamHash,
         ReadOnlyMemory<byte> uncompressedJson, CancellationToken cancellationToken)
     {
@@ -112,6 +155,25 @@ public sealed class LocalFileRaidReplayBlobStore : IRaidReplayBlobStore
         string provider, string key, string etag, long contentLength,
         string encoding, CancellationToken cancellationToken)
     {
+        try
+        {
+            var bytes = await GetCoreAsync(
+                provider, key, etag, contentLength, encoding,
+                cancellationToken);
+            metrics.RecordReplayRead();
+            return bytes;
+        }
+        catch (RaidReplayBlobException exception)
+        {
+            metrics.RecordReplayFailure("read", exception.Code);
+            throw;
+        }
+    }
+
+    private async Task<byte[]> GetCoreAsync(
+        string provider, string key, string etag, long contentLength,
+        string encoding, CancellationToken cancellationToken)
+    {
         if (provider != ProviderName || encoding != "gzip" ||
             contentLength is < 1 or > MaximumBlobBytes ||
             etag.Length != 64)
@@ -151,6 +213,66 @@ public sealed class LocalFileRaidReplayBlobStore : IRaidReplayBlobStore
     }
 
     public string ResolvePathForDiagnostics(string key) => ResolvePath(key);
+
+    public Task<IReadOnlyList<RaidReplayBlobCandidate>> ListCandidatesAsync(
+        DateTimeOffset olderThanUtc, int maximumCount,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var limit = Math.Clamp(maximumCount, 1, 10000);
+        if (!Directory.Exists(root))
+            return Task.FromResult<IReadOnlyList<RaidReplayBlobCandidate>>([]);
+        var candidates = Directory.EnumerateFiles(
+                root, "*.json.gz", SearchOption.AllDirectories)
+            .Select(path => new FileInfo(path))
+            .Where(info => info.LastWriteTimeUtc < olderThanUtc.UtcDateTime)
+            .Take(limit)
+            .Select(info => new RaidReplayBlobCandidate(
+                Path.GetRelativePath(root, info.FullName)
+                    .Replace(Path.DirectorySeparatorChar, '/'),
+                info.Length, new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero)))
+            .ToArray();
+        return Task.FromResult<IReadOnlyList<RaidReplayBlobCandidate>>(candidates);
+    }
+
+    public Task<bool> DeleteIfUnchangedAsync(
+        RaidReplayBlobCandidate candidate, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var path = ResolvePath(candidate.Key);
+        if (!File.Exists(path)) return Task.FromResult(false);
+        var info = new FileInfo(path);
+        if (info.Length != candidate.ContentLength ||
+            info.LastWriteTimeUtc != candidate.LastModifiedUtc.UtcDateTime)
+            return Task.FromResult(false);
+        File.Delete(path);
+        DeleteEmptyParents(info.Directory);
+        return Task.FromResult(true);
+    }
+
+    public Task<int> DeleteStaleTemporaryFilesAsync(
+        DateTimeOffset olderThanUtc, int maximumCount,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Directory.Exists(root)) return Task.FromResult(0);
+        var deleted = 0;
+        foreach (var path in Directory.EnumerateFiles(
+                     root, "*.tmp", SearchOption.AllDirectories)
+                     .Select(path => new FileInfo(path))
+                     .Where(info =>
+                         info.LastWriteTimeUtc < olderThanUtc.UtcDateTime)
+                     .Take(Math.Clamp(maximumCount, 1, 10000))
+                     .Select(info => info.FullName))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var info = new FileInfo(path);
+            File.Delete(path);
+            DeleteEmptyParents(info.Directory);
+            deleted++;
+        }
+        return Task.FromResult(deleted);
+    }
 
     private string ResolvePath(string key)
     {
@@ -265,6 +387,22 @@ public sealed class LocalFileRaidReplayBlobStore : IRaidReplayBlobStore
         catch
         {
             // A uniquely named temp file can be reclaimed by the storage maintenance job.
+        }
+    }
+
+    private void DeleteEmptyParents(DirectoryInfo? directory)
+    {
+        var rootPrefix = root.EndsWith(Path.DirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+        while (directory is not null &&
+               !string.Equals(directory.FullName, root, StringComparison.Ordinal) &&
+               directory.FullName.StartsWith(rootPrefix, StringComparison.Ordinal))
+        {
+            if (directory.EnumerateFileSystemInfos().Any()) return;
+            var parent = directory.Parent;
+            directory.Delete();
+            directory = parent;
         }
     }
 }

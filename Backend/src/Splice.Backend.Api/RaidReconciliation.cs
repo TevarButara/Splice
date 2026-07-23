@@ -5,7 +5,10 @@ using NpgsqlTypes;
 
 namespace Splice.Backend.Api;
 
-public sealed class RaidReconciliationService(NpgsqlDataSource dataSource, IConfiguration configuration)
+public sealed class RaidReconciliationService(
+    NpgsqlDataSource dataSource,
+    IConfiguration configuration,
+    OperationalMetrics metrics)
 {
     public async Task<int> ReconcileOnceAsync(CancellationToken cancellationToken)
     {
@@ -68,6 +71,7 @@ public sealed class RaidReconciliationService(NpgsqlDataSource dataSource, IConf
             reconciled++;
         }
 
+        metrics.RecordReconciledRaids(reconciled);
         return reconciled;
     }
 
