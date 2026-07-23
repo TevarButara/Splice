@@ -33,18 +33,20 @@
 - C4C2C Per-Unit Combat Authority เสร็จแล้ว: backend ตรึง combat payload ของ Monster/Tower/Core รายตัวใน immutable snapshot และ kernel คำนวณ HP/armor/damage/cooldown/target/defeat ต่อ actor
 - Quote gate ปฏิเสธ town snapshot schema เก่าก่อน reserve stake; ผู้เล่นเจ้าของเมืองต้อง redeploy เพื่อสร้าง snapshot schema 2
 - C4C2D Lifecycle + Verified Replay เสร็จแล้ว: Unity poll เฉพาะ public read routes, backend เก็บ immutable command stream, ตรวจ command hash/version/count ก่อน settlement และ participant เรียก replay ได้
+- C4C2E Worker Reliability + Load Proof เสร็จแล้ว: build Unity executable จริง, crash/reclaim/duplicate-delivery แบบข้าม process, stable result identity, bounded retry/heartbeat และ local load budget
+- worker queue ใช้ `READ COMMITTED + FOR UPDATE SKIP LOCKED`; เส้นทางเงินยังคง `SERIALIZABLE` พร้อม bounded retry เพื่อให้ scale โดยไม่ลดความถูกต้องของ ledger
 
 ## ความพร้อมโดยประมาณ
 
-- Prototype ที่เล่นและสาธิต loop หลักได้: 68–70%
-- MVP สำหรับ closed playtest ที่มี backend จริง: 51–54%
-- Production-ready สำหรับขายและรองรับผู้เล่นจำนวนมาก: 31–33%
+- Prototype ที่เล่นและสาธิต loop หลักได้: 71–73%
+- MVP สำหรับ closed playtest ที่มี backend จริง: 55–58%
+- Production-ready สำหรับขายและรองรับผู้เล่นจำนวนมาก: 34–37%
 - เปอร์เซ็นต์ production นับรวม security hardening, observability, load/soak test, backup/restore, deployment automation, live operations, content/polish และ store compliance—not แค่ feature ที่มองเห็นใน Unity
 
 ## Verification ล่าสุด
 
 - Unity compile: Error 0
-- EditMode: 66/66 passed
+- EditMode: 69/69 passed
 - PlayMode: 4/4 passed
 - Content Validator: Errors 0, Warnings 0
 - Target Pool diagnostic: PASS; immutable V1 คงเดิมหลัง commit V2
@@ -67,26 +69,31 @@
 - C4C2C visual smoke ผ่านด้วย Unity MCP: replay สร้างยูนิตจริง, breach ครบ 3 rings และจบ `FULL VICTORY` ที่ tick 82
 - C4C2D regression ผ่าน: tampered command hash ถูก reject ก่อน settlement, wallet ไม่เปลี่ยน, replay row แก้/ลบไม่ได้, lifecycle/result/snapshot identity ตรงกัน และ simulated incoming defense ไม่ poll attacker endpoint
 - C4C2D visual smoke ผ่านด้วย Unity MCP: HUD แสดง `RAID SERVER ACTIVE` และ authoritative lifecycle progress ใน RaidArena
+- C4C2E process E2E ผ่าน: Unity executable ล่มหลัง claim ด้วย exit 77, lease ถูก reclaim ใน attempt 2, duplicate result ไม่จ่ายซ้ำ และมี result/replay/funding/settlement อย่างละชุด
+- C4C2E load budget ผ่านที่ 240 requests / concurrency 16: failures 0, 2,975.43 req/s; p95 health 8.84 ms, wallet 14.47 ms, empty worker claim 35.79 ms
+- bug จาก fixture ที่ใช้ defense field รุ่นเก่าถูกจับโดย executable จริงและกลายเป็น regression ที่ตรวจ `unitKind/scaledPower`
+- Unity headless proof build ผ่านด้วย macOS Development Player + batchmode/nographics; Dedicated Server subtarget จะเปิดเมื่อ install optional macOS Dedicated Server module
+- Nanolod Editor-only DLL ถูกจำกัด importer ไม่ให้เข้า Player build และมี Content Validator regression ป้องกัน
 
 ## Backend
 
 - Architecture contract: `splice-server-wallet-escrow-snapshot-contract-db.md`
-- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle, C4B worker, C4C1 Hero/Gear authority และ C4C2A–D kernel/presentation/per-unit authority/verified replay เสร็จแล้ว
+- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle, C4B worker, C4C1 Hero/Gear authority และ C4C2A–E kernel/presentation/per-unit authority/verified replay/worker reliability เสร็จแล้ว
 - Backend package: `Backend`; ใช้ HTTP เฉพาะ 127.0.0.1 ตอนทดสอบ ยังไม่เปิด Cloud/production
 - Stack ที่เสนอ: ASP.NET Core modular monolith + PostgreSQL; deploy แบบ stateless containers และแยก authoritative Unity Raid Server ในระยะ C4
 
 ## งานถัดไป
 
-1. C4C2E: เพิ่ม headless executable end-to-end smoke และ worker crash/retry/duplicate-delivery regression
-2. ทำ performance budget + load-test harness สำหรับ API/queue/PostgreSQL/worker concurrency
-3. แยก replay blob adapter เพื่อย้าย stream จาก PostgreSQL ไป object storage เมื่อเริ่ม production scale
-4. เพิ่ม raid history/incoming-defense query เพื่อให้เจ้าของเมืองเลือกดู replay และกด revenge
+1. C4C2F: เพิ่ม raid history/incoming-defense query ให้เจ้าของเมืองเลือกดู replay และกด revenge
+2. แยก replay blob adapter เพื่อย้าย stream จาก PostgreSQL ไป object storage เมื่อเริ่ม production scale
+3. C4D Ops Foundation: metrics/tracing, queue depth/lease alerts, backup/restore drill และ container deployment
+4. ทำ distributed load/soak test เมื่อมี production-like environment; local harness ปัจจุบันเป็น baseline ไม่ใช่ capacity guarantee
 
 ## สิ่งที่ยังห้ามใน production
 
 - ห้ามเชื่อ balance, stake, payout หรือ raid result จาก Unity client
 - ห้ามใช้ local-host result กับ shared economy
-- ห้ามเปิดเงินจริงก่อน idempotency, crash recovery, reconciliation, load test และ backup/restore ผ่าน
+- ห้ามเปิดเงินจริงก่อน production auth/mTLS, observability, distributed load/soak และ backup/restore drill ผ่าน
 
 ## วิธีใช้เอกสาร
 

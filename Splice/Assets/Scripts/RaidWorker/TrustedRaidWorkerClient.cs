@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -145,8 +146,22 @@ namespace Splice.RaidWorker
     [Serializable]
     internal sealed class SubmitRaidResultResponse { public bool success; public string error; }
 
+    [Serializable]
+    internal sealed class HeartbeatRaidJobRequest { public string workerId; }
+
+    [Serializable]
+    internal sealed class HeartbeatRaidJobResponse
+    {
+        public bool success;
+        public string error;
+        public string allocationId;
+        public string leaseExpiresUtc;
+    }
+
     public sealed class TrustedRaidWorkerClient
     {
+        public const int MaximumAttempts = 4;
+        public const int MaximumRetryDelayMilliseconds = 2000;
         private readonly string baseUrl;
         private readonly string serverId;
         private readonly string serverKey;
@@ -163,18 +178,35 @@ namespace Splice.RaidWorker
 
         public async Task<RaidJobResponse> ClaimAsync(string workerId, CancellationToken cancellationToken) =>
             await SendAsync<ClaimJobRequest, RaidJobResponse>("/internal/v1/raid-jobs/claim",
-                new ClaimJobRequest { workerId = workerId }, cancellationToken);
+                new ClaimJobRequest { workerId = workerId }, "worker-claim-" + Guid.NewGuid().ToString("N"),
+                cancellationToken);
+
+        public async Task HeartbeatAsync(RaidJobResponse job, CancellationToken cancellationToken)
+        {
+            if (job == null || !Guid.TryParse(job.allocationId, out _))
+                throw new ArgumentException("Worker heartbeat requires an authoritative allocation.", nameof(job));
+            var response = await SendAsync<HeartbeatRaidJobRequest, HeartbeatRaidJobResponse>(
+                "/internal/v1/raid-jobs/" + job.allocationId + "/heartbeat",
+                new HeartbeatRaidJobRequest { workerId = job.workerId },
+                "worker-heartbeat-" + Guid.NewGuid().ToString("N"), cancellationToken);
+            if (response?.success != true)
+                throw new InvalidOperationException(response?.error ?? "Raid worker heartbeat was rejected.");
+            job.leaseExpiresUtc = response.leaseExpiresUtc;
+        }
 
         public async Task SubmitResultAsync(RaidJobResponse job, RaidSimulationResult result,
             CancellationToken cancellationToken)
         {
+            if (job == null || result == null || !Guid.TryParse(job.raidId, out _))
+                throw new ArgumentException("Authoritative job and result are required.");
+            var resultId = ComputeDeterministicResultId(job.raidId);
             var response = await SendAsync<SubmitRaidResultRequest, SubmitRaidResultResponse>(
                 "/internal/v1/raids/" + job.raidId + "/result",
                 new SubmitRaidResultRequest
                 {
                     allocationId = job.allocationId,
                     workerId = job.workerId,
-                    resultId = Guid.NewGuid().ToString("D"),
+                    resultId = resultId,
                     outcome = result.outcome,
                     breachedRings = result.breachedRings,
                     durationMs = result.durationMs,
@@ -184,9 +216,21 @@ namespace Splice.RaidWorker
                     commandCount = result.commandCount,
                     commandStreamHash = result.commandStreamHash,
                     commands = result.commands,
-                }, cancellationToken);
+                }, "worker-result-" + resultId.Replace("-", string.Empty), cancellationToken);
             if (response?.success != true)
                 throw new InvalidOperationException(response?.error ?? "Raid result settlement was rejected.");
+        }
+
+        public static string ComputeDeterministicResultId(string raidId)
+        {
+            if (!Guid.TryParse(raidId, out var parsed))
+                throw new ArgumentException("Raid ID must be a UUID.", nameof(raidId));
+            var canonical = "splice-authoritative-raid-result-v1|" + parsed.ToString("D");
+            byte[] hash;
+            using (var algorithm = SHA256.Create())
+                hash = algorithm.ComputeHash(Encoding.UTF8.GetBytes(canonical));
+            return Guid.ParseExact(BitConverter.ToString(hash, 0, 16).Replace("-", string.Empty),
+                "N").ToString("D");
         }
 
         public static bool IsAllowedInternalPath(string path) =>
@@ -194,31 +238,52 @@ namespace Splice.RaidWorker
             path.StartsWith("/internal/v1/", StringComparison.Ordinal) &&
             !path.Contains("..", StringComparison.Ordinal);
 
+        public static bool IsRetryableHttpStatus(long status) =>
+            status is 408 or 425 or 429 || status is >= 500 and <= 599;
+
+        public static int RetryDelayMilliseconds(int failedAttempt)
+        {
+            var exponent = Math.Clamp(failedAttempt - 1, 0, 3);
+            return Math.Min(MaximumRetryDelayMilliseconds, 250 << exponent);
+        }
+
         private async Task<TResponse> SendAsync<TRequest, TResponse>(string path, TRequest request,
-            CancellationToken cancellationToken) where TResponse : class
+            string idempotencyKey, CancellationToken cancellationToken) where TResponse : class
         {
             if (!IsAllowedInternalPath(path))
                 throw new InvalidOperationException("Trusted worker may call only internal v1 routes.");
-            using var webRequest = new UnityWebRequest(baseUrl + path, UnityWebRequest.kHttpVerbPOST);
             var json = JsonUtility.ToJson(request);
-            webRequest.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
-            webRequest.downloadHandler = new DownloadHandlerBuffer();
-            webRequest.SetRequestHeader("Content-Type", "application/json");
-            webRequest.SetRequestHeader("Accept", "application/json");
-            webRequest.SetRequestHeader("X-Raid-Server-Id", serverId);
-            webRequest.SetRequestHeader("X-Raid-Server-Key", serverKey);
-            webRequest.SetRequestHeader("X-Request-Id", Guid.NewGuid().ToString("D"));
-            webRequest.SetRequestHeader("Idempotency-Key", Guid.NewGuid().ToString("N"));
-            var operation = webRequest.SendWebRequest();
-            while (!operation.isDone)
+            Exception lastError = null;
+            for (var attempt = 1; attempt <= MaximumAttempts; attempt++)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                await Task.Yield();
+                using var webRequest = new UnityWebRequest(baseUrl + path, UnityWebRequest.kHttpVerbPOST);
+                webRequest.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
+                webRequest.downloadHandler = new DownloadHandlerBuffer();
+                webRequest.SetRequestHeader("Content-Type", "application/json");
+                webRequest.SetRequestHeader("Accept", "application/json");
+                webRequest.SetRequestHeader("X-Raid-Server-Id", serverId);
+                webRequest.SetRequestHeader("X-Raid-Server-Key", serverKey);
+                webRequest.SetRequestHeader("X-Request-Id", Guid.NewGuid().ToString("D"));
+                webRequest.SetRequestHeader("Idempotency-Key", idempotencyKey);
+                var operation = webRequest.SendWebRequest();
+                while (!operation.isDone)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await Task.Yield();
+                }
+
+                if (webRequest.result == UnityWebRequest.Result.Success)
+                    return JsonUtility.FromJson<TResponse>(webRequest.downloadHandler.text);
+
+                var retryable = webRequest.result is UnityWebRequest.Result.ConnectionError or
+                                    UnityWebRequest.Result.DataProcessingError ||
+                                IsRetryableHttpStatus(webRequest.responseCode);
+                lastError = new InvalidOperationException($"Trusted worker HTTP {webRequest.responseCode}: " +
+                                                          webRequest.downloadHandler.text);
+                if (!retryable || attempt == MaximumAttempts) throw lastError;
+                await Task.Delay(RetryDelayMilliseconds(attempt), cancellationToken);
             }
-            if (webRequest.result != UnityWebRequest.Result.Success)
-                throw new InvalidOperationException($"Trusted worker HTTP {webRequest.responseCode}: " +
-                                                    webRequest.downloadHandler.text);
-            return JsonUtility.FromJson<TResponse>(webRequest.downloadHandler.text);
+            throw lastError ?? new InvalidOperationException("Trusted worker request failed.");
         }
     }
 }

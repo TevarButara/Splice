@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Json;
 using Npgsql;
 
@@ -107,7 +108,7 @@ public static partial class RaidAuthorityFeature
                         workerId, targetSnapshotId.ToString("D"), loadoutSnapshotId.ToString("D"),
                         sceneContract, attackerPower, armyPower, heroPower, gearPower, defenderPower,
                         target, entries, armyUnits, defenseUnits, hero, gearItems, lease.ToString("O")));
-            });
+            }, IsolationLevel.ReadCommitted);
     }
 
     private static async Task<IResult> HeartbeatJobAsync(HttpContext context, Guid allocationId,
@@ -140,7 +141,7 @@ public static partial class RaidAuthorityFeature
                         "RAID_LEASE_LOST", "Worker no longer owns an active lease for this raid.");
                 return new ApiReply(StatusCodes.Status200OK,
                     new RaidJobHeartbeatView(true, string.Empty, allocationId.ToString("D"), lease.ToString("O")));
-            });
+            }, IsolationLevel.ReadCommitted);
     }
 
     private static string? NormalizeWorker(string? workerId)

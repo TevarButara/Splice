@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -245,6 +246,12 @@ try
     Console.WriteLine("C3 town integration tests: PASS (draft, validation, checkout, immutable snapshot, deployment, escrow, concurrency)");
     await RunC4Async(host, connectionString);
     Console.WriteLine("C4 raid authority tests: PASS (allocation, trusted result, verified immutable replay, settlement, recovery)");
+    var workerExecutable = Environment.GetEnvironmentVariable("SPLICE_UNITY_WORKER_EXECUTABLE");
+    if (!string.IsNullOrWhiteSpace(workerExecutable))
+    {
+        await RunC4C2EProcessAsync(host, connectionString, workerExecutable);
+        Console.WriteLine("C4C2E process tests: PASS (Unity executable, crash reclaim, duplicate delivery, one settlement)");
+    }
 }
 finally
 {
@@ -375,7 +382,7 @@ static async Task SeedAsync(string connectionString)
         ON CONFLICT (id) DO NOTHING;
 
         WITH valid_snapshot(payload) AS (
-          VALUES ('{"schemaVersion":2,"layout":{"version":1},"defenseUnits":[{"actorId":"core","contentId":"core/default","contentKind":"CORE","count":1,"ring":3,"position":{"x":0,"y":0,"z":0},"raidPower":100,"combat":{"maxHealth":5000,"armor":100,"attackDamage":50,"attackCooldownMs":1000,"moveSpeedMilli":0,"attackRangeMilli":10000,"maxTargets":1}}]}'::jsonb)
+          VALUES ('{"schemaVersion":2,"layout":{"version":1},"defenseUnits":[{"actorId":"core","contentId":"town-core","unitKind":"CORE","count":1,"basePower":100,"scaledPower":100,"position":{"x":0,"y":0,"z":0},"combat":{"maxHealth":5000,"armor":100,"attackDamage":50,"attackCooldownMs":1000,"moveSpeedMilli":0,"attackRangeMilli":10000,"maxTargets":1}}]}'::jsonb)
         )
         INSERT INTO town_snapshots
           (id, town_id, revision, payload, payload_sha256, faction_id, base_level,
@@ -517,11 +524,32 @@ static async Task RunC4Async(TestHost host, string connectionString)
         "job includes the immutable authoritative Hero combat payload");
     Equal(1, Element(claim, "gearItems").GetArrayLength(),
         "job includes the immutable owned gear instances");
+    Equal(1, Element(claim, "defenseUnits").GetArrayLength(),
+        "job includes immutable per-unit defense authority");
+    Equal("CORE", Element(claim, "defenseUnits")[0].GetProperty("unitKind").GetString()!,
+        "defense authority uses the worker unit contract");
+    Equal(100L, Element(claim, "defenseUnits")[0].GetProperty("scaledPower").GetInt64(),
+        "defense authority includes canonical scaled power");
     Equal("32000000-0000-0000-0000-000000000001", String(claim, "targetSnapshotId"),
         "worker job pins immutable target snapshot");
     var loadoutSnapshotId = String(claim, "loadoutSnapshotId");
     True(Guid.TryParse(loadoutSnapshotId, out _),
         "worker job pins immutable loadout snapshot");
+    var wrongHeartbeat = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raid-jobs/{allocationId}/heartbeat",
+        new { workerId = "worker-c4-other" }, "worker:heartbeat:c4:wrong");
+    Equal(HttpStatusCode.Conflict, wrongHeartbeat.Status,
+        "worker that does not own the lease cannot extend it");
+    ErrorCode(wrongHeartbeat, "RAID_LEASE_LOST");
+    var heartbeat = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raid-jobs/{allocationId}/heartbeat",
+        new { workerId = "worker-c4-a" }, "worker:heartbeat:c4:owner");
+    Equal(HttpStatusCode.OK, heartbeat.Status, "lease owner heartbeat succeeds");
+    True(Bool(heartbeat, "success"), "heartbeat explicitly confirms lease renewal");
+    Equal(allocationId, String(heartbeat, "allocationId"),
+        "heartbeat renewal stays pinned to the claimed allocation");
+    True(DateTimeOffset.Parse(String(heartbeat, "leaseExpiresUtc")) >
+         DateTimeOffset.UtcNow.AddSeconds(20), "heartbeat renews a bounded future lease");
 
     var lateRefund = await SendAsync(host.Client, HttpMethod.Post,
         $"/v1/raids/{raidId}/startup-refund",
@@ -612,6 +640,189 @@ static async Task RunC4Async(TestHost host, string connectionString)
     Equal(980L, Long(await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null),
         "warGemBalance"), "infrastructure timeout refunds attacker stake");
     await AssertC4DatabaseAsync(connectionString, raidId, recoveryRaidId);
+}
+
+static async Task RunC4C2EProcessAsync(TestHost host, string connectionString, string workerExecutable)
+{
+    if (!File.Exists(workerExecutable))
+        throw new FileNotFoundException("SPLICE_UNITY_WORKER_EXECUTABLE was not found.", workerExecutable);
+
+    var quote = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
+        QuoteBody(highTargetBId), "quote:c4c2e:process");
+    Equal(HttpStatusCode.Created, quote.Status, "C4C2E process quote");
+    var confirm = await SendAsync(host.Client, HttpMethod.Post, "/v1/raids",
+        new { quoteId = String(quote, "quoteId") }, "raid:c4c2e:process");
+    Equal(HttpStatusCode.Created, confirm.Status, "C4C2E process raid funded");
+    var raidId = String(confirm, "raidId");
+    var allocation = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raids/{raidId}/allocation", new { raidId }, "allocate:c4c2e:process");
+    Equal(HttpStatusCode.Created, allocation.Status, "C4C2E process raid allocated");
+    var allocationId = String(allocation, "allocationId");
+    var fundedBalance = Long(confirm, "wallet", "warGemBalance");
+
+    var crash = await RunUnityWorkerAsync(workerExecutable, host.Client.BaseAddress!,
+        "unity-worker-c4c2e-crash", "-spliceRaidWorkerCrashAfterClaim");
+    Equal(77, crash.ExitCode, "development worker crash injection exits after authoritative claim");
+    True(crash.Output.Contains("crash injection after claim", StringComparison.OrdinalIgnoreCase),
+        "worker crash proof is visible in executable log");
+    var active = await SendAsync(host.Client, HttpMethod.Get, $"/v1/raids/{raidId}", null, null);
+    Equal("ACTIVE", String(active, "state"), "crashed worker leaves claimed raid recoverable");
+    Equal(string.Empty, String(active, "resultId"), "crashed worker cannot create a partial result");
+    await AssertWorkerAllocationAsync(connectionString, allocationId, 1,
+        "unity-worker-c4c2e-crash", expectedExpired: false);
+
+    await ExpireWorkerLeaseAsync(connectionString, allocationId);
+    var recovered = await RunUnityWorkerAsync(workerExecutable, host.Client.BaseAddress!,
+        "unity-worker-c4c2e-recovery", "-spliceRaidWorkerDuplicateSubmit");
+    Equal(0, recovered.ExitCode,
+        $"replacement Unity worker settles reclaimed raid; output={DiagnosticTail(recovered.Output)}");
+    True(recovered.Output.Contains("[RaidWorker] settled", StringComparison.Ordinal),
+        "headless executable reports authoritative settlement");
+
+    var settled = await SendAsync(host.Client, HttpMethod.Get, $"/v1/raids/{raidId}", null, null);
+    Equal("SETTLED", String(settled, "state"), "reclaimed raid settles");
+    True(Bool(settled, "replayAvailable"), "reclaimed raid persists verified replay");
+    var expectedResultId = DeterministicWorkerResultId(raidId);
+    Equal(expectedResultId, String(settled, "resultId"),
+        "worker retry and duplicate delivery preserve one deterministic result identity");
+    var replay = await SendAsync(host.Client, HttpMethod.Get,
+        $"/v1/raids/{raidId}/replay", null, null);
+    Equal(HttpStatusCode.OK, replay.Status, "reclaimed process raid replay is readable");
+    Equal(expectedResultId, String(replay, "resultId"), "process replay pins deterministic result");
+    await AssertWorkerAllocationAsync(connectionString, allocationId, 2,
+        "unity-worker-c4c2e-recovery", expectedExpired: false);
+    await AssertC4C2EProcessDatabaseAsync(connectionString, raidId, expectedResultId);
+    var finalBalance = Long(await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null),
+        "warGemBalance");
+    True(finalBalance >= fundedBalance, "authoritative process settlement never double-debits wallet");
+}
+
+static async Task<(int ExitCode, string Output)> RunUnityWorkerAsync(string executable,
+    Uri endpoint, string workerId, string injectionArgument)
+{
+    var start = new ProcessStartInfo
+    {
+        FileName = executable,
+        UseShellExecute = false,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        CreateNoWindow = true,
+    };
+    start.ArgumentList.Add("-batchmode");
+    start.ArgumentList.Add("-nographics");
+    start.ArgumentList.Add("-logFile");
+    start.ArgumentList.Add("-");
+    start.ArgumentList.Add("-spliceRaidWorker");
+    start.ArgumentList.Add("-spliceRaidWorkerOnce");
+    start.ArgumentList.Add(injectionArgument);
+    start.Environment["SPLICE_RAID_SERVER_URL"] = endpoint.ToString().TrimEnd('/');
+    start.Environment["SPLICE_RAID_SERVER_ID"] = trustedServerId;
+    start.Environment["SPLICE_RAID_SERVER_KEY"] = trustedServerKey;
+    start.Environment["SPLICE_RAID_WORKER_ID"] = workerId;
+    start.Environment["SPLICE_RAID_WORKER_HEARTBEAT_SECONDS"] = "5";
+
+    using var process = new Process { StartInfo = start };
+    if (!process.Start()) throw new Exception("TEST_FAILED: Unity worker process did not start.");
+    var outputTask = process.StandardOutput.ReadToEndAsync();
+    var errorTask = process.StandardError.ReadToEndAsync();
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+    try
+    {
+        await process.WaitForExitAsync(timeout.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        process.Kill(entireProcessTree: true);
+        throw new TimeoutException("TEST_FAILED: Unity worker exceeded the 45-second process budget.");
+    }
+    var output = (await outputTask) + Environment.NewLine + (await errorTask);
+    return (process.ExitCode, output);
+}
+
+static string DiagnosticTail(string value)
+{
+    const int maxLength = 4000;
+    if (string.IsNullOrWhiteSpace(value)) return "<empty>";
+    var signal = string.Join(" | ", value.Split(new[] { '\r', '\n' },
+            StringSplitOptions.RemoveEmptyEntries)
+        .Where(line => line.Contains("exception", StringComparison.OrdinalIgnoreCase) ||
+                       line.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||
+                       line.Contains("required", StringComparison.OrdinalIgnoreCase) ||
+                       line.Contains("[RaidWorker]", StringComparison.Ordinal)));
+    if (!string.IsNullOrWhiteSpace(signal))
+        return signal.Length <= maxLength ? signal : signal[..maxLength];
+    var normalized = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+    if (normalized.Length <= maxLength) return normalized;
+    var half = maxLength / 2;
+    return normalized[..half] + " ... <truncated> ... " + normalized[^half..];
+}
+
+static string DeterministicWorkerResultId(string raidId)
+{
+    var canonical = "splice-authoritative-raid-result-v1|" + Guid.Parse(raidId).ToString("D");
+    var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
+    return Guid.ParseExact(Convert.ToHexString(hash, 0, 16), "N").ToString("D");
+}
+
+static async Task ExpireWorkerLeaseAsync(string connectionString, string allocationId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("""
+        UPDATE splice.raid_allocations
+           SET lease_expires_at=clock_timestamp()-interval '1 second'
+         WHERE id=@allocation AND state='CLAIMED'
+        """, connection);
+    command.Parameters.AddWithValue("allocation", Guid.Parse(allocationId));
+    Equal(1, await command.ExecuteNonQueryAsync(), "test expires only the claimed crash fixture lease");
+}
+
+static async Task AssertWorkerAllocationAsync(string connectionString, string allocationId,
+    int expectedAttempts, string expectedWorker, bool expectedExpired)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("""
+        SELECT claim_attempt, worker_id, lease_expires_at < clock_timestamp()
+          FROM splice.raid_allocations WHERE id=@allocation
+        """, connection);
+    command.Parameters.AddWithValue("allocation", Guid.Parse(allocationId));
+    await using var reader = await command.ExecuteReaderAsync();
+    True(await reader.ReadAsync(), "worker allocation exists");
+    Equal(expectedAttempts, reader.GetInt32(0), "worker claim attempt count");
+    Equal(expectedWorker, reader.GetString(1), "worker lease owner");
+    Equal(expectedExpired, reader.GetBoolean(2), "worker lease expiry state");
+}
+
+static async Task AssertC4C2EProcessDatabaseAsync(string connectionString, string raidId,
+    string resultId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("""
+        SELECT
+          (SELECT count(*) FROM splice.raid_results WHERE raid_id=@raid),
+          (SELECT count(*) FROM splice.raid_replays WHERE raid_id=@raid),
+          (SELECT count(*) FROM splice.ledger_transactions
+            WHERE reference_type='RAID' AND reference_id=@raid),
+          (SELECT count(*) FROM splice.raid_results WHERE id=@result),
+          (SELECT count(*) FROM splice.raid_sessions
+            WHERE id=@raid AND state IN ('PREPARED','FUNDED','ACTIVE','SETTLING')),
+          (SELECT count(*) FROM splice.ledger_transactions t WHERE t.status='POSTED' AND
+             (SELECT COALESCE(sum(p.amount),0) FROM splice.ledger_postings p
+               WHERE p.ledger_transaction_id=t.id)<>0)
+        """, connection);
+    command.Parameters.AddWithValue("raid", Guid.Parse(raidId));
+    command.Parameters.AddWithValue("result", Guid.Parse(resultId));
+    await using var reader = await command.ExecuteReaderAsync();
+    await reader.ReadAsync();
+    Equal(1L, reader.GetInt64(0), "duplicate delivery creates one raid result");
+    Equal(1L, reader.GetInt64(1), "duplicate delivery creates one replay");
+    Equal(2L, reader.GetInt64(2),
+        "raid has exactly one funding and one settlement ledger transaction");
+    Equal(1L, reader.GetInt64(3), "deterministic result identity persisted once");
+    Equal(0L, reader.GetInt64(4), "reclaimed raid has no open lifecycle state");
+    Equal(0L, reader.GetInt64(5), "process recovery preserves double-entry balance");
 }
 
 static async Task BackdateActiveRaidAsync(string connectionString, string raidId)

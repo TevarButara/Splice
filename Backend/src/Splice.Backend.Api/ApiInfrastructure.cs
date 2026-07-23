@@ -25,7 +25,8 @@ public static class ApiErrors
     }
 }
 
-public sealed class RequestIdentityMiddleware(RequestDelegate next, IConfiguration configuration)
+public sealed class RequestIdentityMiddleware(RequestDelegate next, IConfiguration configuration,
+    ILogger<RequestIdentityMiddleware> logger)
 {
     public const string PlayerItem = "Splice.PlayerId";
     public const string RaidServerItem = "Splice.RaidServerId";
@@ -78,13 +79,18 @@ public sealed class RequestIdentityMiddleware(RequestDelegate next, IConfigurati
         {
             await next(context);
         }
-        catch (NpgsqlException) when (!context.Response.HasStarted)
+        catch (NpgsqlException exception) when (!context.Response.HasStarted)
         {
+            logger.LogWarning("Database request failed. request_id={RequestId} path={Path} sql_state={SqlState}",
+                context.TraceIdentifier, context.Request.Path, exception.SqlState);
             await ApiErrors.WriteAsync(context, StatusCodes.Status503ServiceUnavailable,
                 "DATABASE_UNAVAILABLE", "The database is temporarily unavailable.", true);
         }
-        catch (Exception) when (!context.Response.HasStarted)
+        catch (Exception exception) when (!context.Response.HasStarted)
         {
+            logger.LogError(exception,
+                "Unhandled API request failure. request_id={RequestId} path={Path}",
+                context.TraceIdentifier, context.Request.Path);
             await ApiErrors.WriteAsync(context, StatusCodes.Status500InternalServerError,
                 "INTERNAL_ERROR", "The server could not complete the request.");
         }
@@ -104,9 +110,11 @@ public sealed class RequestIdentityMiddleware(RequestDelegate next, IConfigurati
 public sealed class IdempotencyExecutor(NpgsqlDataSource dataSource)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private const int MaximumTransactionAttempts = 5;
 
     public async Task<IResult> ExecuteAsync<TRequest>(HttpContext context, Guid actorId, TRequest request,
-        Func<NpgsqlConnection, NpgsqlTransaction, CancellationToken, Task<ApiReply>> operation)
+        Func<NpgsqlConnection, NpgsqlTransaction, CancellationToken, Task<ApiReply>> operation,
+        IsolationLevel isolationLevel = IsolationLevel.Serializable)
     {
         var key = context.Request.Headers["Idempotency-Key"].FirstOrDefault();
         if (string.IsNullOrWhiteSpace(key))
@@ -120,11 +128,11 @@ public sealed class IdempotencyExecutor(NpgsqlDataSource dataSource)
         var canonicalRequest = JsonSerializer.Serialize(request, JsonOptions);
         var requestHash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(canonicalRequest)));
 
-        for (var attempt = 1; attempt <= 3; attempt++)
+        for (var attempt = 1; attempt <= MaximumTransactionAttempts; attempt++)
         {
             await using var connection = await dataSource.OpenConnectionAsync(context.RequestAborted);
             await using var transaction = await connection.BeginTransactionAsync(
-                IsolationLevel.Serializable, context.RequestAborted);
+                isolationLevel, context.RequestAborted);
             try
             {
                 await AdvisoryLockAsync(connection, transaction, scope + ":" + key, context.RequestAborted);
@@ -148,19 +156,35 @@ public sealed class IdempotencyExecutor(NpgsqlDataSource dataSource)
             }
             catch (PostgresException exception) when (
                 (exception.SqlState == PostgresErrorCodes.SerializationFailure ||
-                 exception.SqlState == PostgresErrorCodes.DeadlockDetected) && attempt < 3)
+                 exception.SqlState == PostgresErrorCodes.DeadlockDetected) &&
+                attempt < MaximumTransactionAttempts)
             {
-                await transaction.RollbackAsync(CancellationToken.None);
+                // PostgreSQL may already mark the transaction completed after an abort.
+                // await using disposes/rolls back when still active; a second explicit rollback can itself throw.
+                await RollbackIfActiveAsync(transaction);
+                var delayMilliseconds = Math.Min(100, (5 << (attempt - 1)) + Random.Shared.Next(0, 11));
+                await Task.Delay(delayMilliseconds, context.RequestAborted);
             }
             catch (PostgresException exception)
             {
-                await transaction.RollbackAsync(CancellationToken.None);
                 return ToResult(MapPostgres(context, exception));
             }
         }
 
         return ToResult(ApiErrors.Reply(context, StatusCodes.Status503ServiceUnavailable,
             "SERIALIZATION_RETRY_REQUIRED", "The transaction must be retried.", true));
+    }
+
+    private static async Task RollbackIfActiveAsync(NpgsqlTransaction transaction)
+    {
+        try
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+        }
+        catch (InvalidOperationException)
+        {
+            // An aborted transaction can already be completed by Npgsql; disposal is then sufficient.
+        }
     }
 
     public static IResult ToResult(ApiReply reply) => Results.Json(reply.Body, statusCode: reply.StatusCode);

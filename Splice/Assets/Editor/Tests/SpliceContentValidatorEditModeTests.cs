@@ -4,6 +4,7 @@ using NUnit.Framework;
 using Splice.Data;
 using Splice.Editor.Validation;
 using Splice.Validation;
+using UnityEditor;
 using UnityEngine;
 
 namespace Splice.Tests.EditMode
@@ -25,6 +26,18 @@ namespace Splice.Tests.EditMode
         {
             var report = SpliceContentValidatorMenu.ValidateProject();
             Assert.That(report.ErrorCount, Is.Zero, report.DetailedSummary());
+        }
+
+        [Test]
+        public void EditorOnlyPlugins_AreExcludedFromPlayerBuilds()
+        {
+            var importer = AssetImporter.GetAtPath(
+                "Assets/Nanolod/Binaries/Nanolod.Editor.dll") as PluginImporter;
+
+            Assert.That(importer, Is.Not.Null);
+            Assert.That(importer.GetCompatibleWithEditor(), Is.True);
+            Assert.That(importer.GetCompatibleWithAnyPlatform(), Is.False,
+                "Editor DLLs that reference UnityEditor must never enter a Player/headless worker build.");
         }
 
         [Test]

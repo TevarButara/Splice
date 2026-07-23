@@ -186,6 +186,39 @@ namespace Splice.Editor.Tests
         }
 
         [Test]
+        public void TrustedClientUsesStablePerRaidResultIdentity()
+        {
+            const string raidA = "71000000-0000-0000-0000-000000000001";
+            const string raidB = "71000000-0000-0000-0000-000000000002";
+
+            var first = TrustedRaidWorkerClient.ComputeDeterministicResultId(raidA);
+            var retry = TrustedRaidWorkerClient.ComputeDeterministicResultId(raidA.ToUpperInvariant());
+            var other = TrustedRaidWorkerClient.ComputeDeterministicResultId(raidB);
+
+            Assert.That(retry, Is.EqualTo(first),
+                "A retry after a lost response must submit the same immutable result identity.");
+            Assert.That(other, Is.Not.EqualTo(first));
+            Assert.That(System.Guid.TryParse(first, out _), Is.True);
+            Assert.Throws<System.ArgumentException>(() =>
+                TrustedRaidWorkerClient.ComputeDeterministicResultId("client-controlled-id"));
+        }
+
+        [Test]
+        public void TrustedClientRetryPolicyIsBoundedAndNeverRetriesAuthorityErrors()
+        {
+            Assert.That(TrustedRaidWorkerClient.IsRetryableHttpStatus(408), Is.True);
+            Assert.That(TrustedRaidWorkerClient.IsRetryableHttpStatus(429), Is.True);
+            Assert.That(TrustedRaidWorkerClient.IsRetryableHttpStatus(503), Is.True);
+            Assert.That(TrustedRaidWorkerClient.IsRetryableHttpStatus(400), Is.False);
+            Assert.That(TrustedRaidWorkerClient.IsRetryableHttpStatus(401), Is.False);
+            Assert.That(TrustedRaidWorkerClient.IsRetryableHttpStatus(409), Is.False);
+            Assert.That(TrustedRaidWorkerClient.RetryDelayMilliseconds(1), Is.EqualTo(250));
+            Assert.That(TrustedRaidWorkerClient.RetryDelayMilliseconds(99),
+                Is.EqualTo(TrustedRaidWorkerClient.MaximumRetryDelayMilliseconds));
+            Assert.That(TrustedRaidWorkerClient.MaximumAttempts, Is.EqualTo(4));
+        }
+
+        [Test]
         public void WorkerClaimDeserializesImmutableHeroAndGearPayload()
         {
             const string json = "{\"hasJob\":true,\"attackerPower\":3160," +

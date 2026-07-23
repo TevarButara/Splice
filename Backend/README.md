@@ -65,3 +65,26 @@ bash Tools/run-local-backend-dev.sh <unity-player-uuid>
 - result เป็น immutable row; duplicate/retry ไม่จ่ายซ้ำ และ timed-out ACTIVE raid ถูก infrastructure refund
 
 ค่า `RaidServer:DevelopmentKey` ใน launcher ใช้เฉพาะ local Development. Production ต้องเปลี่ยนเป็น workload identity/mTLS และห้ามฝังคีย์ใน Unity player.
+
+## C4C2E: Worker process / crash recovery
+
+ใน Unity เลือก `Splice > Backend > Build C4C2E Headless Worker` เพื่อสร้าง Development worker ใน temporary directory จากนั้นรัน proof แบบข้าม process:
+
+```bash
+bash Backend/database/scripts/test-c4c2e-process.sh \
+  "/absolute/path/SpliceRaidWorkerC4C2E.app/Contents/MacOS/Splice"
+```
+
+proof จะเปิด API จริงบน loopback, เรียก Unity executable ด้วย `-batchmode -nographics`, ทำให้ worker แรกล่มหลัง claim, หมด lease, ให้ worker ใหม่ reclaim แล้วส่ง result ซ้ำ โดยต้องเกิด settlement เพียงครั้งเดียว สคริปต์ใช้ฐานข้อมูล `splice_c2_test` ชั่วคราวและลบเมื่อจบ.
+
+macOS Dedicated Server module เป็น optimization สำหรับ production image และยังไม่จำเป็นต่อ local proof นี้; หากติดตั้ง module แล้วจึงเปลี่ยน build subtarget เป็น Server.
+
+## C4C2E: Local load budget
+
+```bash
+bash Backend/database/scripts/test-c4c2e-load.sh
+```
+
+ค่าเริ่มต้นคือ 240 requests ที่ concurrency 16 ครอบคลุม health, authenticated wallet และ empty worker claim พร้อมรายงาน p50/p95/p99/RPS. Harness ปฏิเสธ non-loopback URL โดยค่าเริ่มต้น; การยิง environment ภายนอกต้องตั้ง `SPLICE_LOAD_ALLOW_REMOTE=true` อย่างตั้งใจเท่านั้น.
+
+budget ปัจจุบัน: health p95 ≤ 200 ms, wallet p95 ≤ 300 ms, claim p95 ≤ 600 ms, failures = 0 และ throughput ≥ 20 req/s. นี่เป็น local regression baseline ไม่ใช่ production capacity guarantee.
