@@ -122,3 +122,34 @@ Ops__OutboxWarningCount=10000
 ```
 
 ก่อนเปิด maintenance ใน production ต้องมี backup/restore drill และเปลี่ยน local adapter เป็น private S3-compatible implementation ที่ใช้ workload identity. รายละเอียดอยู่ที่ `splice-c4d1-ops-foundation.md`.
+
+## C4D1B: Consistent backup / restore drill
+
+backup ใช้ PostgreSQL exported snapshot เดียวกันสำหรับ database dump, table fingerprints และ replay pointer inventory แล้วคัดลอกเฉพาะ immutable blob ที่ snapshot อ้างอิง:
+
+```bash
+bash Backend/database/scripts/backup-c4d1.sh \
+  splice_local /absolute/private/replay-root /absolute/new/backup-bundle
+
+bash Backend/database/scripts/restore-c4d1.sh \
+  /absolute/backup-bundle splice_restored /absolute/new/restored-replays
+
+bash Backend/database/scripts/verify-c4d1-restore.sh \
+  splice_restored /absolute/new/restored-replays /absolute/backup-bundle
+```
+
+ข้อกำหนดด้านความปลอดภัย:
+
+- bundle, target database และ target replay root ต้องยังไม่มีอยู่; script ไม่ overwrite
+- bundle สร้างด้วย permission `0700` และ `umask 077` เพราะ dump อาจมีข้อมูลบัญชี
+- object key, symlink, byte length, SHA-256, gzip, DB pointer inventory และ table fingerprints ถูกตรวจ
+- restore ใช้ `pg_restore --single-transaction`; corruption/missing object ถูกปฏิเสธก่อนสร้าง target
+- local-first script ปฏิเสธ `s3-compatible` rows จนกว่าจะมี adapter ที่ดึง object/version จาก private bucket ได้
+
+รัน automated drill:
+
+```bash
+bash Backend/database/scripts/test-c4d1-backup-restore.sh
+```
+
+นี่เป็น logical full-backup proof ไม่ใช่ production PITR. RPO จริงขึ้นกับรอบ backup; production ยังต้องมี encrypted/signed off-site backup, PostgreSQL WAL/PITR, object versioning และ scheduled restore drill.

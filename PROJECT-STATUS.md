@@ -37,13 +37,14 @@
 - C4C2F Defense History + Verified Revenge เสร็จแล้ว: history เฉพาะเจ้าของเมือง, stable pagination, verified replay launch และ revenge request ที่ backend ผูก source raid/เป้าหมาย/snapshot/cooldown
 - C4C2G Replay Object Storage เสร็จแล้วแบบ local-first: replay ใหม่เก็บ immutable gzip blob นอก PostgreSQL, DB เก็บ metadata/hash pointer, ตรวจ blob/hash/count ก่อนส่ง และ dual-read replay JSONB รุ่นเก่า
 - C4D1A Ops Telemetry + Replay Lifecycle เสร็จแล้วแบบ local-first: protected status endpoint, request/replay/reconciliation metrics, queue/lease/stuck/outbox alerts และ race-safe orphan/temp cleanup แบบ opt-in
+- C4D1B Backup/Restore Drill เสร็จแล้วแบบ local-first: exported-snapshot bundle ครอบ DB + referenced blobs, private/no-overwrite restore, ledger/hash/fingerprint/replay verification และ corrupt/missing fail-closed
 - worker queue ใช้ `READ COMMITTED + FOR UPDATE SKIP LOCKED`; เส้นทางเงินยังคง `SERIALIZABLE` พร้อม bounded retry เพื่อให้ scale โดยไม่ลดความถูกต้องของ ledger
 
 ## ความพร้อมโดยประมาณ
 
 - Prototype ที่เล่นและสาธิต loop หลักได้: 74–76%
 - MVP สำหรับ closed playtest ที่มี backend จริง: 61–64%
-- Production-ready สำหรับขายและรองรับผู้เล่นจำนวนมาก: 41–44%
+- Production-ready สำหรับขายและรองรับผู้เล่นจำนวนมาก: 42–45%
 - เปอร์เซ็นต์ production นับรวม security hardening, observability, load/soak test, backup/restore, deployment automation, live operations, content/polish และ store compliance—not แค่ feature ที่มองเห็นใน Unity
 
 ## Verification ล่าสุด
@@ -80,6 +81,8 @@
 - C4C2G Unity executable process E2E ผ่าน crash/reclaim/duplicate settlement; load proof 240 requests / concurrency 16, failures 0, 2,700.96 req/s; p95 health 12.79 ms, wallet 30.18 ms, claim 48.74 ms
 - C4D1A integration ผ่าน: ops endpoint ป้องกันด้วย trusted identity, stuck raid ทำให้สถานะ `DEGRADED`, reconciliation คืนเป็น `HEALTHY`, referenced blob ไม่ถูกลบ, orphan/temp ถูกเก็บกวาด และ blob ที่เปลี่ยนระหว่าง scan รอดจากการลบ
 - C4D1A load proof 240 requests / concurrency 16: failures 0, 981.13 req/s; p95 health 35.61 ms, wallet 69.87 ms, claim 86.98 ms (ผ่าน budget ทั้งหมด)
+- C4D1B drill ผ่าน: consistent snapshot/fingerprint, ledger/account/snapshot/escrow integrity, restored API replay, private bundle, no leaked snapshot connection และ corrupt/missing object ถูกปฏิเสธก่อนสร้าง target
+- C4D1B local fixture timing: backup 0–1 วินาที, restore+verifyต่ำกว่า 1 วินาที; ไม่ใช่ production RTO
 - bug จาก fixture ที่ใช้ defense field รุ่นเก่าถูกจับโดย executable จริงและกลายเป็น regression ที่ตรวจ `unitKind/scaledPower`
 - Unity headless proof build ผ่านด้วย macOS Development Player + batchmode/nographics; Dedicated Server subtarget จะเปิดเมื่อ install optional macOS Dedicated Server module
 - Nanolod Editor-only DLL ถูกจำกัด importer ไม่ให้เข้า Player build และมี Content Validator regression ป้องกัน
@@ -87,7 +90,7 @@
 ## Backend
 
 - Architecture contract: `splice-server-wallet-escrow-snapshot-contract-db.md`
-- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle, C4B worker, C4C1 Hero/Gear authority, C4C2A–G และ C4D1A telemetry/lifecycle เสร็จแล้ว
+- สถานะ: C0 Boundary, C1 PostgreSQL, C2 Wallet/Escrow, C3 immutable Town API, Unity local integration, C4A lifecycle, C4B worker, C4C1 Hero/Gear authority, C4C2A–G และ C4D1A–B ops/backup เสร็จแล้ว
 - Backend package: `Backend`; ใช้ HTTP เฉพาะ 127.0.0.1 ตอนทดสอบ ยังไม่เปิด Cloud/production
 - Stack ที่เสนอ: ASP.NET Core modular monolith + PostgreSQL; deploy แบบ stateless containers และแยก authoritative Unity Raid Server ในระยะ C4
 
@@ -95,7 +98,7 @@
 
 1. ปิด Prototype visual loop: หน้า Defense History/Revenge UI จริง และเชื่อม Town → Target → Raid → Result → Replay/Revenge ครบวงจร
 2. Prototype polish: onboarding, loading/error states, feedback, balance เบื้องต้น และ executable smoke ตั้งแต่ต้นจนจบ
-3. C4D1B–C: backup/restore drill, container deployment, external metrics exporter และ production alert routing
+3. C4D1C: container deployment, readiness, external metrics exporter และ production alert routing
 4. เปลี่ยน `IRaidReplayBlobStore` เป็น private S3-compatible adapter เมื่อมี production environment; local filesystem ใช้เฉพาะ dev/test
 5. ทำ distributed load/soak test เมื่อมี production-like environment; local harness ปัจจุบันเป็น baseline ไม่ใช่ capacity guarantee
 

@@ -1,7 +1,7 @@
 # Splice C4D1 — Ops Foundation
 
 วันที่: 2026-07-23
-สถานะ: **C4D1A IMPLEMENTED / AUTOMATED ACCEPTANCE PASS**
+สถานะ: **C4D1A–B IMPLEMENTED / AUTOMATED ACCEPTANCE PASS**
 
 ## เป้าหมาย
 
@@ -86,14 +86,25 @@ ASP.NET Core environment variable ใช้ `__` แทน `:` เช่น `Rep
 
 load นี้เป็น regression baseline บนเครื่อง local ไม่ใช่ production capacity guarantee.
 
-## งานถัดไป
-
 ### C4D1B — Backup / restore drill
 
-- script backup PostgreSQL + replay objects เป็นชุดเดียวที่ระบุ manifest/version
-- restore เข้า database/root ใหม่
-- verify ledger balance, immutable hashes, replay availability และ RPO/RTO
-- corruption/missing-object drill ต้อง fail closed
+สถานะ: **IMPLEMENTED**
+
+- `pg_dump`, table fingerprint และ replay pointer inventory ใช้ exported snapshot เดียวกัน จึงได้ recovery point ที่สอดคล้องกันแม้ API ยังรับ traffic
+- คัดลอกเฉพาะ immutable local blob ที่ snapshot อ้างอิง พร้อมตรวจ size, SHA-256 และ gzip ก่อน/หลัง copy
+- bundle มี version, created UTC, snapshot UTC, dump checksum, DB fingerprints และ replay inventory
+- restore ทำได้เฉพาะ database/root ใหม่และใช้ transaction เดียว
+- verifier ตรวจ ledger transaction balance, account/posting drift, nonnegative guard, town snapshot hash, raid escrow, table fingerprints, DB pointers และ object bytes
+- เปิด replay ผ่าน public API จาก restored database/root สำเร็จ
+- bundle permission `0700`; path traversal, empty/dot segment และ symlink ถูกปฏิเสธ
+- corrupt/missing blob ถูกปฏิเสธใน preflight โดยยังไม่สร้าง target database/root
+- regression ตรวจว่า exported-snapshot connection ถูกปิดหลัง backup
+
+ผล local fixture หลายรอบ: backup 0–1 วินาที, restore+verifyต่ำกว่า 1 วินาที. ตัวเลขนี้ใช้ยืนยัน automation เท่านั้น ไม่ใช่ production RTO เพราะข้อมูลจริงจะใหญ่กว่ามาก.
+
+RPO ของ logical bundle เท่ากับ `snapshot-utc` ของรอบล่าสุด; production RPO จึงขึ้นกับ schedule. ก่อนเปิดเงินจริงยังต้องมี WAL/PITR, object versioning, encrypted/signed off-site copy และ restore drill ตามรอบ.
+
+## งานถัดไป
 
 ### C4D1C — Container + external observability
 
@@ -106,5 +117,6 @@ load นี้เป็น regression baseline บนเครื่อง local
 
 - private S3-compatible adapter + encryption/retention
 - PostgreSQL PITR และ object versioning
+- encrypted/signed off-site backup และ automated restore schedule
 - distributed load/soak/chaos test
 - mTLS/workload identity แทน development key
