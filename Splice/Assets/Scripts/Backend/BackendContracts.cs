@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Splice.Base;
 using Splice.Core;
 using Splice.Combat;
+using Splice.RaidWorker;
 
 namespace Splice.Backend
 {
@@ -200,7 +201,20 @@ namespace Splice.Backend
         public string outcome;
         public int breachedRings;
         public int warGemPayout;
+        public bool replayAvailable;
+        public string simulationVersion;
+        public string commandStreamHash;
         public string updatedUtc;
+    }
+
+    [Serializable]
+    public sealed class RaidReplayDto
+    {
+        public string raidId;
+        public string resultId;
+        public FixedTickRaidSimulationInput input;
+        public RaidSimulationResult result;
+        public string createdUtc;
     }
 
     public interface IWalletService
@@ -238,6 +252,7 @@ namespace Splice.Backend
         Task<RaidAllocationDto> AllocateAsync(string raidId, string idempotencyKey,
             CancellationToken cancellationToken);
         Task<RaidLifecycleDto> GetLifecycleAsync(string raidId, CancellationToken cancellationToken);
+        Task<RaidReplayDto> GetReplayAsync(string raidId, CancellationToken cancellationToken);
     }
 
     public interface IRaidReportService

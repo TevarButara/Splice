@@ -29,6 +29,8 @@ namespace Splice.Backend
             "/v1/raids/" + Segment(raidId) + "/allocation";
         public static string RaidLifecycle(string raidId) =>
             "/v1/raids/" + Segment(raidId);
+        public static string RaidReplay(string raidId) =>
+            "/v1/raids/" + Segment(raidId) + "/replay";
         public static string AttackerLoadout(string loadoutId) =>
             "/v1/attacker-loadouts/" + Segment(loadoutId);
 
@@ -257,6 +259,10 @@ namespace Splice.Backend
         public Task<RaidLifecycleDto> GetLifecycleAsync(string raidId,
             CancellationToken cancellationToken) =>
             client.GetAsync<RaidLifecycleDto>(BackendRoutes.RaidLifecycle(raidId), cancellationToken);
+
+        public Task<RaidReplayDto> GetReplayAsync(string raidId,
+            CancellationToken cancellationToken) =>
+            client.GetAsync<RaidReplayDto>(BackendRoutes.RaidReplay(raidId), cancellationToken);
     }
 
     // Deliberately retained after C4A: only the trusted /internal result route may settle shared economy.

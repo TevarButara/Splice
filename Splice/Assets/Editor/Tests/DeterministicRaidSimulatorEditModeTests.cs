@@ -18,7 +18,7 @@ namespace Splice.Editor.Tests
             defenderPower = 800,
         };
 
-        private static FixedTickRaidSimulationInput FixedInput() => new()
+        internal static FixedTickRaidSimulationInput FixedInput() => new()
         {
             raidId = "10000000-0000-0000-0000-000000000001",
             targetSnapshotId = "20000000-0000-0000-0000-000000000001",

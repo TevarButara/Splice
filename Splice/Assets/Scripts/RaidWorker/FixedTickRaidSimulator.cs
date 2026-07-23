@@ -258,7 +258,7 @@ namespace Splice.RaidWorker
         {
             Add(commands, tick, "COMPLETE", "simulation", outcome, breachedRings);
             EnsureCommandBudget(commands);
-            var commandHash = Sha256(string.Join("\n", commands.Select(CommandCanonical)));
+            var commandHash = ComputeCommandStreamHash(commands);
             var simulationHash = Sha256(string.Join("|", SimulationVersion, CanonicalInput(input),
                 outcome, breachedRings, tick, commandHash));
             return new RaidSimulationResult
@@ -369,6 +369,13 @@ namespace Splice.RaidWorker
 
         private static string CommandCanonical(RaidSimulationCommand command) =>
             string.Join("|", command.tick, command.type, command.actor, command.target, command.value);
+
+        public static string ComputeCommandStreamHash(
+            IReadOnlyList<RaidSimulationCommand> commands)
+        {
+            if (commands == null) throw new ArgumentNullException(nameof(commands));
+            return Sha256(string.Join("\n", commands.Select(CommandCanonical)));
+        }
 
         private static string RingId(int zeroBased) => "ring-" + (zeroBased + 1);
 

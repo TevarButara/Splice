@@ -15,25 +15,49 @@ public sealed record TrustedRaidStartRequest(string AllocationId, string Ticket)
 public sealed record TrustedRaidStartView(bool Success, string Error, string RaidId,
     string AllocationId, string TargetSnapshotId, string AttackerLoadoutId,
     string SceneContractVersion, JsonElement TargetSnapshot, string StartedUtc);
+public sealed record RaidReplayCommandRequest(int Tick, string Type, string Actor, string Target, long Value);
 public sealed record TrustedRaidResultRequest(string AllocationId, string Ticket, string WorkerId, string ResultId,
-    string Outcome, int BreachedRings, int DurationMs, string SimulationHash);
+    string Outcome, int BreachedRings, int DurationMs, string SimulationHash,
+    string SimulationVersion, int TickCount, int CommandCount, string CommandStreamHash,
+    IReadOnlyList<RaidReplayCommandRequest> Commands);
 public sealed record TrustedRaidResultView(bool Success, string Error, string RaidId,
     string ResultId, string Outcome, int BreachedRings, long WarGemPayout,
     bool DefenderDeploymentPaused, WalletView AttackerWallet, string SettledUtc);
 public sealed record RaidLifecycleView(string RaidId, string State, string TargetSnapshotId,
     string AllocationState, string ResultId, string Outcome, int BreachedRings,
-    long WarGemPayout, string UpdatedUtc);
+    long WarGemPayout, bool ReplayAvailable, string SimulationVersion,
+    string CommandStreamHash, string UpdatedUtc);
+public sealed record RaidReplayInputView(string RaidId, string TargetSnapshotId,
+    string LoadoutSnapshotId, long AttackerPower, long ArmyPower, long HeroPower,
+    long GearPower, long DefenderPower, JsonElement TargetSnapshot,
+    JsonElement LoadoutEntries, JsonElement ArmyUnits, JsonElement DefenseUnits,
+    JsonElement Hero, JsonElement GearItems, int MaximumTicks);
+public sealed record RaidReplayResultView(string Outcome, int BreachedRings, int DurationMs,
+    string SimulationHash, string SimulationVersion, int TickCount, int CommandCount,
+    string CommandStreamHash, JsonElement Commands);
+public sealed record RaidReplayView(string RaidId, string ResultId,
+    RaidReplayInputView Input, RaidReplayResultView Result, string CreatedUtc);
 
 public static partial class RaidAuthorityFeature
 {
     private static readonly Guid TrustedActorId = Guid.Parse("00000000-0000-0000-0000-000000000401");
     private static readonly Regex HashPattern = new("^[0-9a-f]{64}$", RegexOptions.CultureInvariant);
+    private static readonly Regex SimulationVersionPattern =
+        new("^[a-z0-9][a-z0-9._-]{0,63}$", RegexOptions.CultureInvariant);
+    private static readonly Regex CommandIdentityPattern =
+        new("^[A-Za-z0-9][A-Za-z0-9:._#/\\-]{0,127}$", RegexOptions.CultureInvariant);
+    private static readonly HashSet<string> CommandTypes = new(StringComparer.Ordinal)
+        { "SPAWN", "MOVE", "ENGAGE", "ATTACK", "ABILITY", "BREACH", "DEFEATED", "COMPLETE" };
+    private const string SupportedSimulationVersion = "fixed-tick-c4c2c-v2";
+    private const int TickMilliseconds = 100;
+    private const int MaximumReplayCommands = 25000;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     public static void MapRaidAuthorityEndpoints(this WebApplication app)
     {
         app.MapPost("/v1/raids/{raidId:guid}/allocation", AllocateAsync);
         app.MapGet("/v1/raids/{raidId:guid}", GetLifecycleAsync);
+        app.MapGet("/v1/raids/{raidId:guid}/replay", GetReplayAsync);
         app.MapPost("/internal/v1/raids/{raidId:guid}/start", StartAsync);
         app.MapPost("/internal/v1/raids/{raidId:guid}/result", SubmitResultAsync);
         MapRaidWorkerEndpoints(app);
@@ -112,11 +136,18 @@ public static partial class RaidAuthorityFeature
             SELECT r.state, r.target_snapshot_id, COALESCE(a.state, ''),
                    COALESCE(rr.id::text, ''), COALESCE(rr.outcome, ''),
                    COALESCE(rr.breached_rings, 0), COALESCE(rr.war_gem_payout, 0),
+                   rp.result_id IS NOT NULL, COALESCE(rp.simulation_version, ''),
+                   COALESCE(rp.command_stream_hash, ''),
                    COALESCE(r.completed_at, r.started_at, r.created_at)
               FROM splice.raid_sessions r
+              JOIN splice.raid_quotes q ON q.id = r.quote_id
+              JOIN splice.town_deployments d ON d.id = q.target_deployment_id
+              JOIN splice.towns t ON t.id = d.town_id
               LEFT JOIN splice.raid_allocations a ON a.raid_id = r.id
               LEFT JOIN splice.raid_results rr ON rr.raid_id = r.id
-             WHERE r.id = @raid AND r.attacker_player_id = @attacker
+              LEFT JOIN splice.raid_replays rp ON rp.raid_id = r.id
+             WHERE r.id = @raid
+               AND (r.attacker_player_id = @attacker OR t.owner_player_id = @attacker)
             """, connection);
         command.Parameters.AddWithValue("raid", raidId);
         command.Parameters.AddWithValue("attacker", attackerId);
@@ -126,8 +157,77 @@ public static partial class RaidAuthorityFeature
                 "RAID_NOT_FOUND", "Raid was not found."));
         return Results.Ok(new RaidLifecycleView(raidId.ToString("D"), reader.GetString(0),
             reader.GetGuid(1).ToString("D"), reader.GetString(2), reader.GetString(3),
-            reader.GetString(4), reader.GetInt32(5), reader.GetInt64(6),
-            reader.GetFieldValue<DateTimeOffset>(7).ToString("O")));
+            reader.GetString(4), reader.GetInt32(5), reader.GetInt64(6), reader.GetBoolean(7),
+            reader.GetString(8), reader.GetString(9),
+            reader.GetFieldValue<DateTimeOffset>(10).ToString("O")));
+    }
+
+    private static async Task<IResult> GetReplayAsync(HttpContext context, Guid raidId,
+        NpgsqlDataSource dataSource)
+    {
+        var playerId = RequestIdentityMiddleware.PlayerId(context);
+        await using var connection = await dataSource.OpenConnectionAsync(context.RequestAborted);
+        await using var command = new NpgsqlCommand("""
+            SELECT rr.id, rr.outcome, rr.breached_rings, rr.duration_ms, rr.simulation_hash,
+                   rp.simulation_version, rp.tick_count, rp.command_count,
+                   rp.command_stream_hash, rp.command_stream::text, rp.created_at,
+                   r.target_snapshot_id, q.attacker_loadout_snapshot_id,
+                   s.base_power, COALESCE(s.payload->'layout','{}'::jsonb)::text,
+                   COALESCE(s.payload->'defenseUnits','[]'::jsonb)::text,
+                   ls.entries::text, ls.army_items::text, ls.raid_power,
+                   ls.army_power, ls.hero_power, ls.gear_power,
+                   ls.hero_payload::text, ls.gear_items::text
+              FROM splice.raid_replays rp
+              JOIN splice.raid_results rr ON rr.id = rp.result_id
+              JOIN splice.raid_sessions r ON r.id = rp.raid_id
+              JOIN splice.raid_quotes q ON q.id = r.quote_id
+              JOIN splice.town_snapshots s ON s.id = r.target_snapshot_id
+              JOIN splice.attacker_loadout_snapshots ls ON ls.id = q.attacker_loadout_snapshot_id
+              JOIN splice.town_deployments d ON d.id = q.target_deployment_id
+              JOIN splice.towns t ON t.id = d.town_id
+             WHERE rp.raid_id = @raid
+               AND (r.attacker_player_id = @player OR t.owner_player_id = @player)
+            """, connection);
+        command.Parameters.AddWithValue("raid", raidId);
+        command.Parameters.AddWithValue("player", playerId);
+        await using var reader = await command.ExecuteReaderAsync(context.RequestAborted);
+        if (!await reader.ReadAsync(context.RequestAborted))
+            return IdempotencyExecutor.ToResult(ApiErrors.Reply(context, StatusCodes.Status404NotFound,
+                "RAID_REPLAY_NOT_FOUND", "Raid replay is unavailable or not visible to this player."));
+
+        var resultId = reader.GetGuid(0);
+        var outcome = reader.GetString(1);
+        var breachedRings = reader.GetInt32(2);
+        var durationMs = reader.GetInt32(3);
+        var simulationHash = reader.GetString(4);
+        var simulationVersion = reader.GetString(5);
+        var tickCount = reader.GetInt32(6);
+        var commandCount = reader.GetInt32(7);
+        var commandStreamHash = reader.GetString(8);
+        var commands = JsonDocument.Parse(reader.GetString(9)).RootElement.Clone();
+        var createdAt = reader.GetFieldValue<DateTimeOffset>(10);
+        var targetSnapshotId = reader.GetGuid(11);
+        var loadoutSnapshotId = reader.GetGuid(12);
+        var defenderPower = reader.GetInt64(13);
+        var targetSnapshot = JsonDocument.Parse(reader.GetString(14)).RootElement.Clone();
+        var defenseUnits = JsonDocument.Parse(reader.GetString(15)).RootElement.Clone();
+        var loadoutEntries = JsonDocument.Parse(reader.GetString(16)).RootElement.Clone();
+        var armyUnits = JsonDocument.Parse(reader.GetString(17)).RootElement.Clone();
+        var attackerPower = reader.GetInt64(18);
+        var armyPower = reader.GetInt64(19);
+        var heroPower = reader.GetInt64(20);
+        var gearPower = reader.GetInt64(21);
+        var hero = JsonDocument.Parse(reader.GetString(22)).RootElement.Clone();
+        var gearItems = JsonDocument.Parse(reader.GetString(23)).RootElement.Clone();
+
+        var input = new RaidReplayInputView(raidId.ToString("D"), targetSnapshotId.ToString("D"),
+            loadoutSnapshotId.ToString("D"), attackerPower, armyPower, heroPower, gearPower,
+            defenderPower, targetSnapshot, loadoutEntries, armyUnits, defenseUnits,
+            hero, gearItems, 1800);
+        var result = new RaidReplayResultView(outcome, breachedRings, durationMs, simulationHash,
+            simulationVersion, tickCount, commandCount, commandStreamHash, commands);
+        return Results.Ok(new RaidReplayView(raidId.ToString("D"), resultId.ToString("D"),
+            input, result, createdAt.ToString("O")));
     }
 
     private static async Task<IResult> StartAsync(HttpContext context, Guid raidId,
@@ -216,13 +316,18 @@ public static partial class RaidAuthorityFeature
                     !HashPattern.IsMatch(request.SimulationHash ?? string.Empty))
                     return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
                         "RAID_RESULT_INVALID", "Trusted raid result failed schema validation.");
+                if (!TryValidateReplay(request, out var replayError))
+                    return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
+                        "RAID_RESULT_INVALID", replayError ?? "Trusted replay failed schema validation.");
 
                 var replay = await ReadExistingResultAsync(connection, transaction, raidId, cancellationToken);
                 if (replay is not null)
                 {
                     if (replay.Value.ResultId != resultId || replay.Value.Outcome != request.Outcome ||
                         replay.Value.Rings != request.BreachedRings || replay.Value.DurationMs != request.DurationMs ||
-                        replay.Value.SimulationHash != request.SimulationHash)
+                        replay.Value.SimulationHash != request.SimulationHash ||
+                        replay.Value.SimulationVersion != request.SimulationVersion ||
+                        replay.Value.CommandStreamHash != request.CommandStreamHash)
                         return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
                             "RAID_RESULT_CONFLICT", "Raid already has a different immutable result.");
                     var replayWallet = await WalletFeature.LoadAsync(connection, transaction,
@@ -323,7 +428,12 @@ public static partial class RaidAuthorityFeature
                     request.BreachedRings,
                     request.DurationMs,
                     request.SimulationHash,
+                    request.SimulationVersion,
+                    request.TickCount,
+                    request.CommandCount,
+                    request.CommandStreamHash,
                 }, JsonOptions);
+                var commandStream = JsonSerializer.Serialize(request.Commands, JsonOptions);
                 var settledAt = DateTimeOffset.UtcNow;
                 await using var write = new NpgsqlCommand("""
                     INSERT INTO splice.raid_results
@@ -331,6 +441,11 @@ public static partial class RaidAuthorityFeature
                          duration_ms, simulation_hash, war_gem_payout, result_payload, received_at)
                     VALUES (@result, @raid, @allocation, @server, @outcome, @rings,
                             @duration, @hash, @payout, @payload, @now);
+                    INSERT INTO splice.raid_replays
+                        (result_id, raid_id, simulation_version, tick_count, command_count,
+                         command_stream_hash, command_stream, created_at)
+                    VALUES (@result, @raid, @simulationVersion, @tickCount, @commandCount,
+                            @commandStreamHash, @commandStream, @now);
                     UPDATE splice.raid_sessions
                        SET state='SETTLED', result_id=@result, completed_at=@now
                      WHERE id=@raid;
@@ -348,6 +463,11 @@ public static partial class RaidAuthorityFeature
                 write.Parameters.AddWithValue("rings", request.BreachedRings);
                 write.Parameters.AddWithValue("duration", request.DurationMs);
                 write.Parameters.AddWithValue("hash", request.SimulationHash!);
+                write.Parameters.AddWithValue("simulationVersion", request.SimulationVersion!);
+                write.Parameters.AddWithValue("tickCount", request.TickCount);
+                write.Parameters.AddWithValue("commandCount", request.CommandCount);
+                write.Parameters.AddWithValue("commandStreamHash", request.CommandStreamHash!);
+                write.Parameters.AddWithValue("commandStream", NpgsqlDbType.Jsonb, commandStream);
                 write.Parameters.AddWithValue("payout", payout);
                 write.Parameters.AddWithValue("payload", NpgsqlDbType.Jsonb, payload);
                 write.Parameters.AddWithValue("now", settledAt);
@@ -401,16 +521,70 @@ public static partial class RaidAuthorityFeature
     private static string Sha256(string value) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
+    private static bool TryValidateReplay(TrustedRaidResultRequest request, out string? error)
+    {
+        error = null;
+        if (request.SimulationVersion != SupportedSimulationVersion ||
+            !SimulationVersionPattern.IsMatch(request.SimulationVersion ?? string.Empty) ||
+            request.TickCount is < 1 or > 36000 ||
+            request.CommandCount is < 1 or > MaximumReplayCommands ||
+            request.Commands is null || request.Commands.Count != request.CommandCount ||
+            !HashPattern.IsMatch(request.CommandStreamHash ?? string.Empty) ||
+            request.DurationMs != checked(request.TickCount * TickMilliseconds))
+        {
+            error = "Replay metadata, version, duration, or command count is invalid.";
+            return false;
+        }
+
+        var previousTick = -1;
+        for (var index = 0; index < request.Commands.Count; index++)
+        {
+            var command = request.Commands[index];
+            if (command is null || command.Tick < previousTick || command.Tick > request.TickCount ||
+                command.Value < 0 || !CommandTypes.Contains(command.Type ?? string.Empty) ||
+                !CommandIdentityPattern.IsMatch(command.Actor ?? string.Empty) ||
+                !CommandIdentityPattern.IsMatch(command.Target ?? string.Empty))
+            {
+                error = "Replay command order or payload is invalid.";
+                return false;
+            }
+            previousTick = command.Tick;
+        }
+
+        var final = request.Commands[^1];
+        if (final.Tick != request.TickCount || final.Type != "COMPLETE" ||
+            final.Actor != "simulation" || final.Target != request.Outcome ||
+            final.Value != request.BreachedRings)
+        {
+            error = "Replay completion command does not match the submitted result.";
+            return false;
+        }
+
+        var canonical = string.Join("\n", request.Commands.Select(command =>
+            string.Join("|", command.Tick, command.Type, command.Actor, command.Target, command.Value)));
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.ASCII.GetBytes(Sha256(canonical)),
+                Encoding.ASCII.GetBytes(request.CommandStreamHash ?? string.Empty)))
+        {
+            error = "Replay command stream hash verification failed.";
+            return false;
+        }
+        return true;
+    }
+
     private static async Task<(Guid ResultId, Guid AttackerId, string Outcome, int Rings,
-        int DurationMs, string SimulationHash, long Payout, bool DeploymentPaused,
+        int DurationMs, string SimulationHash, string SimulationVersion, string CommandStreamHash,
+        long Payout, bool DeploymentPaused,
         DateTimeOffset SettledAt)?> ReadExistingResultAsync(NpgsqlConnection connection,
         NpgsqlTransaction transaction, Guid raidId, CancellationToken cancellationToken)
     {
         await using var command = new NpgsqlCommand("""
             SELECT rr.id, r.attacker_player_id, rr.outcome, rr.breached_rings,
-                   rr.duration_ms, rr.simulation_hash, rr.war_gem_payout,
+                   rr.duration_ms, rr.simulation_hash, rp.simulation_version,
+                   rp.command_stream_hash, rr.war_gem_payout,
                    d.status='PAUSED', rr.received_at
               FROM splice.raid_results rr
+              LEFT JOIN splice.raid_replays rp ON rp.result_id = rr.id
               JOIN splice.raid_sessions r ON r.id = rr.raid_id
               JOIN splice.raid_quotes q ON q.id = r.quote_id
               JOIN splice.town_deployments d ON d.id = q.target_deployment_id
@@ -420,8 +594,10 @@ public static partial class RaidAuthorityFeature
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken)) return null;
         return (reader.GetGuid(0), reader.GetGuid(1), reader.GetString(2), reader.GetInt32(3),
-            reader.GetInt32(4), reader.GetString(5), reader.GetInt64(6), reader.GetBoolean(7),
-            reader.GetFieldValue<DateTimeOffset>(8));
+            reader.GetInt32(4), reader.GetString(5),
+            reader.IsDBNull(6) ? string.Empty : reader.GetString(6),
+            reader.IsDBNull(7) ? string.Empty : reader.GetString(7),
+            reader.GetInt64(8), reader.GetBoolean(9), reader.GetFieldValue<DateTimeOffset>(10));
     }
 
     private static async Task<Guid> PlayerWarGemAccountAsync(NpgsqlConnection connection,

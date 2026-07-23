@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Splice.Characters;
+using Splice.Backend;
+using Splice.Core;
 using Splice.Data;
 using Splice.Network;
 using Splice.Scenes;
@@ -52,6 +54,13 @@ namespace Splice.RaidWorker
 
         private IEnumerator Start()
         {
+            if (RaidLifecycleReplayController.ShouldHandleCurrentRaid)
+            {
+                var lifecycle = GetComponent<RaidLifecycleReplayController>();
+                if (lifecycle == null) lifecycle = gameObject.AddComponent<RaidLifecycleReplayController>();
+                lifecycle.Begin(this);
+                yield break;
+            }
             if (!autoStartOnPlay || (developmentBuildOnly && !Application.isEditor && !Debug.isDebugBuild))
                 yield break;
             if (initialDelaySeconds > 0f) yield return new WaitForSecondsRealtime(initialDelaySeconds);
@@ -160,7 +169,13 @@ namespace Splice.RaidWorker
                 }
                 previousTick = command.tick;
             }
-            if (result.commands[^1].type != "COMPLETE" || !IsSha256(result.commandStreamHash) ||
+            var final = result.commands[^1];
+            if (result.tickCount is < 1 or > 36000 || result.commandCount > FixedTickRaidSimulator.MaximumCommands ||
+                result.durationMs != result.tickCount * FixedTickRaidSimulator.TickMilliseconds ||
+                final.tick != result.tickCount || final.type != "COMPLETE" ||
+                final.actor != "simulation" || final.target != result.outcome ||
+                final.value != result.breachedRings || !IsSha256(result.commandStreamHash) ||
+                result.commandStreamHash != FixedTickRaidSimulator.ComputeCommandStreamHash(result.commands) ||
                 !IsSha256(result.simulationHash))
             {
                 error = "Command stream has no valid completion/hash.";
@@ -169,6 +184,53 @@ namespace Splice.RaidWorker
             error = string.Empty;
             return true;
         }
+
+        public void ShowLifecycleStatus(RaidLifecycleDto lifecycle)
+        {
+            if (lifecycle == null) return;
+            if (overlayCanvas == null) BuildOverlay(null);
+            var state = (lifecycle.state ?? string.Empty).ToUpperInvariant();
+            titleLabel.text = state switch
+            {
+                "FUNDED" => "RAID QUEUED",
+                "ACTIVE" => "RAID SERVER ACTIVE",
+                "SETTLED" => "RESULT VERIFIED",
+                "REFUNDED" => "STAKE REFUNDED",
+                _ => "RAID STATUS  •  " + state,
+            };
+            titleLabel.color = state switch
+            {
+                "SETTLED" => Green(),
+                "REFUNDED" => Gold(),
+                "ACTIVE" => Cyan(),
+                _ => Orange(),
+            };
+            statusLabel.text = state == "SETTLED" && lifecycle.replayAvailable
+                ? "Verified replay is ready • " + ShortHash(lifecycle.commandStreamHash)
+                : "Waiting for authoritative lifecycle update…";
+            progressFill.color = titleLabel.color;
+            progressFill.fillAmount = state switch
+            {
+                "FUNDED" => .2f,
+                "ACTIVE" => .55f,
+                "SETTLED" or "REFUNDED" => 1f,
+                _ => .08f,
+            };
+        }
+
+        public void ShowLifecycleError(string error)
+        {
+            if (overlayCanvas == null) BuildOverlay(null);
+            titleLabel.text = "REPLAY UNAVAILABLE";
+            titleLabel.color = Red();
+            statusLabel.text = string.IsNullOrWhiteSpace(error)
+                ? "Authoritative raid state could not be verified." : error;
+            progressFill.color = Red();
+            progressFill.fillAmount = 1f;
+        }
+
+        private static string ShortHash(string value) =>
+            !string.IsNullOrWhiteSpace(value) && value.Length >= 12 ? value[..12] + "…" : "pending";
 
         private IEnumerator Replay(RaidSimulationResult result)
         {

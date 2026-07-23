@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -242,7 +244,7 @@ try
     await RunC3Async(host, connectionString);
     Console.WriteLine("C3 town integration tests: PASS (draft, validation, checkout, immutable snapshot, deployment, escrow, concurrency)");
     await RunC4Async(host, connectionString);
-    Console.WriteLine("C4 raid authority tests: PASS (allocation, trusted start/result, settlement, immutable result, active recovery)");
+    Console.WriteLine("C4 raid authority tests: PASS (allocation, trusted result, verified immutable replay, settlement, recovery)");
 }
 finally
 {
@@ -528,28 +530,22 @@ static async Task RunC4Async(TestHost host, string connectionString)
     ErrorCode(lateRefund, "RAID_ALREADY_STARTED");
 
     var resultId = Guid.NewGuid().ToString("D");
-    var resultBody = new
-    {
-        allocationId,
-        workerId = "worker-c4-a",
-        resultId,
-        outcome = "FULL_VICTORY",
-        breachedRings = 3,
-        durationMs = 60000,
-        simulationHash = new string('a', 64),
-    };
+    var resultBody = ReplayResultBody(allocationId, "worker-c4-a", resultId,
+        "FULL_VICTORY", 3, new string('a', 64));
+    var invalidReplay = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{raidId}/result",
+        ReplayResultBody(allocationId, "worker-c4-a", resultId,
+            "FULL_VICTORY", 3, new string('a', 64), invalidCommandHash: true),
+        "trusted:result:c4:invalid-replay");
+    Equal(HttpStatusCode.BadRequest, invalidReplay.Status,
+        "tampered replay rejected before settlement");
+    ErrorCode(invalidReplay, "RAID_RESULT_INVALID");
+    Equal(800L, Long(await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null),
+        "warGemBalance"), "invalid replay cannot settle or mutate wallet");
     var stolenResult = await SendTrustedAsync(host.Client, HttpMethod.Post,
         $"/internal/v1/raids/{raidId}/result",
-        new
-        {
-            allocationId,
-            workerId = "worker-c4-other",
-            resultId,
-            outcome = "FULL_VICTORY",
-            breachedRings = 3,
-            durationMs = 60000,
-            simulationHash = new string('a', 64),
-        }, "trusted:result:c4:stolen");
+        ReplayResultBody(allocationId, "worker-c4-other", resultId,
+            "FULL_VICTORY", 3, new string('a', 64)), "trusted:result:c4:stolen");
     Equal(HttpStatusCode.Forbidden, stolenResult.Status, "another worker cannot steal active lease");
     ErrorCode(stolenResult, "RAID_WORKER_AUTH_INVALID");
     var result = await SendTrustedAsync(host.Client, HttpMethod.Post,
@@ -563,16 +559,8 @@ static async Task RunC4Async(TestHost host, string connectionString)
         $"/internal/v1/raids/{raidId}/result", resultBody, "trusted:result:c4:full:other");
     Equal(HttpStatusCode.OK, resultReplay.Status, "same immutable result replays across keys");
     Equal(980L, Long(resultReplay, "attackerWallet", "warGemBalance"), "result replay does not double-credit");
-    var conflictBody = new
-    {
-        allocationId,
-        workerId = "worker-c4-a",
-        resultId = Guid.NewGuid().ToString("D"),
-        outcome = "DEFEAT",
-        breachedRings = 0,
-        durationMs = 60000,
-        simulationHash = new string('b', 64),
-    };
+    var conflictBody = ReplayResultBody(allocationId, "worker-c4-a",
+        Guid.NewGuid().ToString("D"), "DEFEAT", 0, new string('b', 64));
     var conflict = await SendTrustedAsync(host.Client, HttpMethod.Post,
         $"/internal/v1/raids/{raidId}/result", conflictBody, "trusted:result:c4:conflict");
     Equal(HttpStatusCode.Conflict, conflict.Status, "different second result rejected");
@@ -581,7 +569,21 @@ static async Task RunC4Async(TestHost host, string connectionString)
     var lifecycle = await SendAsync(host.Client, HttpMethod.Get, $"/v1/raids/{raidId}", null, null);
     Equal("SETTLED", String(lifecycle, "state"), "player reads authoritative settled state");
     Equal(resultId, String(lifecycle, "resultId"), "lifecycle exposes immutable result identity");
+    True(Bool(lifecycle, "replayAvailable"), "lifecycle advertises verified replay");
+    Equal("fixed-tick-c4c2c-v2", String(lifecycle, "simulationVersion"),
+        "lifecycle pins simulation version");
+    var replay = await SendAsync(host.Client, HttpMethod.Get,
+        $"/v1/raids/{raidId}/replay", null, null);
+    Equal(HttpStatusCode.OK, replay.Status, "participant reads immutable replay");
+    Equal(resultId, String(replay, "resultId"), "replay pins immutable result");
+    Equal(loadoutSnapshotId, String(replay, "input", "loadoutSnapshotId"),
+        "replay reconstructs input from immutable loadout snapshot");
+    Equal(2, Element(replay, "result", "commands").GetArrayLength(),
+        "replay returns bounded command stream");
+    Equal("FULL_VICTORY", Element(replay, "result", "commands")[1]
+        .GetProperty("target").GetString()!, "replay completion matches result");
     await AssertImmutableRaidResultAsync(connectionString, resultId);
+    await AssertImmutableRaidReplayAsync(connectionString, resultId);
     await AssertImmutableLoadoutSnapshotAsync(connectionString, loadoutSnapshotId);
     var noJob = await SendTrustedAsync(host.Client, HttpMethod.Post,
         "/internal/v1/raid-jobs/claim", new { workerId = "worker-c4-a" }, "worker:claim:none");
@@ -642,6 +644,25 @@ static async Task AssertImmutableRaidResultAsync(string connectionString, string
     }
 }
 
+static async Task AssertImmutableRaidReplayAsync(string connectionString, string resultId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    try
+    {
+        await using var command = new NpgsqlCommand(
+            "UPDATE splice.raid_replays SET tick_count=tick_count+1 WHERE result_id=@result", connection);
+        command.Parameters.AddWithValue("result", Guid.Parse(resultId));
+        await command.ExecuteNonQueryAsync();
+        throw new Exception("TEST_FAILED: immutable raid replay accepted direct update");
+    }
+    catch (PostgresException exception)
+    {
+        True(exception.MessageText.StartsWith("IMMUTABLE_RAID_REPLAY", StringComparison.Ordinal),
+            "database immutable raid replay trigger");
+    }
+}
+
 static async Task AssertImmutableLoadoutSnapshotAsync(string connectionString, string snapshotId)
 {
     await using var connection = new NpgsqlConnection(connectionString);
@@ -673,6 +694,7 @@ static async Task AssertC4DatabaseAsync(string connectionString, string settledR
              WHERE e.raid_id=@settled),
           (SELECT count(*) FROM splice.raid_results WHERE raid_id=@settled),
           (SELECT count(*) FROM splice.raid_results WHERE result_payload ? 'ticket'),
+          (SELECT count(*) FROM splice.raid_replays WHERE raid_id=@settled),
           (SELECT state FROM splice.raid_sessions WHERE id=@recovered),
           (SELECT count(*) FROM splice.raid_sessions WHERE state IN ('PREPARED','FUNDED','ACTIVE','SETTLING')),
           (SELECT count(*) FROM splice.ledger_transactions t WHERE t.status='POSTED' AND
@@ -688,9 +710,41 @@ static async Task AssertC4DatabaseAsync(string connectionString, string settledR
     Equal(0L, reader.GetInt64(2), "settled raid escrow drains to zero");
     Equal(1L, reader.GetInt64(3), "one immutable result per raid");
     Equal(0L, reader.GetInt64(4), "immutable result artifact never stores raw allocation ticket");
-    Equal("REFUNDED", reader.GetString(5), "active infrastructure timeout closes raid");
-    Equal(0L, reader.GetInt64(6), "C4 leaves no open raid");
-    Equal(0L, reader.GetInt64(7), "C4 ledger remains double-entry balanced");
+    Equal(1L, reader.GetInt64(5), "one immutable replay per settled raid");
+    Equal("REFUNDED", reader.GetString(6), "active infrastructure timeout closes raid");
+    Equal(0L, reader.GetInt64(7), "C4 leaves no open raid");
+    Equal(0L, reader.GetInt64(8), "C4 ledger remains double-entry balanced");
+}
+
+static object ReplayResultBody(string allocationId, string workerId, string resultId,
+    string outcome, int breachedRings, string simulationHash, bool invalidCommandHash = false)
+{
+    var commands = new[]
+    {
+        new { tick = 0, type = "SPAWN", actor = "hero:hero_test",
+            target = "attacker-entry", value = 30000L },
+        new { tick = 600, type = "COMPLETE", actor = "simulation",
+            target = outcome, value = (long)breachedRings },
+    };
+    var canonical = string.Join("\n", commands.Select(command =>
+        string.Join("|", command.tick, command.type, command.actor, command.target, command.value)));
+    var commandHash = Convert.ToHexStringLower(
+        SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    return new
+    {
+        allocationId,
+        workerId,
+        resultId,
+        outcome,
+        breachedRings,
+        durationMs = 60000,
+        simulationHash,
+        simulationVersion = "fixed-tick-c4c2c-v2",
+        tickCount = 600,
+        commandCount = commands.Length,
+        commandStreamHash = invalidCommandHash ? new string('f', 64) : commandHash,
+        commands,
+    };
 }
 
 static async Task RunC3Async(TestHost host, string connectionString)

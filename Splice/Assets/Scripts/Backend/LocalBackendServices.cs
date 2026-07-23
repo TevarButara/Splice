@@ -404,6 +404,13 @@ namespace Splice.Backend
             });
         }
 
+        public Task<RaidReplayDto> GetReplayAsync(string raidId,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<RaidReplayDto>(null);
+        }
+
         private static RaidStartDto Failed(string quoteId, string error) => new()
         {
             success = false,

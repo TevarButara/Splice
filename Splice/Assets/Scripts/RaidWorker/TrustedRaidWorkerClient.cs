@@ -135,6 +135,11 @@ namespace Splice.RaidWorker
         public int breachedRings;
         public int durationMs;
         public string simulationHash;
+        public string simulationVersion;
+        public int tickCount;
+        public int commandCount;
+        public string commandStreamHash;
+        public List<RaidSimulationCommand> commands = new();
     }
 
     [Serializable]
@@ -174,6 +179,11 @@ namespace Splice.RaidWorker
                     breachedRings = result.breachedRings,
                     durationMs = result.durationMs,
                     simulationHash = result.simulationHash,
+                    simulationVersion = result.simulationVersion,
+                    tickCount = result.tickCount,
+                    commandCount = result.commandCount,
+                    commandStreamHash = result.commandStreamHash,
+                    commands = result.commands,
                 }, cancellationToken);
             if (response?.success != true)
                 throw new InvalidOperationException(response?.error ?? "Raid result settlement was rejected.");
