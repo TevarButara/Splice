@@ -13,6 +13,7 @@ public static class SpliceApi
             ?? throw new InvalidOperationException("ConnectionStrings:Splice is required.");
 
         builder.Services.AddSingleton(_ => new NpgsqlDataSourceBuilder(connectionString).Build());
+        builder.Services.AddSingleton<IRaidReplayBlobStore, LocalFileRaidReplayBlobStore>();
         builder.Services.AddSingleton<IdempotencyExecutor>();
         builder.Services.AddSingleton<RaidReconciliationService>();
         builder.Services.AddHostedService<RaidReconciliationWorker>();

@@ -247,6 +247,7 @@ try
     Console.WriteLine("C3 town integration tests: PASS (draft, validation, checkout, immutable snapshot, deployment, escrow, concurrency)");
     var settledRaidId = await RunC4Async(host, connectionString);
     Console.WriteLine("C4 raid authority tests: PASS (allocation, trusted result, verified immutable replay, settlement, recovery)");
+    Console.WriteLine("C4C2G replay storage tests: PASS (object pointer, blob integrity, authorization, dual-read)");
     await RunC4C2FAsync(host, connectionString, settledRaidId);
     Console.WriteLine("C4C2F history/revenge tests: PASS (defender visibility, replay, target binding, cooldown)");
     var workerExecutable = Environment.GetEnvironmentVariable("SPLICE_UNITY_WORKER_EXECUTABLE");
@@ -272,6 +273,8 @@ static object QuoteBody(string targetId, int? clientStake = null) => new
 
 static async Task<TestHost> StartAsync(string connectionString)
 {
+    var replayStorageRoot = Path.Combine(
+        Path.GetTempPath(), "splice-replay-tests", Guid.NewGuid().ToString("N"));
     var app = SpliceApi.Build([
         "--environment=Development",
         "--urls=http://127.0.0.1:0",
@@ -283,11 +286,13 @@ static async Task<TestHost> StartAsync(string connectionString)
         $"--RaidServer:DevelopmentKey={trustedServerKey}",
         $"--RaidServer:DefaultServerId={trustedServerId}",
         "--RaidServer:WorkerLeaseSeconds=90",
+        $"--ReplayStorage:LocalRoot={replayStorageRoot}",
     ]);
     await app.StartAsync();
     var server = app.Services.GetRequiredService<IServer>();
     var address = server.Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-    return new TestHost(app, new HttpClient { BaseAddress = new Uri(address) });
+    return new TestHost(app, new HttpClient { BaseAddress = new Uri(address) },
+        replayStorageRoot);
 }
 
 static async Task<ApiResult> SendAsync(HttpClient client, HttpMethod method, string path,
@@ -596,12 +601,16 @@ static async Task<string> RunC4Async(TestHost host, string connectionString)
     ErrorCode(invalidReplay, "RAID_RESULT_INVALID");
     Equal(800L, Long(await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null),
         "warGemBalance"), "invalid replay cannot settle or mutate wallet");
+    Equal(0, ReplayBlobCount(host),
+        "schema-invalid replay cannot create an orphan object");
     var stolenResult = await SendTrustedAsync(host.Client, HttpMethod.Post,
         $"/internal/v1/raids/{raidId}/result",
         ReplayResultBody(allocationId, "worker-c4-other", resultId,
             "FULL_VICTORY", 3, new string('a', 64)), "trusted:result:c4:stolen");
     Equal(HttpStatusCode.Forbidden, stolenResult.Status, "another worker cannot steal active lease");
     ErrorCode(stolenResult, "RAID_WORKER_AUTH_INVALID");
+    Equal(0, ReplayBlobCount(host),
+        "unauthorized worker cannot stage a replay object");
     var result = await SendTrustedAsync(host.Client, HttpMethod.Post,
         $"/internal/v1/raids/{raidId}/result", resultBody, "trusted:result:c4:full");
     Equal(HttpStatusCode.Created, result.Status, "trusted result settles raid");
@@ -619,6 +628,8 @@ static async Task<string> RunC4Async(TestHost host, string connectionString)
         $"/internal/v1/raids/{raidId}/result", conflictBody, "trusted:result:c4:conflict");
     Equal(HttpStatusCode.Conflict, conflict.Status, "different second result rejected");
     ErrorCode(conflict, "RAID_RESULT_CONFLICT");
+    Equal(1, ReplayBlobCount(host),
+        "duplicate and conflicting deliveries retain one immutable replay blob");
 
     var lifecycle = await SendAsync(host.Client, HttpMethod.Get, $"/v1/raids/{raidId}", null, null);
     Equal("SETTLED", String(lifecycle, "state"), "player reads authoritative settled state");
@@ -636,6 +647,51 @@ static async Task<string> RunC4Async(TestHost host, string connectionString)
         "replay returns bounded command stream");
     Equal("FULL_VICTORY", Element(replay, "result", "commands")[1]
         .GetProperty("target").GetString()!, "replay completion matches result");
+    var storage = await ReplayStorageRowAsync(connectionString, raidId);
+    Equal(LocalFileRaidReplayBlobStore.ProviderName, storage.Provider,
+        "new replay stores only an object-storage pointer in PostgreSQL");
+    True(storage.CommandStreamIsNull,
+        "new replay command stream is absent from PostgreSQL JSONB");
+    var blobPath = Path.Combine(host.ReplayStorageRoot,
+        storage.Key.Replace('/', Path.DirectorySeparatorChar));
+    True(File.Exists(blobPath), "immutable replay blob exists outside PostgreSQL");
+    Equal(storage.ContentLength, new FileInfo(blobPath).Length,
+        "blob length matches immutable PostgreSQL metadata");
+
+    var unauthorizedReplay = await SendAsync(host.Client, HttpMethod.Get,
+        $"/v1/raids/{raidId}/replay", null, null,
+        authenticatedPlayerId: "11000000-0000-0000-0000-000000000003");
+    Equal(HttpStatusCode.NotFound, unauthorizedReplay.Status,
+        "non-participant cannot discover or download replay blob");
+
+    var heldPath = blobPath + ".held";
+    File.Move(blobPath, heldPath);
+    var missingBlob = await SendAsync(host.Client, HttpMethod.Get,
+        $"/v1/raids/{raidId}/replay", null, null);
+    Equal(HttpStatusCode.ServiceUnavailable, missingBlob.Status,
+        "missing replay blob fails closed");
+    ErrorCode(missingBlob, "REPLAY_BLOB_MISSING");
+    File.Move(heldPath, blobPath);
+
+    var originalBlob = await File.ReadAllBytesAsync(blobPath);
+    var corruptedBlob = originalBlob.ToArray();
+    corruptedBlob[^1] ^= 0x5a;
+    await File.WriteAllBytesAsync(blobPath, corruptedBlob);
+    var corruptReplay = await SendAsync(host.Client, HttpMethod.Get,
+        $"/v1/raids/{raidId}/replay", null, null);
+    Equal(HttpStatusCode.ServiceUnavailable, corruptReplay.Status,
+        "corrupt replay blob fails closed before reaching Unity");
+    ErrorCode(corruptReplay, "REPLAY_BLOB_CORRUPT");
+    await File.WriteAllBytesAsync(blobPath, originalBlob);
+
+    await ConvertReplayToLegacyStorageAsync(connectionString, raidId,
+        Element(replay, "result", "commands").GetRawText());
+    var legacyReplay = await SendAsync(host.Client, HttpMethod.Get,
+        $"/v1/raids/{raidId}/replay", null, null);
+    Equal(HttpStatusCode.OK, legacyReplay.Status,
+        "dual-read keeps pre-object-storage PostgreSQL replays available");
+    Equal(2, Element(legacyReplay, "result", "commands").GetArrayLength(),
+        "legacy replay passes the same canonical validation");
     await AssertImmutableRaidResultAsync(connectionString, resultId);
     await AssertImmutableRaidReplayAsync(connectionString, resultId);
     await AssertImmutableLoadoutSnapshotAsync(connectionString, loadoutSnapshotId);
@@ -1131,6 +1187,56 @@ static async Task AssertImmutableRaidReplayAsync(string connectionString, string
     }
 }
 
+static int ReplayBlobCount(TestHost host) =>
+    Directory.Exists(host.ReplayStorageRoot)
+        ? Directory.EnumerateFiles(host.ReplayStorageRoot, "*.json.gz",
+            SearchOption.AllDirectories).Count()
+        : 0;
+
+static async Task<ReplayStorageRow> ReplayStorageRowAsync(
+    string connectionString, string raidId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("""
+        SELECT storage_provider, storage_key, storage_etag,
+               storage_content_length, storage_encoding,
+               command_stream IS NULL
+          FROM splice.raid_replays
+         WHERE raid_id=@raid
+        """, connection);
+    command.Parameters.AddWithValue("raid", Guid.Parse(raidId));
+    await using var reader = await command.ExecuteReaderAsync();
+    True(await reader.ReadAsync(), "replay storage metadata exists");
+    return new ReplayStorageRow(reader.GetString(0), reader.GetString(1),
+        reader.GetString(2), reader.GetInt64(3), reader.GetString(4),
+        reader.GetBoolean(5));
+}
+
+static async Task ConvertReplayToLegacyStorageAsync(
+    string connectionString, string raidId, string commands)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var transaction = await connection.BeginTransactionAsync();
+    await using var command = new NpgsqlCommand("""
+        ALTER TABLE splice.raid_replays DISABLE TRIGGER raid_replays_immutable;
+        UPDATE splice.raid_replays
+           SET storage_provider='postgres-jsonb',
+               storage_key='legacy-db:' || raid_id::text,
+               storage_etag=command_stream_hash,
+               storage_content_length=octet_length(@commands::jsonb::text),
+               storage_encoding='identity',
+               command_stream=@commands::jsonb
+         WHERE raid_id=@raid;
+        ALTER TABLE splice.raid_replays ENABLE TRIGGER raid_replays_immutable;
+        """, connection, transaction);
+    command.Parameters.AddWithValue("raid", Guid.Parse(raidId));
+    command.Parameters.AddWithValue("commands", commands);
+    await command.ExecuteNonQueryAsync();
+    await transaction.CommitAsync();
+}
+
 static async Task AssertImmutableLoadoutSnapshotAsync(string connectionString, string snapshotId)
 {
     await using var connection = new NpgsqlConnection(connectionString);
@@ -1589,20 +1695,26 @@ static void Equal<T>(T expected, T actual, string name) where T : notnull
 }
 
 sealed record ApiResult(HttpStatusCode Status, JsonDocument Json);
+sealed record ReplayStorageRow(string Provider, string Key, string ETag,
+    long ContentLength, string Encoding, bool CommandStreamIsNull);
 sealed class TestHost : IAsyncDisposable
 {
-    public TestHost(WebApplication app, HttpClient client)
+    public TestHost(WebApplication app, HttpClient client, string replayStorageRoot)
     {
         App = app;
         Client = client;
+        ReplayStorageRoot = replayStorageRoot;
     }
 
     public WebApplication App { get; }
     public HttpClient Client { get; }
+    public string ReplayStorageRoot { get; }
     public async ValueTask DisposeAsync()
     {
         Client.Dispose();
         await App.StopAsync();
         await App.DisposeAsync();
+        if (Directory.Exists(ReplayStorageRoot))
+            Directory.Delete(ReplayStorageRoot, true);
     }
 }

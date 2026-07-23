@@ -116,13 +116,9 @@ public sealed class IdempotencyExecutor(NpgsqlDataSource dataSource)
         Func<NpgsqlConnection, NpgsqlTransaction, CancellationToken, Task<ApiReply>> operation,
         IsolationLevel isolationLevel = IsolationLevel.Serializable)
     {
-        var key = context.Request.Headers["Idempotency-Key"].FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(key))
-            return ToResult(ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
-                "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required."));
-        if (key.Length > 160)
-            return ToResult(ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
-                "IDEMPOTENCY_KEY_INVALID", "Idempotency-Key is too long."));
+        var validation = ValidateRequest(context);
+        if (validation is not null) return ToResult(validation);
+        var key = context.Request.Headers["Idempotency-Key"].FirstOrDefault()!;
 
         var scope = $"{actorId:D}:{context.Request.Method}:{context.Request.Path}";
         var canonicalRequest = JsonSerializer.Serialize(request, JsonOptions);
@@ -173,6 +169,18 @@ public sealed class IdempotencyExecutor(NpgsqlDataSource dataSource)
 
         return ToResult(ApiErrors.Reply(context, StatusCodes.Status503ServiceUnavailable,
             "SERIALIZATION_RETRY_REQUIRED", "The transaction must be retried.", true));
+    }
+
+    public static ApiReply? ValidateRequest(HttpContext context)
+    {
+        var key = context.Request.Headers["Idempotency-Key"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(key))
+            return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
+                "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required.");
+        return key.Length > 160
+            ? ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
+                "IDEMPOTENCY_KEY_INVALID", "Idempotency-Key is too long.")
+            : null;
     }
 
     private static async Task RollbackIfActiveAsync(NpgsqlTransaction transaction)

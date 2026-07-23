@@ -88,3 +88,14 @@ bash Backend/database/scripts/test-c4c2e-load.sh
 ค่าเริ่มต้นคือ 240 requests ที่ concurrency 16 ครอบคลุม health, authenticated wallet และ empty worker claim พร้อมรายงาน p50/p95/p99/RPS. Harness ปฏิเสธ non-loopback URL โดยค่าเริ่มต้น; การยิง environment ภายนอกต้องตั้ง `SPLICE_LOAD_ALLOW_REMOTE=true` อย่างตั้งใจเท่านั้น.
 
 budget ปัจจุบัน: health p95 ≤ 200 ms, wallet p95 ≤ 300 ms, claim p95 ≤ 600 ms, failures = 0 และ throughput ≥ 20 req/s. นี่เป็น local regression baseline ไม่ใช่ production capacity guarantee.
+
+## C4C2G: Replay object storage
+
+- replay ใหม่เก็บ command stream เป็น immutable gzip blob; PostgreSQL เก็บเฉพาะ provider, object key, blob SHA-256, size, encoding และ canonical command-stream hash
+- local Development ใช้ `LocalFileRaidReplayBlobStore`; กำหนด root ผ่าน `ReplayStorage__LocalRoot` ได้ โดยค่าเริ่มต้นอยู่ใต้ temporary directory
+- API ตรวจ blob length/SHA-256, gzip bound, JSON command count และ canonical command hash ก่อนส่งให้ Unity
+- migration `012` เป็น dual-read: replay รุ่นเก่าที่อยู่ใน PostgreSQL JSONB ยังเปิดได้ ส่วน record ใหม่ห้ามเก็บ command stream ซ้ำในฐานข้อมูล
+- object key สร้างจาก server UUID/hash เท่านั้นและถูกตรวจ path traversal; player client ไม่ได้รับ storage key หรือ direct object access
+- production ให้ bind `IRaidReplayBlobStore` กับ private S3-compatible bucket, workload identity, encryption/retention policy และ CDN/API authorization ตาม environment
+
+blob ถูก stage ก่อน financial transaction เพื่อไม่ถือ ledger locks ระหว่าง object I/O; หาก process ตายหลัง stage แต่ก่อน commit อาจมี orphan ที่ไม่มี metadata อ้างอิง จึงต้องให้ Ops lifecycle job ลบ object ที่เก่ากว่า grace period และไม่พบใน `raid_replays`. ห้ามลบทันทีระหว่าง concurrent retry เพราะ object เดียวกันอาจถูก transaction อื่น commit สำเร็จ.

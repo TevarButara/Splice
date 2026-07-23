@@ -163,14 +163,16 @@ public static partial class RaidAuthorityFeature
     }
 
     private static async Task<IResult> GetReplayAsync(HttpContext context, Guid raidId,
-        NpgsqlDataSource dataSource)
+        NpgsqlDataSource dataSource, IRaidReplayBlobStore blobStore)
     {
         var playerId = RequestIdentityMiddleware.PlayerId(context);
         await using var connection = await dataSource.OpenConnectionAsync(context.RequestAborted);
         await using var command = new NpgsqlCommand("""
             SELECT rr.id, rr.outcome, rr.breached_rings, rr.duration_ms, rr.simulation_hash,
                    rp.simulation_version, rp.tick_count, rp.command_count,
-                   rp.command_stream_hash, rp.command_stream::text, rp.created_at,
+                   rp.command_stream_hash, rp.storage_provider, rp.storage_key,
+                   rp.storage_etag, rp.storage_content_length, rp.storage_encoding,
+                   rp.command_stream::text, rp.created_at,
                    r.target_snapshot_id, q.attacker_loadout_snapshot_id,
                    s.base_power, COALESCE(s.payload->'layout','{}'::jsonb)::text,
                    COALESCE(s.payload->'defenseUnits','[]'::jsonb)::text,
@@ -204,21 +206,66 @@ public static partial class RaidAuthorityFeature
         var tickCount = reader.GetInt32(6);
         var commandCount = reader.GetInt32(7);
         var commandStreamHash = reader.GetString(8);
-        var commands = JsonDocument.Parse(reader.GetString(9)).RootElement.Clone();
-        var createdAt = reader.GetFieldValue<DateTimeOffset>(10);
-        var targetSnapshotId = reader.GetGuid(11);
-        var loadoutSnapshotId = reader.GetGuid(12);
-        var defenderPower = reader.GetInt64(13);
-        var targetSnapshot = JsonDocument.Parse(reader.GetString(14)).RootElement.Clone();
-        var defenseUnits = JsonDocument.Parse(reader.GetString(15)).RootElement.Clone();
-        var loadoutEntries = JsonDocument.Parse(reader.GetString(16)).RootElement.Clone();
-        var armyUnits = JsonDocument.Parse(reader.GetString(17)).RootElement.Clone();
-        var attackerPower = reader.GetInt64(18);
-        var armyPower = reader.GetInt64(19);
-        var heroPower = reader.GetInt64(20);
-        var gearPower = reader.GetInt64(21);
-        var hero = JsonDocument.Parse(reader.GetString(22)).RootElement.Clone();
-        var gearItems = JsonDocument.Parse(reader.GetString(23)).RootElement.Clone();
+        var storageProvider = reader.GetString(9);
+        var storageKey = reader.GetString(10);
+        var storageEtag = reader.GetString(11);
+        var storageContentLength = reader.GetInt64(12);
+        var storageEncoding = reader.GetString(13);
+        var legacyCommandStream = reader.IsDBNull(14) ? null : reader.GetString(14);
+        var createdAt = reader.GetFieldValue<DateTimeOffset>(15);
+        var targetSnapshotId = reader.GetGuid(16);
+        var loadoutSnapshotId = reader.GetGuid(17);
+        var defenderPower = reader.GetInt64(18);
+        var targetSnapshot = JsonDocument.Parse(reader.GetString(19)).RootElement.Clone();
+        var defenseUnits = JsonDocument.Parse(reader.GetString(20)).RootElement.Clone();
+        var loadoutEntries = JsonDocument.Parse(reader.GetString(21)).RootElement.Clone();
+        var armyUnits = JsonDocument.Parse(reader.GetString(22)).RootElement.Clone();
+        var attackerPower = reader.GetInt64(23);
+        var armyPower = reader.GetInt64(24);
+        var heroPower = reader.GetInt64(25);
+        var gearPower = reader.GetInt64(26);
+        var hero = JsonDocument.Parse(reader.GetString(27)).RootElement.Clone();
+        var gearItems = JsonDocument.Parse(reader.GetString(28)).RootElement.Clone();
+        await reader.DisposeAsync();
+
+        JsonElement commands;
+        try
+        {
+            byte[] commandBytes;
+            if (storageProvider == "postgres-jsonb")
+            {
+                if (string.IsNullOrWhiteSpace(legacyCommandStream))
+                    throw new RaidReplayBlobException(
+                        "REPLAY_BLOB_CORRUPT", "Legacy replay payload is missing.", false);
+                commandBytes = Encoding.UTF8.GetBytes(legacyCommandStream);
+            }
+            else
+            {
+                commandBytes = await blobStore.GetAsync(
+                    storageProvider, storageKey, storageEtag, storageContentLength,
+                    storageEncoding, context.RequestAborted);
+            }
+            var storedCommands = JsonSerializer.Deserialize<List<RaidReplayCommandRequest>>(
+                commandBytes, JsonOptions);
+            if (!TryValidateCommandStream(storedCommands, tickCount, commandCount,
+                    outcome, breachedRings, commandStreamHash, out _))
+                throw new RaidReplayBlobException(
+                    "REPLAY_BLOB_CORRUPT",
+                    "Replay blob does not match immutable command metadata.", false);
+            commands = JsonSerializer.SerializeToElement(storedCommands, JsonOptions);
+        }
+        catch (RaidReplayBlobException exception)
+        {
+            return IdempotencyExecutor.ToResult(ApiErrors.Reply(context,
+                StatusCodes.Status503ServiceUnavailable, exception.Code, exception.Message,
+                exception.Retryable));
+        }
+        catch (JsonException)
+        {
+            return IdempotencyExecutor.ToResult(ApiErrors.Reply(context,
+                StatusCodes.Status503ServiceUnavailable, "REPLAY_BLOB_CORRUPT",
+                "Replay blob contains invalid JSON.", false));
+        }
 
         var input = new RaidReplayInputView(raidId.ToString("D"), targetSnapshotId.ToString("D"),
             loadoutSnapshotId.ToString("D"), attackerPower, armyPower, heroPower, gearPower,
@@ -308,24 +355,53 @@ public static partial class RaidAuthorityFeature
     }
 
     private static async Task<IResult> SubmitResultAsync(HttpContext context, Guid raidId,
-        TrustedRaidResultRequest request, IdempotencyExecutor idempotency)
+        TrustedRaidResultRequest request, IdempotencyExecutor idempotency,
+        NpgsqlDataSource dataSource, IRaidReplayBlobStore blobStore)
     {
         var serverId = RequestIdentityMiddleware.RaidServerId(context);
+        var idempotencyValidation = IdempotencyExecutor.ValidateRequest(context);
+        if (idempotencyValidation is not null)
+            return IdempotencyExecutor.ToResult(idempotencyValidation);
+        if (!Guid.TryParse(request.AllocationId, out var allocationId) ||
+            !Guid.TryParse(request.ResultId, out var resultId) ||
+            (string.IsNullOrWhiteSpace(request.Ticket) && string.IsNullOrWhiteSpace(request.WorkerId)) ||
+            request.Outcome is not ("FULL_VICTORY" or "EXTRACTED" or "DEFEAT") ||
+            request.BreachedRings is < 0 or > 3 || request.DurationMs is < 1000 or > 3600000 ||
+            !HashPattern.IsMatch(request.SimulationHash ?? string.Empty))
+            return IdempotencyExecutor.ToResult(ApiErrors.Reply(context,
+                StatusCodes.Status400BadRequest, "RAID_RESULT_INVALID",
+                "Trusted raid result failed schema validation."));
+        if (!TryValidateReplay(request, out var replayError))
+            return IdempotencyExecutor.ToResult(ApiErrors.Reply(context,
+                StatusCodes.Status400BadRequest, "RAID_RESULT_INVALID",
+                replayError ?? "Trusted replay failed schema validation."));
+
+        var stagingAuthorization = await AuthorizeReplayStagingAsync(
+            context, dataSource, raidId, allocationId, resultId, serverId,
+            request, context.RequestAborted);
+        if (stagingAuthorization is not null)
+            return IdempotencyExecutor.ToResult(stagingAuthorization);
+
+        RaidReplayBlobArtifact replayArtifact;
+        try
+        {
+            var commandBytes = JsonSerializer.SerializeToUtf8Bytes(request.Commands, JsonOptions);
+            replayArtifact = await blobStore.PutAsync(
+                raidId, resultId, request.CommandStreamHash, commandBytes,
+                context.RequestAborted);
+        }
+        catch (RaidReplayBlobException exception)
+        {
+            return IdempotencyExecutor.ToResult(ApiErrors.Reply(context,
+                exception.Retryable
+                    ? StatusCodes.Status503ServiceUnavailable
+                    : StatusCodes.Status409Conflict,
+                exception.Code, exception.Message, exception.Retryable));
+        }
+
         return await idempotency.ExecuteAsync(context, TrustedActorId, request,
             async (connection, transaction, cancellationToken) =>
             {
-                if (!Guid.TryParse(request.AllocationId, out var allocationId) ||
-                    !Guid.TryParse(request.ResultId, out var resultId) ||
-                    (string.IsNullOrWhiteSpace(request.Ticket) && string.IsNullOrWhiteSpace(request.WorkerId)) ||
-                    request.Outcome is not ("FULL_VICTORY" or "EXTRACTED" or "DEFEAT") ||
-                    request.BreachedRings is < 0 or > 3 || request.DurationMs is < 1000 or > 3600000 ||
-                    !HashPattern.IsMatch(request.SimulationHash ?? string.Empty))
-                    return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
-                        "RAID_RESULT_INVALID", "Trusted raid result failed schema validation.");
-                if (!TryValidateReplay(request, out var replayError))
-                    return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
-                        "RAID_RESULT_INVALID", replayError ?? "Trusted replay failed schema validation.");
-
                 var replay = await ReadExistingResultAsync(connection, transaction, raidId, cancellationToken);
                 if (replay is not null)
                 {
@@ -439,7 +515,6 @@ public static partial class RaidAuthorityFeature
                     request.CommandCount,
                     request.CommandStreamHash,
                 }, JsonOptions);
-                var commandStream = JsonSerializer.Serialize(request.Commands, JsonOptions);
                 var settledAt = DateTimeOffset.UtcNow;
                 await using var write = new NpgsqlCommand("""
                     INSERT INTO splice.raid_results
@@ -449,9 +524,11 @@ public static partial class RaidAuthorityFeature
                             @duration, @hash, @payout, @payload, @now);
                     INSERT INTO splice.raid_replays
                         (result_id, raid_id, simulation_version, tick_count, command_count,
-                         command_stream_hash, command_stream, created_at)
+                         command_stream_hash, command_stream, storage_provider, storage_key,
+                         storage_etag, storage_content_length, storage_encoding, created_at)
                     VALUES (@result, @raid, @simulationVersion, @tickCount, @commandCount,
-                            @commandStreamHash, @commandStream, @now);
+                            @commandStreamHash, NULL, @storageProvider, @storageKey,
+                            @storageEtag, @storageLength, @storageEncoding, @now);
                     UPDATE splice.raid_sessions
                        SET state='SETTLED', result_id=@result, completed_at=@now
                      WHERE id=@raid;
@@ -473,7 +550,11 @@ public static partial class RaidAuthorityFeature
                 write.Parameters.AddWithValue("tickCount", request.TickCount);
                 write.Parameters.AddWithValue("commandCount", request.CommandCount);
                 write.Parameters.AddWithValue("commandStreamHash", request.CommandStreamHash!);
-                write.Parameters.AddWithValue("commandStream", NpgsqlDbType.Jsonb, commandStream);
+                write.Parameters.AddWithValue("storageProvider", replayArtifact.Provider);
+                write.Parameters.AddWithValue("storageKey", replayArtifact.Key);
+                write.Parameters.AddWithValue("storageEtag", replayArtifact.ETag);
+                write.Parameters.AddWithValue("storageLength", replayArtifact.ContentLength);
+                write.Parameters.AddWithValue("storageEncoding", replayArtifact.Encoding);
                 write.Parameters.AddWithValue("payout", payout);
                 write.Parameters.AddWithValue("payload", NpgsqlDbType.Jsonb, payload);
                 write.Parameters.AddWithValue("now", settledAt);
@@ -500,6 +581,77 @@ public static partial class RaidAuthorityFeature
                         resultId.ToString("D"), request.Outcome, request.BreachedRings, payout,
                         deploymentPaused, wallet, settledAt.ToString("O")));
             });
+    }
+
+    private static async Task<ApiReply?> AuthorizeReplayStagingAsync(
+        HttpContext context, NpgsqlDataSource dataSource, Guid raidId, Guid allocationId,
+        Guid resultId, string serverId, TrustedRaidResultRequest request,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT r.state, a.state, a.raid_server_id, a.ticket_hash,
+                   COALESCE(a.worker_id,''), a.lease_expires_at,
+                   rr.id, rr.outcome, rr.breached_rings, rr.duration_ms,
+                   rr.simulation_hash, rp.simulation_version, rp.command_stream_hash
+              FROM splice.raid_sessions r
+              JOIN splice.raid_allocations a ON a.raid_id=r.id
+              LEFT JOIN splice.raid_results rr ON rr.raid_id=r.id
+              LEFT JOIN splice.raid_replays rp ON rp.result_id=rr.id
+             WHERE r.id=@raid AND a.id=@allocation
+            """, connection);
+        command.Parameters.AddWithValue("raid", raidId);
+        command.Parameters.AddWithValue("allocation", allocationId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+            return ApiErrors.Reply(context, StatusCodes.Status404NotFound,
+                "RAID_NOT_FOUND", "Active raid was not found.");
+
+        var raidState = reader.GetString(0);
+        var allocationState = reader.GetString(1);
+        var assignedServer = reader.GetString(2);
+        var ticketHash = reader.GetString(3);
+        var workerId = reader.GetString(4);
+        var leaseExpiresAt = reader.IsDBNull(5)
+            ? (DateTimeOffset?)null
+            : reader.GetFieldValue<DateTimeOffset>(5);
+        if (assignedServer != serverId)
+            return ApiErrors.Reply(context, StatusCodes.Status403Forbidden,
+                "RAID_WORKER_AUTH_INVALID",
+                "Raid result does not match the assigned Raid Server.");
+
+        if (!reader.IsDBNull(6))
+        {
+            var matches = reader.GetGuid(6) == resultId &&
+                          reader.GetString(7) == request.Outcome &&
+                          reader.GetInt32(8) == request.BreachedRings &&
+                          reader.GetInt32(9) == request.DurationMs &&
+                          reader.GetString(10) == request.SimulationHash &&
+                          !reader.IsDBNull(11) &&
+                          reader.GetString(11) == request.SimulationVersion &&
+                          !reader.IsDBNull(12) &&
+                          reader.GetString(12) == request.CommandStreamHash;
+            return matches
+                ? null
+                : ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                    "RAID_RESULT_CONFLICT",
+                    "Raid already has a different immutable result.");
+        }
+
+        var trustedTicket = !string.IsNullOrWhiteSpace(request.Ticket) &&
+                            TicketMatches(ticketHash, request.Ticket);
+        var trustedWorker = !string.IsNullOrWhiteSpace(request.WorkerId) &&
+                            workerId == request.WorkerId.Trim() &&
+                            leaseExpiresAt > DateTimeOffset.UtcNow;
+        if (!trustedTicket && !trustedWorker)
+            return ApiErrors.Reply(context, StatusCodes.Status403Forbidden,
+                "RAID_WORKER_AUTH_INVALID",
+                "Raid result does not match the assigned worker lease.");
+        return raidState == "ACTIVE" && allocationState == "CLAIMED"
+            ? null
+            : ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                "RAID_NOT_ACTIVE",
+                "Only an active claimed raid can stage a replay.");
     }
 
     private static TrustedRaidStartView StartView(Guid raidId, Guid allocationId, Guid snapshotId,
@@ -541,12 +693,30 @@ public static partial class RaidAuthorityFeature
             error = "Replay metadata, version, duration, or command count is invalid.";
             return false;
         }
+        return TryValidateCommandStream(request.Commands, request.TickCount,
+            request.CommandCount, request.Outcome, request.BreachedRings,
+            request.CommandStreamHash!, out error);
+    }
 
-        var previousTick = -1;
-        for (var index = 0; index < request.Commands.Count; index++)
+    private static bool TryValidateCommandStream(
+        IReadOnlyList<RaidReplayCommandRequest>? commands, int tickCount,
+        int commandCount, string outcome, int breachedRings,
+        string commandStreamHash, out string? error)
+    {
+        error = null;
+        if (commands is null || commands.Count != commandCount ||
+            commandCount is < 1 or > MaximumReplayCommands ||
+            tickCount is < 1 or > 36000 ||
+            !HashPattern.IsMatch(commandStreamHash ?? string.Empty))
         {
-            var command = request.Commands[index];
-            if (command is null || command.Tick < previousTick || command.Tick > request.TickCount ||
+            error = "Replay command metadata is invalid.";
+            return false;
+        }
+        var previousTick = -1;
+        for (var index = 0; index < commands.Count; index++)
+        {
+            var command = commands[index];
+            if (command is null || command.Tick < previousTick || command.Tick > tickCount ||
                 command.Value < 0 || !CommandTypes.Contains(command.Type ?? string.Empty) ||
                 !CommandIdentityPattern.IsMatch(command.Actor ?? string.Empty) ||
                 !CommandIdentityPattern.IsMatch(command.Target ?? string.Empty))
@@ -557,20 +727,20 @@ public static partial class RaidAuthorityFeature
             previousTick = command.Tick;
         }
 
-        var final = request.Commands[^1];
-        if (final.Tick != request.TickCount || final.Type != "COMPLETE" ||
-            final.Actor != "simulation" || final.Target != request.Outcome ||
-            final.Value != request.BreachedRings)
+        var final = commands[^1];
+        if (final.Tick != tickCount || final.Type != "COMPLETE" ||
+            final.Actor != "simulation" || final.Target != outcome ||
+            final.Value != breachedRings)
         {
             error = "Replay completion command does not match the submitted result.";
             return false;
         }
 
-        var canonical = string.Join("\n", request.Commands.Select(command =>
+        var canonical = string.Join("\n", commands.Select(command =>
             string.Join("|", command.Tick, command.Type, command.Actor, command.Target, command.Value)));
         if (!CryptographicOperations.FixedTimeEquals(
                 Encoding.ASCII.GetBytes(Sha256(canonical)),
-                Encoding.ASCII.GetBytes(request.CommandStreamHash ?? string.Empty)))
+                Encoding.ASCII.GetBytes(commandStreamHash ?? string.Empty)))
         {
             error = "Replay command stream hash verification failed.";
             return false;
