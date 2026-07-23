@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Splice.Backend;
 using Splice.Base;
 using Splice.Core;
+using Splice.RaidWorker;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -32,6 +33,7 @@ namespace Splice.UI
         [Min(0)] [SerializeField] private int outerExtractionPayout = 60;
         [Min(0)] [SerializeField] private int innerExtractionPayout = 90;
         [Min(0)] [SerializeField] private int coreExtractionPayout = 120;
+        [Min(1f)] [SerializeField] private float serverReadyTimeoutSeconds = 8f;
 
         private bool confirming;
         private bool preparing;
@@ -57,7 +59,7 @@ namespace Splice.UI
             if (cancelButtonLabel != null) cancelButtonLabel.text = "CANCEL";
         }
 
-        private void Start() => _ = InitializeAsync();
+        private void Start() => _ = InitializeAndRouteAsync();
 
         private void OnDestroy()
         {
@@ -83,6 +85,20 @@ namespace Splice.UI
             {
                 // Scene teardown owns cancellation.
             }
+        }
+
+        private async Task InitializeAndRouteAsync()
+        {
+            await InitializeAsync();
+            // The product route selects a target in Town Command. Do not ask the player to choose
+            // "Invader" again in RaidArena; go straight to the explicit stake/payout contract.
+            // Incoming-defense and history-replay routes keep their dedicated presentation.
+            if (lifetimeCancellation == null || lifetimeCancellation.IsCancellationRequested) return;
+            await Task.Yield();
+            var incoming = RaidContext.Target?.isIncomingDefense == true;
+            if (PrototypeFlowContract.ShouldAutoOpenRaidContract(
+                    RaidContext.HasTarget, incoming, RaidReplayLaunchContext.HasPendingHistoryReplay))
+                await OpenOfferAsync();
         }
 
         private async Task OpenOfferAsync()
@@ -181,16 +197,14 @@ namespace Splice.UI
 
             BackendOperationResult readiness = null;
             if (raidSceneAdapter != null)
-            {
                 try
                 {
-                    readiness = await raidSceneAdapter.CanStartPreparedRaidAsync(lifetimeCancellation.Token);
+                    readiness = await WaitForRaidServerAsync();
                 }
                 catch (OperationCanceledException)
                 {
                     return;
                 }
-            }
             if (readiness?.success != true)
             {
                 confirming = false;
@@ -281,6 +295,24 @@ namespace Splice.UI
             if (offerPanel != null) offerPanel.SetActive(false);
             if (sideSelectionController != null) sideSelectionController.ConfirmMonsterRaid();
         }
+
+        private async Task<BackendOperationResult> WaitForRaidServerAsync()
+        {
+            var deadline = Time.realtimeSinceStartup + Mathf.Max(1f, serverReadyTimeoutSeconds);
+            BackendOperationResult readiness;
+            do
+            {
+                readiness = await raidSceneAdapter.CanStartPreparedRaidAsync(lifetimeCancellation.Token);
+                if (readiness.success || !IsTransientReadinessError(readiness.error)) return readiness;
+                feedback = "CONNECTING TO LOCAL RAID SERVER…";
+                RefreshOffer();
+                await Task.Delay(100, lifetimeCancellation.Token);
+            } while (Time.realtimeSinceStartup < deadline);
+            return readiness;
+        }
+
+        public static bool IsTransientReadinessError(string error) =>
+            string.Equals(error, "Raid snapshot server is not ready.", StringComparison.Ordinal);
 
         private void ApplyQuote(RaidQuoteDto quote)
         {

@@ -9,6 +9,9 @@ EditorBuildSettings:
     path: Assets/=======SCENES/Bootstrap.unity
     guid: ccd5a5bde4ecf4e6a838553d458f9ecc
   - enabled: 1
+    path: Assets/=======SCENES/BuildZone.unity
+    guid: e07678469a09e9e4f80f9b518d5a4984
+  - enabled: 1
     path: Assets/=======SCENES/RaidArena.unity
     guid: 25c4e79f648f94185ac8859c551e1f0c
   - enabled: 1

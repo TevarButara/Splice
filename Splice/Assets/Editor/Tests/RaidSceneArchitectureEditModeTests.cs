@@ -6,6 +6,7 @@ using Splice.Editor.Validation;
 using Splice.RaidWorker;
 using Splice.Scenes;
 using Splice.Validation;
+using Splice.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine.SceneManagement;
@@ -20,6 +21,16 @@ namespace Splice.Tests.EditMode
             var report = new ContentValidationReport();
             RaidSceneArchitectureValidator.Validate(report);
             Assert.That(report.ErrorCount, Is.Zero, report.DetailedSummary());
+        }
+
+        [Test]
+        public void BuildSettings_EnableCompletePrototypeNavigationContract()
+        {
+            var enabledNames = EditorBuildSettings.scenes
+                .Where(scene => scene.enabled)
+                .Select(scene => System.IO.Path.GetFileNameWithoutExtension(scene.path));
+            Assert.That(PrototypeFlowContract.ValidateEnabledSceneNames(enabledNames, out var missing),
+                Is.True, "Missing prototype scenes: " + string.Join(", ", missing));
         }
 
         [Test]

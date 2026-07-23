@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Splice.Characters;
 using Splice.Backend;
+using Splice.Base;
 using Splice.Core;
 using Splice.Data;
 using Splice.Network;
@@ -61,11 +62,20 @@ namespace Splice.RaidWorker
                 lifecycle.Begin(this);
                 yield break;
             }
-            if (!autoStartOnPlay || (developmentBuildOnly && !Application.isEditor && !Debug.isDebugBuild))
+            // A selected local target is waiting for the explicit War Gem contract. The Editor demo
+            // must never race that product route, close its modal, or fabricate a completed replay.
+            if (!ShouldAutoStartDevelopmentDemo(autoStartOnPlay,
+                    !developmentBuildOnly || Application.isEditor || Debug.isDebugBuild,
+                    RaidContext.HasTarget, RaidSessionContext.Current != null,
+                    RaidReplayLaunchContext.HasPendingHistoryReplay))
                 yield break;
             if (initialDelaySeconds > 0f) yield return new WaitForSecondsRealtime(initialDelaySeconds);
             BeginLocalDemo();
         }
+
+        public static bool ShouldAutoStartDevelopmentDemo(bool autoStart, bool developmentAllowed,
+            bool hasSelectedTarget, bool hasSession, bool hasPendingReplay) =>
+            autoStart && developmentAllowed && !hasSelectedTarget && !hasSession && !hasPendingReplay;
 
         private void OnDestroy()
         {

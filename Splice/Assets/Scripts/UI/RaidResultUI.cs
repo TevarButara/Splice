@@ -17,6 +17,7 @@ namespace Splice.UI
         [Tooltip("โชว์ loot ที่ได้จากการบุก (5.4) — เว้นว่างได้")]
         [SerializeField] private TMP_Text lootLabel;
         [SerializeField] private Button playAgainButton;
+        private Button returnToTownButton;
 
         private RaidOutcome shownOutcome = RaidOutcome.InProgress;
         private RaidEndReason shownReason = RaidEndReason.None;
@@ -25,6 +26,7 @@ namespace Splice.UI
         {
             if (resultPanel != null) resultPanel.SetActive(false);
             if (playAgainButton != null) playAgainButton.onClick.AddListener(ReloadScene);
+            BuildReturnToTownButton();
         }
 
         private void OnEnable()
@@ -106,6 +108,34 @@ namespace Splice.UI
             if (net != null && (net.IsListening || net.IsServer || net.IsClient)) net.Shutdown();
 
             SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        }
+
+        private void ReturnToTown() => PrototypeFlowRouter.LoadHub();
+
+        private void BuildReturnToTownButton()
+        {
+            if (playAgainButton == null || resultPanel == null) return;
+            returnToTownButton = Instantiate(playAgainButton, playAgainButton.transform.parent);
+            returnToTownButton.name = "ReturnToTownButton";
+            returnToTownButton.onClick.RemoveAllListeners();
+            returnToTownButton.onClick.AddListener(ReturnToTown);
+            var returnLabel = returnToTownButton.GetComponentInChildren<TMP_Text>(true);
+            if (returnLabel != null) returnLabel.text = "RETURN TO TOWN";
+            var legacyReturnLabel = returnToTownButton.GetComponentInChildren<Text>(true);
+            if (legacyReturnLabel != null) legacyReturnLabel.text = "RETURN TO TOWN";
+
+            var retryRect = playAgainButton.GetComponent<RectTransform>();
+            var returnRect = returnToTownButton.GetComponent<RectTransform>();
+            if (retryRect == null || returnRect == null) return;
+            var original = retryRect.anchoredPosition;
+            retryRect.anchoredPosition = original + new Vector2(-190f, 0f);
+            returnRect.anchoredPosition = original + new Vector2(190f, 0f);
+            retryRect.sizeDelta = new Vector2(Mathf.Min(330f, retryRect.sizeDelta.x), retryRect.sizeDelta.y);
+            returnRect.sizeDelta = retryRect.sizeDelta;
+            var retryLabel = playAgainButton.GetComponentInChildren<TMP_Text>(true);
+            if (retryLabel != null) retryLabel.text = "RAID AGAIN";
+            var legacyRetryLabel = playAgainButton.GetComponentInChildren<Text>(true);
+            if (legacyRetryLabel != null) legacyRetryLabel.text = "RAID AGAIN";
         }
     }
 }

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Splice.Scenes;
+using Splice.UI;
 using Splice.Validation;
 using UnityEditor;
 using UnityEngine;
@@ -15,6 +16,7 @@ namespace Splice.Editor.Validation
             var required = new[]
             {
                 BootstrapScenePath,
+                $"Assets/=======SCENES/{PrototypeFlowContract.HubScene}.unity",
                 RaidSceneCompositionController.ArenaScenePath,
                 RaidSceneCompositionController.AttackerScenePath,
                 RaidSceneCompositionController.DefenderScenePath,

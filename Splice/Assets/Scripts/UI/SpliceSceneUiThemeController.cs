@@ -146,6 +146,10 @@ namespace Splice.UI
 
         private void LayoutBootstrap()
         {
+            foreach (var canvas in GetComponentsInChildren<Canvas>(true))
+                if (canvas != null && canvas.isRootCanvas)
+                    ConfigurePrototypeCanvasScaler(canvas);
+
             var chooseCanvas = FindDeep(transform, "CanvasChooseSide");
             if (chooseCanvas != null)
             {
@@ -169,6 +173,17 @@ namespace Splice.UI
 
             var topCanvas = FindDeep(transform, "CanvasTOP");
             if (topCanvas != null) LayoutRaidTopBar(topCanvas);
+        }
+
+        public static void ConfigurePrototypeCanvasScaler(Canvas canvas)
+        {
+            if (canvas == null) return;
+            var scaler = canvas.GetComponent<CanvasScaler>();
+            if (scaler == null) scaler = canvas.gameObject.AddComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = .5f;
         }
 
         private void SyncSelectionBackdrop()

@@ -11,7 +11,7 @@
 ## สถานะปัจจุบัน
 
 - Scene Architecture Refactor เสร็จแล้ว
-- `Bootstrap` โหลด `RaidArena` และ additive role presentation
+- `Bootstrap` โหลด `BuildZone`; ผู้เล่นเข้า Raid ผ่าน Target/Contract flow แล้ว `RaidArena` จึงโหลด additive role presentation
 - แยก `RaidAttackerPresentation` / `RaidDefenderPresentation`
 - DefenderCamera ใช้มุม MonCamera แบบกลับฝั่ง 180°
 - Visible Incoming Raid ทำงานจริง: Hero, 3 waves, 11 raiders และ Defense Report
@@ -40,20 +40,28 @@
 - C4D1B Backup/Restore Drill เสร็จแล้วแบบ local-first: exported-snapshot bundle ครอบ DB + referenced blobs, private/no-overwrite restore, ledger/hash/fingerprint/replay verification และ corrupt/missing fail-closed
 - C4D1C Container + External Observability เสร็จแล้วแบบ local-first: liveness/readiness แยกกัน, protected Prometheus metrics, non-root/read-only API image และ Compose สำหรับ PostgreSQL/Prometheus/Alertmanager ที่ไม่เปิด DB port และไม่ใช้ cloud
 - worker queue ใช้ `READ COMMITTED + FOR UPDATE SKIP LOCKED`; เส้นทางเงินยังคง `SERIALIZABLE` พร้อม bounded retry เพื่อให้ scale โดยไม่ลดความถูกต้องของ ledger
+- Prototype visual/meta loop ปิดครบแล้ว: first-run onboarding → Town → Target → Raid Contract → Raid → Result → Return to Town และ Defense History → Verified Replay/Revenge
+- `BuildZone` มี Prototype Meta Hub แบบ responsive พร้อม wallet, target cards, loading/error/empty/retry states และ stake/payout หน่วยหลักร้อย
+- dev auto-demo ถูก guard ไม่ให้แข่งกับ target/session/replay จริง; local raid startup มี bounded retry เฉพาะ transient readiness race
+- Result UI มี `RAID AGAIN` และ `RETURN TO TOWN`; route กลับเมืองล้าง transient raid contexts อย่างชัดเจน
 
 ## ความพร้อมโดยประมาณ
 
-- Prototype ที่เล่นและสาธิต loop หลักได้: 74–76%
-- MVP สำหรับ closed playtest ที่มี backend จริง: 62–65%
-- Production-ready สำหรับขายและรองรับผู้เล่นจำนวนมาก: 44–47%
+- Prototype ที่เล่นและสาธิต loop หลักได้ตาม scope: **100%**
+- MVP สำหรับ closed playtest ที่มี backend จริง: 70–73%
+- Production-ready สำหรับขายและรองรับผู้เล่นจำนวนมาก: 46–49%
 - เปอร์เซ็นต์ production นับรวม security hardening, observability, load/soak test, backup/restore, deployment automation, live operations, content/polish และ store compliance—not แค่ feature ที่มองเห็นใน Unity
+- Prototype 100% หมายถึง feature-complete สำหรับ internal demo/validation ตาม acceptance ปัจจุบัน ไม่ได้หมายถึงพร้อมขาย; final art/UI asset, production infrastructure และ store/live-ops acceptance ยังอยู่นอก scope
 
 ## Verification ล่าสุด
 
 - Unity compile: Error 0
-- EditMode: 73/73 passed
-- PlayMode: 4/4 passed
+- EditMode: 88/88 passed
+- PlayMode: 7/7 passed
 - Content Validator: Errors 0, Warnings 0
+- clean macOS Development Player build ผ่าน: 0 errors, output 435.21 MB
+- executable smoke เปิด Bootstrap → BuildZone → Prototype Hub ได้จริง, first-launch faction ถูกเลือก และ embedded live-content fallback ทำงานเมื่อ local server ไม่เปิด
+- backend Release build ผ่าน 0 errors / 0 warnings; C1 ledger และ C2–C4D1 integration ผ่านรอบสุดท้าย
 - Target Pool diagnostic: PASS; immutable V1 คงเดิมหลัง commit V2
 - Pre-debit snapshot gate ปฏิเสธ snapshot ที่หายหรือ identity/revision ไม่ตรงก่อนหัก stake
 - BuildZone และ Bootstrap Incoming Raid runtime smoke test ผ่าน, Console Error 0
@@ -102,10 +110,10 @@
 
 ## งานถัดไป
 
-1. ปิด Prototype visual loop: หน้า Defense History/Revenge UI จริง และเชื่อม Town → Target → Raid → Result → Replay/Revenge ครบวงจร
-2. Prototype polish: onboarding, loading/error states, feedback, balance เบื้องต้น และ executable smoke ตั้งแต่ต้นจนจบ
+1. ทำ final visual/UI art pass เมื่อได้รับ asset จากผู้ใช้ โดยคง interaction contract และ automated regression เดิม
+2. เตรียม closed playtest: tutorial content, analytics events, balance cohort, device matrix และ crash reporting
 3. C4D1D: production identity/mTLS, secret injection, image signing/scanning และ production alert routing
-4. เปลี่ยน `IRaidReplayBlobStore` เป็น private S3-compatible adapter เมื่อมี production-like environment; local filesystem ใช้เฉพาะ dev/test
+4. เปลี่ยน `IRaidReplayBlobStore` เป็น private S3-compatible adapter เมื่อมี production-like environment; local filesystemใช้เฉพาะ dev/test
 5. ทำ distributed load/soak test เมื่อมี production-like environment; local harness ปัจจุบันเป็น baseline ไม่ใช่ capacity guarantee
 
 ## สิ่งที่ยังห้ามใน production
