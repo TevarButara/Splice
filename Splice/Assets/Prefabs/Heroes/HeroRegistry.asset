@@ -13,4 +13,5 @@ MonoBehaviour:
   m_Name: HeroRegistry
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.HeroRegistrySO
   heroes:
+  - {fileID: 11400000, guid: d76b6966623d08d4fba109db7aeb2339, type: 2}
   - {fileID: 11400000, guid: f32b03e742ce7405d9de5f6f7177f874, type: 2}

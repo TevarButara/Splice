@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b930d5a413314987a6b7544a46a7f39c, type: 3}
+  m_Name: Skill1-Leaf Slash
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.HeroAbilityDefinitionSO
+  abilityId: 'rowan_Leaf_Slash '
+  displayName: Leaf Slash
+  description: 
+  icon: {fileID: 0}
+  castRange: 5
+  effectRadius: 2.5
+  damage: 300
+  cooldownSeconds: 4
+  castEffectPrefab: {fileID: 424434923081868980, guid: fe0979d83729d944c9c8e53b41c4d2d7, type: 3}
+  castEffectLifetime: 2
