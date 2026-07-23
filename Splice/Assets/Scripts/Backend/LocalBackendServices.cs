@@ -421,6 +421,65 @@ namespace Splice.Backend
 
     public sealed class LocalRaidReportService : IRaidReportService
     {
+        public Task<RaidDefenseHistoryPageDto> GetDefenseHistoryAsync(int limit,
+            string beforeUtc, string beforeRaidId, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var history = LocalRaidReportStore.LoadDefenseHistory(PlayerProfile.AccountId);
+            var page = new RaidDefenseHistoryPageDto();
+            var take = Math.Clamp(limit, 1, 50);
+            for (var index = 0; index < history.Count && page.items.Count < take; index++)
+            {
+                var report = history[index];
+                if (report == null) continue;
+                page.items.Add(new RaidDefenseHistoryItemDto
+                {
+                    raidId = report.sourceRaidId,
+                    reportId = report.reportId,
+                    attackerPlayerId = report.attackerAccountId,
+                    attackerDisplayName = report.attackerAccountId,
+                    defenderPlayerId = report.defenderAccountId,
+                    targetSnapshotId = report.defenderSnapshotId,
+                    state = "SETTLED",
+                    outcome = OutcomeName(report.outcome),
+                    breachedRings = report.breachedRings,
+                    entryStake = report.entryStake,
+                    attackerPayout = report.payout,
+                    defenderWarGemDelta = report.entryStake - report.payout,
+                    replayAvailable = false,
+                    completedUtc = report.completedUtc,
+                    revengeAvailable = report.HasRevengeTarget,
+                    revengeState = report.HasRevengeTarget ? "READY" : "TARGET_UNAVAILABLE",
+                    revengeCooldownUntilUtc = string.Empty,
+                });
+            }
+            return Task.FromResult(page);
+        }
+
+        public Task<RaidRevengeTargetDto> PrepareRevengeAsync(string sourceRaidId,
+            string idempotencyKey, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+                throw new ArgumentException("Idempotency key is required.", nameof(idempotencyKey));
+            var success = LocalRaidReportStore.TryPrepareRevenge(sourceRaidId,
+                PlayerProfile.AccountId, DateTime.UtcNow, out var target, out var error);
+            return Task.FromResult(new RaidRevengeTargetDto
+            {
+                success = success,
+                error = error,
+                sourceRaidId = sourceRaidId,
+                requestId = target?.revengeRequestId ?? string.Empty,
+                targetDeploymentId = target?.deploymentId ?? target?.targetId ?? string.Empty,
+                targetSnapshotId = target?.snapshotId ?? string.Empty,
+                targetOwnerAccountId = target?.ownerAccountId ?? string.Empty,
+                targetDisplayName = target?.displayName ?? string.Empty,
+                targetFactionId = target?.factionId ?? string.Empty,
+                targetPower = target?.basePowerRating ?? 0,
+                expiresUtc = DateTime.UtcNow.AddMinutes(10).ToString("O"),
+            });
+        }
+
         public Task<RaidReportWriteResult> RecordCompletedAsync(RaidSessionIdentity session,
             RaidStakeTransaction transaction, int goldLoot, CancellationToken cancellationToken)
         {
@@ -466,6 +525,13 @@ namespace Splice.Backend
                 requestingAccountId, raidId, utcNow, out var error);
             return Task.FromResult(new RevengeGateResult { success = success, error = error });
         }
+
+        private static string OutcomeName(RaidOutcome outcome) => outcome switch
+        {
+            RaidOutcome.FullVictory => "FULL_VICTORY",
+            RaidOutcome.Extracted => "EXTRACTED",
+            _ => "DEFEAT",
+        };
     }
 
     public sealed class LocalRaidSettlementService : IRaidSettlementService
@@ -581,7 +647,7 @@ namespace Splice.Backend
             wallet = new RemoteWalletService(client);
             townSnapshots = new RemoteTownSnapshotService(client);
             raidContracts = new RemoteRaidContractService(client);
-            raidReports = new ClientAuthorityGuardRaidReportService();
+            raidReports = new RemoteRaidReportService(client);
             raidSettlement = new ClientAuthorityGuardRaidSettlementService();
         }
 

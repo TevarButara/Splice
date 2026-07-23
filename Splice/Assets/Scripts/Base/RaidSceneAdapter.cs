@@ -116,7 +116,7 @@ namespace Splice.Base
                 if (!snapshotGate.success) return snapshotGate;
             }
             var session = RaidSessionContext.Current;
-            if (session != null && session.isRevenge)
+            if (session != null && session.isRevenge && !SpliceServiceHub.IsRemoteMeta)
             {
                 var gate = await SpliceServiceHub.RaidReports.CanStartRevengeAsync(
                     session.revengeReportId, session.revengeRequestId,
@@ -142,7 +142,7 @@ namespace Splice.Base
             if (!RaidSessionContext.TryBindAndStart(economyRaidId, RaidContext.Target,
                     LastContractReport, out var error)) return OperationFailed(error);
             var session = RaidSessionContext.Current;
-            if (session != null && session.isRevenge)
+            if (session != null && session.isRevenge && !SpliceServiceHub.IsRemoteMeta)
             {
                 var mark = await SpliceServiceHub.RaidReports.MarkRevengeStartedAsync(
                     session.revengeReportId, session.revengeRequestId, PlayerProfile.AccountId,

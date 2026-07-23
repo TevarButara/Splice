@@ -15,6 +15,7 @@ if (args.Length != 1) throw new ArgumentException("PostgreSQL connection string 
 var connectionString = args[0];
 
 const string attackerId = "11000000-0000-0000-0000-000000000001";
+const string defenderAlphaId = "11000000-0000-0000-0000-000000000002";
 const string fairTargetId = "41000000-0000-0000-0000-000000000001";
 const string highTargetAId = "41000000-0000-0000-0000-000000000002";
 const string highTargetBId = "41000000-0000-0000-0000-000000000003";
@@ -244,8 +245,10 @@ try
     Console.WriteLine("C2 API integration tests: PASS (auth, wallet, quote, escrow, restart, reconciliation, idempotency, concurrency)");
     await RunC3Async(host, connectionString);
     Console.WriteLine("C3 town integration tests: PASS (draft, validation, checkout, immutable snapshot, deployment, escrow, concurrency)");
-    await RunC4Async(host, connectionString);
+    var settledRaidId = await RunC4Async(host, connectionString);
     Console.WriteLine("C4 raid authority tests: PASS (allocation, trusted result, verified immutable replay, settlement, recovery)");
+    await RunC4C2FAsync(host, connectionString, settledRaidId);
+    Console.WriteLine("C4C2F history/revenge tests: PASS (defender visibility, replay, target binding, cooldown)");
     var workerExecutable = Environment.GetEnvironmentVariable("SPLICE_UNITY_WORKER_EXECUTABLE");
     if (!string.IsNullOrWhiteSpace(workerExecutable))
     {
@@ -288,10 +291,13 @@ static async Task<TestHost> StartAsync(string connectionString)
 }
 
 static async Task<ApiResult> SendAsync(HttpClient client, HttpMethod method, string path,
-    object? body, string? idempotencyKey, bool authenticated = true)
+    object? body, string? idempotencyKey, bool authenticated = true,
+    string? authenticatedPlayerId = null)
 {
     using var request = new HttpRequestMessage(method, path);
-    if (authenticated) request.Headers.Authorization = new("Bearer", $"dev:{attackerId}");
+    if (authenticated)
+        request.Headers.Authorization = new("Bearer",
+            $"dev:{authenticatedPlayerId ?? attackerId}");
     request.Headers.Add("X-Request-Id", Guid.NewGuid().ToString("D"));
     if (idempotencyKey is not null) request.Headers.Add("Idempotency-Key", idempotencyKey);
     if (body is not null) request.Content = JsonContent.Create(body);
@@ -335,14 +341,17 @@ static async Task SeedAsync(string connectionString)
           raid_power=EXCLUDED.raid_power, enabled=true,
           content_version=EXCLUDED.content_version, combat_payload=EXCLUDED.combat_payload;
         INSERT INTO player_heroes (player_id, hero_content_id, level) VALUES
-          ('11000000-0000-0000-0000-000000000001','hero/hero_test',1);
+          ('11000000-0000-0000-0000-000000000001','hero/hero_test',1),
+          ('11000000-0000-0000-0000-000000000002','hero/hero_test',1);
         INSERT INTO player_gear_items (id, owner_player_id, gear_content_id, level) VALUES
           ('61000000-0000-0000-0000-000000000001','11000000-0000-0000-0000-000000000001','gear/test-blade',1),
           ('61000000-0000-0000-0000-000000000002','11000000-0000-0000-0000-000000000002','gear/test-blade',1);
 
         INSERT INTO ledger_accounts (id, account_key, owner_type, owner_id, currency_code) VALUES
           ('21000000-0000-0000-0000-000000000001', 'test:c2:attacker:war-gem', 'PLAYER',
-           '11000000-0000-0000-0000-000000000001', 'WAR_GEM')
+           '11000000-0000-0000-0000-000000000001', 'WAR_GEM'),
+          ('21000000-0000-0000-0000-000000000012', 'test:c4c2f:defender:war-gem', 'PLAYER',
+           '11000000-0000-0000-0000-000000000002', 'WAR_GEM')
         ON CONFLICT (id) DO NOTHING;
 
         SELECT post_ledger_transaction(
@@ -350,6 +359,11 @@ static async Task SeedAsync(string connectionString)
           jsonb_build_array(
             jsonb_build_object('account_id','00000000-0000-0000-0000-000000000201','amount',-1000),
             jsonb_build_object('account_id','21000000-0000-0000-0000-000000000001','amount',1000)));
+        SELECT post_ledger_transaction(
+          'test:c4c2f:mint:defender', 'TEST_MINT', 'TEST', NULL,
+          jsonb_build_array(
+            jsonb_build_object('account_id','00000000-0000-0000-0000-000000000201','amount',-1000),
+            jsonb_build_object('account_id','21000000-0000-0000-0000-000000000012','amount',1000)));
 
         INSERT INTO towns (id, owner_player_id, faction_id) VALUES
           ('31000000-0000-0000-0000-000000000001','11000000-0000-0000-0000-000000000002','human'),
@@ -425,6 +439,18 @@ static async Task ExpireQuoteAsync(string connectionString, string quoteId)
     await command.ExecuteNonQueryAsync();
 }
 
+static async Task ExpireRevengeRequestAsync(string connectionString, string requestId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand(
+        "UPDATE splice.raid_revenge_requests SET expires_at = clock_timestamp() - interval '1 minute' WHERE id = @id",
+        connection);
+    command.Parameters.AddWithValue("id", Guid.Parse(requestId));
+    Equal(1, await command.ExecuteNonQueryAsync(),
+        "test expires exactly one prepared revenge request");
+}
+
 static async Task BackdateRaidAsync(string connectionString, string raidId)
 {
     await using var connection = new NpgsqlConnection(connectionString);
@@ -456,7 +482,7 @@ static async Task AssertDatabaseAsync(string connectionString)
     Equal(0L, reader.GetInt64(3), "no open raid remains after refunds");
 }
 
-static async Task RunC4Async(TestHost host, string connectionString)
+static async Task<string> RunC4Async(TestHost host, string connectionString)
 {
     var quote = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
         QuoteBody(fairTargetId), "quote:c4:full");
@@ -640,6 +666,176 @@ static async Task RunC4Async(TestHost host, string connectionString)
     Equal(980L, Long(await SendAsync(host.Client, HttpMethod.Get, "/v1/wallet", null, null),
         "warGemBalance"), "infrastructure timeout refunds attacker stake");
     await AssertC4DatabaseAsync(connectionString, raidId, recoveryRaidId);
+    return raidId;
+}
+
+static async Task RunC4C2FAsync(TestHost host, string connectionString, string sourceRaidId)
+{
+    var attackerHistory = await SendAsync(host.Client, HttpMethod.Get,
+        "/v1/raid-history/defense?limit=20", null, null);
+    Equal(0, Element(attackerHistory, "items").GetArrayLength(),
+        "attacker cannot read a raid as incoming defense");
+
+    var history = await SendAsync(host.Client, HttpMethod.Get,
+        "/v1/raid-history/defense?limit=20", null, null,
+        authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.OK, history.Status, "defender reads incoming raid history");
+    Equal(1, Element(history, "items").GetArrayLength(),
+        "defender history returns only its settled incoming raid");
+    var historyItem = Element(history, "items")[0];
+    Equal(sourceRaidId, historyItem.GetProperty("raidId").GetString()!,
+        "history pins the authoritative source raid");
+    Equal(attackerId, historyItem.GetProperty("attackerPlayerId").GetString()!,
+        "history identifies the original attacker");
+    Equal(-80L, historyItem.GetProperty("defenderWarGemDelta").GetInt64(),
+        "history reports defender loss from server settlement");
+    True(historyItem.GetProperty("replayAvailable").GetBoolean(),
+        "defender history advertises verified replay");
+    Equal("READY", historyItem.GetProperty("revengeState").GetString()!,
+        "original attacker has a currently raidable town");
+
+    var defenderReplay = await SendAsync(host.Client, HttpMethod.Get,
+        $"/v1/raids/{sourceRaidId}/replay", null, null,
+        authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.OK, defenderReplay.Status,
+        "original defender may read the same immutable verified replay");
+
+    var forbidden = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raid-history/{sourceRaidId}/revenge",
+        new { sourceRaidId }, "revenge:c4c2f:forbidden");
+    Equal(HttpStatusCode.Forbidden, forbidden.Status,
+        "original attacker cannot issue revenge for the defender");
+    ErrorCode(forbidden, "REVENGE_OWNER_REQUIRED");
+
+    var prepareKey = "revenge:c4c2f:prepare";
+    var prepared = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raid-history/{sourceRaidId}/revenge",
+        new { sourceRaidId }, prepareKey, authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.Created, prepared.Status, "defender prepares server-bound revenge");
+    var requestId = String(prepared, "requestId");
+    var expectedTargetDeploymentId =
+        await ActiveDeploymentIdAsync(connectionString, attackerId);
+    Equal(expectedTargetDeploymentId, String(prepared, "targetDeploymentId"),
+        "revenge targets the original attacker's active deployment");
+    Equal(attackerId, String(prepared, "targetOwnerAccountId"),
+        "revenge target ownership is server-derived");
+    var preparedReplay = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raid-history/{sourceRaidId}/revenge",
+        new { sourceRaidId }, prepareKey, authenticatedPlayerId: defenderAlphaId);
+    Equal(requestId, String(preparedReplay, "requestId"),
+        "prepare retry replays one request identity");
+    var secondPrepare = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raid-history/{sourceRaidId}/revenge",
+        new { sourceRaidId }, "revenge:c4c2f:prepare:other",
+        authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.Conflict, secondPrepare.Status,
+        "different key cannot create a second live revenge request");
+    ErrorCode(secondPrepare, "REVENGE_REQUEST_PENDING");
+    await ExpireRevengeRequestAsync(connectionString, requestId);
+    prepared = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raid-history/{sourceRaidId}/revenge",
+        new { sourceRaidId }, "revenge:c4c2f:prepare:after-expiry",
+        authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.Created, prepared.Status,
+        "expired prepared request is cancelled and replaced safely");
+    var replacementRequestId = String(prepared, "requestId");
+    False(replacementRequestId == requestId,
+        "replacement receives a fresh unpredictable request identity");
+    requestId = replacementRequestId;
+
+    var revengeLoadoutId = "51000000-0000-0000-0000-000000000002";
+    var revengeLoadout = await SendAsync(host.Client, HttpMethod.Put,
+        $"/v1/attacker-loadouts/{revengeLoadoutId}",
+        new
+        {
+            factionId = "1",
+            heroId = "hero_test",
+            gearInstanceIds = new[] { foreignGearId },
+            entries = new[] { new { cardId = "1/1", count = 2 } },
+        }, "loadout:c4c2f:defender", authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.OK, revengeLoadout.Status,
+        "defender saves a server-validated revenge loadout");
+
+    var forgedQuote = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
+        new
+        {
+            targetId = String(prepared, "targetDeploymentId"),
+            targetName = "Forged Revenge",
+            difficultyBand = "FREE",
+            attackerLoadoutId = revengeLoadoutId,
+            revengeRequestId = Guid.NewGuid().ToString("D"),
+        }, "quote:c4c2f:forged-request", authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.NotFound, forgedQuote.Status,
+        "client cannot invent a revenge request UUID");
+    ErrorCode(forgedQuote, "REVENGE_REQUEST_NOT_FOUND");
+
+    var mismatchQuote = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
+        new
+        {
+            targetId = highTargetBId,
+            targetName = "Changed Target",
+            difficultyBand = "HIGH",
+            attackerLoadoutId = revengeLoadoutId,
+            revengeRequestId = requestId,
+        }, "quote:c4c2f:mismatch", authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.Conflict, mismatchQuote.Status,
+        "revenge request cannot be redirected to another town");
+    ErrorCode(mismatchQuote, "REVENGE_TARGET_MISMATCH");
+
+    var quote = await SendAsync(host.Client, HttpMethod.Post, "/v1/raid-quotes",
+        new
+        {
+            targetId = String(prepared, "targetDeploymentId"),
+            targetName = "Client Name Is Ignored",
+            difficultyBand = "FREE",
+            attackerLoadoutId = revengeLoadoutId,
+            revengeRequestId = requestId,
+        }, "quote:c4c2f:valid", authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.Created, quote.Status, "server-bound revenge quote created");
+    Equal(requestId, String(quote, "revengeRequestId"),
+        "quote remains bound to the server-issued revenge request");
+    Equal(100L, Long(quote, "entryStake"),
+        "revenge uses the target's authoritative stake band");
+
+    var confirm = await SendAsync(host.Client, HttpMethod.Post, "/v1/raids",
+        new { quoteId = String(quote, "quoteId") }, "raid:c4c2f:confirm",
+        authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.Created, confirm.Status, "revenge funding succeeds atomically");
+    var revengeRaidId = String(confirm, "raidId");
+    var allocation = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raids/{revengeRaidId}/allocation", new { raidId = revengeRaidId },
+        "allocate:c4c2f", authenticatedPlayerId: defenderAlphaId);
+    var allocationId = String(allocation, "allocationId");
+    var ticket = String(allocation, "ticket");
+    var start = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{revengeRaidId}/start",
+        new { allocationId, ticket }, "trusted:start:c4c2f");
+    Equal(HttpStatusCode.OK, start.Status, "trusted start activates revenge cooldown");
+    var result = await SendTrustedAsync(host.Client, HttpMethod.Post,
+        $"/internal/v1/raids/{revengeRaidId}/result",
+        ReplayResultBody(allocationId, string.Empty, Guid.NewGuid().ToString("D"),
+            "DEFEAT", 0, new string('d', 64), ticket: ticket),
+        "trusted:result:c4c2f");
+    Equal(HttpStatusCode.Created, result.Status,
+        "revenge settles through the normal authoritative result route");
+
+    var cooldownHistory = await SendAsync(host.Client, HttpMethod.Get,
+        "/v1/raid-history/defense?limit=20", null, null,
+        authenticatedPlayerId: defenderAlphaId);
+    Equal("COOLDOWN", Element(cooldownHistory, "items")[0]
+            .GetProperty("revengeState").GetString()!,
+        "started revenge applies backend cooldown to the source report");
+    False(Element(cooldownHistory, "items")[0]
+            .GetProperty("revengeAvailable").GetBoolean(),
+        "cooldown disables another revenge request");
+    var cooldownPrepare = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/raid-history/{sourceRaidId}/revenge",
+        new { sourceRaidId }, "revenge:c4c2f:cooldown",
+        authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.Conflict, cooldownPrepare.Status,
+        "backend rejects repeated revenge during cooldown");
+    ErrorCode(cooldownPrepare, "REVENGE_COOLDOWN_ACTIVE");
+    await AssertC4C2FDatabaseAsync(connectionString, sourceRaidId, requestId, revengeRaidId);
 }
 
 static async Task RunC4C2EProcessAsync(TestHost host, string connectionString, string workerExecutable)
@@ -825,6 +1021,67 @@ static async Task AssertC4C2EProcessDatabaseAsync(string connectionString, strin
     Equal(0L, reader.GetInt64(5), "process recovery preserves double-entry balance");
 }
 
+static async Task AssertC4C2FDatabaseAsync(string connectionString, string sourceRaidId,
+    string requestId, string revengeRaidId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("""
+        SELECT
+          (SELECT state FROM splice.raid_revenge_requests WHERE id=@request),
+          (SELECT consumed_raid_id FROM splice.raid_revenge_requests WHERE id=@request),
+          (SELECT started_at IS NOT NULL FROM splice.raid_revenge_requests WHERE id=@request),
+          (SELECT count(*) FROM splice.raid_quotes WHERE revenge_request_id=@request),
+          (SELECT count(*) FROM splice.raid_revenge_requests
+            WHERE source_raid_id=@source AND requester_player_id=@requester),
+          (SELECT count(*) FROM splice.raid_revenge_requests
+            WHERE source_raid_id=@source AND requester_player_id=@requester
+              AND state='CANCELLED'),
+          (SELECT count(*) FROM splice.raid_results WHERE raid_id=@revenge),
+          (SELECT count(*) FROM splice.raid_replays WHERE raid_id=@revenge),
+          (SELECT count(*) FROM splice.raid_sessions
+            WHERE state IN ('PREPARED','FUNDED','ACTIVE','SETTLING')),
+          (SELECT count(*) FROM splice.ledger_transactions transaction WHERE transaction.status='POSTED'
+            AND (SELECT COALESCE(sum(posting.amount),0) FROM splice.ledger_postings posting
+                  WHERE posting.ledger_transaction_id=transaction.id)<>0)
+        """, connection);
+    command.Parameters.AddWithValue("request", Guid.Parse(requestId));
+    command.Parameters.AddWithValue("source", Guid.Parse(sourceRaidId));
+    command.Parameters.AddWithValue("requester", Guid.Parse(defenderAlphaId));
+    command.Parameters.AddWithValue("revenge", Guid.Parse(revengeRaidId));
+    await using var reader = await command.ExecuteReaderAsync();
+    await reader.ReadAsync();
+    Equal("STARTED", reader.GetString(0), "revenge request starts exactly once");
+    Equal(Guid.Parse(revengeRaidId), reader.GetGuid(1),
+        "revenge request is consumed by the funded raid");
+    True(reader.GetBoolean(2), "trusted start anchors revenge cooldown time");
+    Equal(1L, reader.GetInt64(3), "one revenge request creates one quote");
+    Equal(2L, reader.GetInt64(4),
+        "source report retains one expired audit record and one cooldown record");
+    Equal(1L, reader.GetInt64(5), "expired request is cancelled before replacement");
+    Equal(1L, reader.GetInt64(6), "revenge creates one immutable result");
+    Equal(1L, reader.GetInt64(7), "revenge creates one immutable replay");
+    Equal(0L, reader.GetInt64(8), "revenge proof leaves no open raid");
+    Equal(0L, reader.GetInt64(9), "revenge proof preserves double-entry balance");
+}
+
+static async Task<string> ActiveDeploymentIdAsync(string connectionString, string ownerPlayerId)
+{
+    await using var connection = new NpgsqlConnection(connectionString);
+    await connection.OpenAsync();
+    await using var command = new NpgsqlCommand("""
+        SELECT deployment.id
+          FROM splice.town_deployments deployment
+          JOIN splice.towns town ON town.id=deployment.town_id
+         WHERE town.owner_player_id=@owner
+           AND deployment.status='ACTIVE'
+         ORDER BY deployment.activated_at DESC
+         LIMIT 1
+        """, connection);
+    command.Parameters.AddWithValue("owner", Guid.Parse(ownerPlayerId));
+    return ((Guid)(await command.ExecuteScalarAsync())!).ToString("D");
+}
+
 static async Task BackdateActiveRaidAsync(string connectionString, string raidId)
 {
     await using var connection = new NpgsqlConnection(connectionString);
@@ -928,7 +1185,8 @@ static async Task AssertC4DatabaseAsync(string connectionString, string settledR
 }
 
 static object ReplayResultBody(string allocationId, string workerId, string resultId,
-    string outcome, int breachedRings, string simulationHash, bool invalidCommandHash = false)
+    string outcome, int breachedRings, string simulationHash, bool invalidCommandHash = false,
+    string ticket = "")
 {
     var commands = new[]
     {
@@ -944,6 +1202,7 @@ static object ReplayResultBody(string allocationId, string workerId, string resu
     return new
     {
         allocationId,
+        ticket,
         workerId,
         resultId,
         outcome,

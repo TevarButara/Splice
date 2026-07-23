@@ -5,10 +5,11 @@ using NpgsqlTypes;
 namespace Splice.Backend.Api;
 
 public sealed record CreateRaidQuoteRequest(string TargetId, string TargetName,
-    string DifficultyBand, string AttackerLoadoutId);
+    string DifficultyBand, string AttackerLoadoutId, string? RevengeRequestId);
 public sealed record RaidQuoteView(string QuoteId, string TargetId, string TargetName,
     string DifficultyBand, long EntryStake, long FullVictoryPayout, long OuterExtractionPayout,
-    long InnerExtractionPayout, long CoreExtractionPayout, string ExpiresUtc);
+    long InnerExtractionPayout, long CoreExtractionPayout, string ExpiresUtc,
+    string RevengeRequestId);
 public sealed record ConfirmRaidRequest(string QuoteId);
 public sealed record StartupRefundRequest(string RaidId, string ReasonCode);
 public sealed record RaidStartView(bool Success, string Error, string RaidId, string QuoteId, WalletView Wallet);
@@ -37,6 +38,14 @@ public static class RaidFeature
                     !Guid.TryParse(request.AttackerLoadoutId, out var loadoutId))
                     return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
                         "INVALID_REQUEST", "Target and loadout IDs must be UUIDs.");
+                Guid? revengeRequestId = null;
+                if (!string.IsNullOrWhiteSpace(request.RevengeRequestId))
+                {
+                    if (!Guid.TryParse(request.RevengeRequestId, out var parsedRevengeRequestId))
+                        return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
+                            "REVENGE_REQUEST_INVALID", "Revenge request ID must be a UUID.");
+                    revengeRequestId = parsedRevengeRequestId;
+                }
 
                 await using var loadoutCommand = new NpgsqlCommand("""
                     SELECT faction_id, revision, hero_id, entries::text, payload_sha256,
@@ -112,6 +121,42 @@ public static class RaidFeature
                         "TARGET_COMBAT_SNAPSHOT_STALE",
                         "Raid target must redeploy its town with the current combat snapshot schema.");
 
+                if (revengeRequestId is not null)
+                {
+                    await using var revenge = new NpgsqlCommand("""
+                        SELECT source_raid_id, target_player_id, target_deployment_id,
+                               target_snapshot_id, state, expires_at
+                          FROM splice.raid_revenge_requests
+                         WHERE id = @request AND requester_player_id = @attacker
+                         FOR UPDATE
+                        """, connection, transaction);
+                    revenge.Parameters.AddWithValue("request", revengeRequestId.Value);
+                    revenge.Parameters.AddWithValue("attacker", attackerId);
+                    await using var revengeReader =
+                        await revenge.ExecuteReaderAsync(cancellationToken);
+                    if (!await revengeReader.ReadAsync(cancellationToken))
+                        return ApiErrors.Reply(context, StatusCodes.Status404NotFound,
+                            "REVENGE_REQUEST_NOT_FOUND",
+                            "Revenge request was not found for this player.");
+                    var revengeTargetPlayerId = revengeReader.GetGuid(1);
+                    var revengeDeploymentId = revengeReader.GetGuid(2);
+                    var revengeSnapshotId = revengeReader.GetGuid(3);
+                    var revengeState = revengeReader.GetString(4);
+                    var revengeExpiresAt =
+                        revengeReader.GetFieldValue<DateTimeOffset>(5);
+                    await revengeReader.DisposeAsync();
+                    if (revengeState != "PREPARED" || revengeExpiresAt <= DateTimeOffset.UtcNow)
+                        return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                            "REVENGE_REQUEST_EXPIRED",
+                            "Revenge request is no longer available for quoting.");
+                    if (revengeTargetPlayerId != defenderId ||
+                        revengeDeploymentId != deploymentId ||
+                        revengeSnapshotId != snapshotId)
+                        return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                            "REVENGE_TARGET_MISMATCH",
+                            "Quote target does not match the server-issued revenge target.");
+                }
+
                 var stake = band switch { "HIGH" => 600L, "RISKY" => 300L, _ => 100L };
                 var quoteId = Guid.NewGuid();
                 var loadoutSnapshotId = Guid.NewGuid();
@@ -135,10 +180,13 @@ public static class RaidFeature
                         attacker_loadout_id, attacker_loadout_snapshot_id,
                         difficulty_band, attacker_stake, defender_max_loss,
                         full_victory_payout, outer_payout, inner_payout, core_payout,
-                        rules_version, expires_at)
+                        rules_version, expires_at, revenge_request_id)
                     VALUES (@id, @attacker, @deployment, @snapshot, @loadout, @loadoutSnapshot,
                             @band, @stake, @loss,
-                            @full, @outer, @inner, @core, @rules, @expires)
+                            @full, @outer, @inner, @core, @rules, @expires, @revengeRequest);
+                    UPDATE splice.raid_revenge_requests
+                       SET state = 'QUOTED', quoted_at = clock_timestamp()
+                     WHERE id = @revengeRequest AND state = 'PREPARED'
                     """, connection, transaction);
                 insert.Parameters.AddWithValue("id", quoteId);
                 insert.Parameters.AddWithValue("loadoutSnapshot", loadoutSnapshotId);
@@ -168,11 +216,14 @@ public static class RaidFeature
                 insert.Parameters.AddWithValue("core", core);
                 insert.Parameters.AddWithValue("rules", RulesVersion);
                 insert.Parameters.AddWithValue("expires", expiresAt);
+                insert.Parameters.AddWithValue("revengeRequest",
+                    (object?)revengeRequestId ?? DBNull.Value);
                 await insert.ExecuteNonQueryAsync(cancellationToken);
 
                 return new ApiReply(StatusCodes.Status201Created,
                     new RaidQuoteView(quoteId.ToString("D"), deploymentId.ToString("D"), targetName, band,
-                        stake, full, outer, inner, core, expiresAt.ToString("O")));
+                        stake, full, outer, inner, core, expiresAt.ToString("O"),
+                        revengeRequestId?.ToString("D") ?? string.Empty));
             });
     }
 
@@ -190,7 +241,8 @@ public static class RaidFeature
                 await using var quoteCommand = new NpgsqlCommand("""
                     SELECT q.target_snapshot_id, q.attacker_stake, q.expires_at,
                            t.owner_player_id, q.full_victory_payout,
-                           te.id, te.ledger_account_id, te.state
+                           te.id, te.ledger_account_id, te.state,
+                           q.revenge_request_id, q.target_deployment_id
                       FROM splice.raid_quotes q
                       JOIN splice.town_deployments d ON d.id = q.target_deployment_id
                       JOIN splice.towns t ON t.id = d.town_id
@@ -212,6 +264,8 @@ public static class RaidFeature
                 var defenderTownEscrowId = reader.IsDBNull(5) ? (Guid?)null : reader.GetGuid(5);
                 var defenderTownAccountId = reader.IsDBNull(6) ? (Guid?)null : reader.GetGuid(6);
                 var defenderTownEscrowState = reader.IsDBNull(7) ? string.Empty : reader.GetString(7);
+                var revengeRequestId = reader.IsDBNull(8) ? (Guid?)null : reader.GetGuid(8);
+                var targetDeploymentId = reader.GetGuid(9);
                 await reader.DisposeAsync();
 
                 // Re-check only after locking the quote: concurrent keys for one quote must replay one raid.
@@ -231,6 +285,43 @@ public static class RaidFeature
                 if (attackerId == defenderId)
                     return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
                         "SELF_TARGET_FORBIDDEN", "A player cannot raid their own town.");
+
+                if (revengeRequestId is not null)
+                {
+                    await using var revenge = new NpgsqlCommand("""
+                        SELECT state, expires_at, target_player_id,
+                               target_deployment_id, target_snapshot_id
+                          FROM splice.raid_revenge_requests
+                         WHERE id = @request AND requester_player_id = @attacker
+                         FOR UPDATE
+                        """, connection, transaction);
+                    revenge.Parameters.AddWithValue("request", revengeRequestId.Value);
+                    revenge.Parameters.AddWithValue("attacker", attackerId);
+                    await using var revengeReader =
+                        await revenge.ExecuteReaderAsync(cancellationToken);
+                    if (!await revengeReader.ReadAsync(cancellationToken))
+                        return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                            "REVENGE_REQUEST_INVALID",
+                            "Quote no longer has a valid revenge request.");
+                    var revengeState = revengeReader.GetString(0);
+                    var revengeExpiresAt =
+                        revengeReader.GetFieldValue<DateTimeOffset>(1);
+                    var revengeTargetPlayerId = revengeReader.GetGuid(2);
+                    var revengeTargetDeploymentId = revengeReader.GetGuid(3);
+                    var revengeTargetSnapshotId = revengeReader.GetGuid(4);
+                    await revengeReader.DisposeAsync();
+                    if (revengeState != "QUOTED" ||
+                        revengeExpiresAt <= DateTimeOffset.UtcNow)
+                        return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                            "REVENGE_REQUEST_EXPIRED",
+                            "Revenge request expired before funding.");
+                    if (revengeTargetPlayerId != defenderId ||
+                        revengeTargetDeploymentId != targetDeploymentId ||
+                        revengeTargetSnapshotId != snapshotId)
+                        return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                            "REVENGE_TARGET_MISMATCH",
+                            "Funded target does not match the server-issued revenge target.");
+                }
 
                 if (await HasOpenRaidAsync(connection, transaction, attackerId, cancellationToken))
                     return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
@@ -298,6 +389,15 @@ public static class RaidFeature
                     ("amount", stake), ("transaction", fundedTransactionId),
                     ("townEscrow", (object?)defenderTownEscrowId ?? DBNull.Value),
                     ("reserve", defenderReserve));
+
+                if (revengeRequestId is not null)
+                    await ExecuteAsync(connection, transaction, """
+                        UPDATE splice.raid_revenge_requests
+                           SET state = 'FUNDED', funded_at = clock_timestamp(),
+                               consumed_raid_id = @raid
+                         WHERE id = @request AND state = 'QUOTED'
+                        """, cancellationToken,
+                        ("raid", raidId), ("request", revengeRequestId.Value));
 
                 var wallet = await WalletFeature.LoadAsync(connection, transaction, attackerId, cancellationToken);
                 return new ApiReply(StatusCodes.Status201Created,
@@ -386,7 +486,13 @@ public static class RaidFeature
                     UPDATE splice.raid_escrows
                        SET state = 'REFUNDED', refunded_transaction_id = @transaction,
                            settled_at = clock_timestamp()
-                     WHERE id = @escrow
+                     WHERE id = @escrow;
+                    UPDATE splice.raid_revenge_requests revenge
+                       SET state = 'CANCELLED', cancelled_at = clock_timestamp()
+                      FROM splice.raid_sessions raid, splice.raid_quotes quote
+                     WHERE raid.id = @raid AND quote.id = raid.quote_id
+                       AND revenge.id = quote.revenge_request_id
+                       AND revenge.state = 'FUNDED'
                     """, cancellationToken,
                     ("raid", raidId), ("transaction", refundTransactionId), ("escrow", escrowId));
 

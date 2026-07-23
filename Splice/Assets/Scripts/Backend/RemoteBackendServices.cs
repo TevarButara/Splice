@@ -31,6 +31,16 @@ namespace Splice.Backend
             "/v1/raids/" + Segment(raidId);
         public static string RaidReplay(string raidId) =>
             "/v1/raids/" + Segment(raidId) + "/replay";
+        public static string DefenseHistory(int limit, string beforeUtc, string beforeRaidId)
+        {
+            var path = "/v1/raid-history/defense?limit=" + Math.Clamp(limit, 1, 50);
+            if (string.IsNullOrWhiteSpace(beforeUtc) || string.IsNullOrWhiteSpace(beforeRaidId))
+                return path;
+            return path + "&beforeUtc=" + Uri.EscapeDataString(beforeUtc) +
+                   "&beforeRaidId=" + Uri.EscapeDataString(beforeRaidId);
+        }
+        public static string PrepareRevenge(string sourceRaidId) =>
+            "/v1/raid-history/" + Segment(sourceRaidId) + "/revenge";
         public static string AttackerLoadout(string loadoutId) =>
             "/v1/attacker-loadouts/" + Segment(loadoutId);
 
@@ -267,10 +277,31 @@ namespace Splice.Backend
 
     // Deliberately retained after C4A: only the trusted /internal result route may settle shared economy.
     // The player client can allocate/read lifecycle state but cannot write reports or settlement results.
-    public sealed class ClientAuthorityGuardRaidReportService : IRaidReportService
+    public sealed class RemoteRaidReportService : IRaidReportService
     {
         private const string Error = BackendErrorCodes.ClientAuthorityForbidden +
                                      ": raid reports must be written by trusted server settlement.";
+        private readonly BackendApiClient client;
+
+        public RemoteRaidReportService(BackendApiClient client) =>
+            this.client = client ?? throw new ArgumentNullException(nameof(client));
+
+        public Task<RaidDefenseHistoryPageDto> GetDefenseHistoryAsync(int limit,
+            string beforeUtc, string beforeRaidId, CancellationToken cancellationToken) =>
+            client.GetAsync<RaidDefenseHistoryPageDto>(
+                BackendRoutes.DefenseHistory(limit, beforeUtc, beforeRaidId), cancellationToken);
+
+        public Task<RaidRevengeTargetDto> PrepareRevengeAsync(string sourceRaidId,
+            string idempotencyKey, CancellationToken cancellationToken)
+        {
+            if (!Guid.TryParse(sourceRaidId, out _))
+                throw new BackendServiceException(0, BackendErrorCodes.InvalidTransportRequest,
+                    "Remote revenge requires a server-issued raid UUID.", string.Empty, false);
+            return client.SendAsync<PrepareRaidRevengeRequest, RaidRevengeTargetDto>(
+                BackendHttpMethods.Post, BackendRoutes.PrepareRevenge(sourceRaidId),
+                new PrepareRaidRevengeRequest { sourceRaidId = sourceRaidId },
+                idempotencyKey, true, cancellationToken);
+        }
 
         public Task<RaidReportWriteResult> RecordCompletedAsync(RaidSessionIdentity session,
             RaidStakeTransaction transaction, int goldLoot, CancellationToken cancellationToken) =>

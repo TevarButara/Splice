@@ -33,6 +33,7 @@ public static class SpliceApi
         app.MapLoadoutEndpoints();
         app.MapRaidEndpoints();
         app.MapRaidAuthorityEndpoints();
+        app.MapRaidHistoryEndpoints();
         app.MapTownEndpoints();
         return app;
     }

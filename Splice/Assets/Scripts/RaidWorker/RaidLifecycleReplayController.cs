@@ -23,20 +23,24 @@ namespace Splice.RaidWorker
         private string raidId;
 
         public static bool ShouldHandleCurrentRaid =>
-            IsEligibleSession(RaidSessionContext.Current, SpliceServiceHub.IsRemoteMeta);
+            IsEligibleSession(RaidSessionContext.Current, SpliceServiceHub.IsRemoteMeta) ||
+            (SpliceServiceHub.IsRemoteMeta && RaidReplayLaunchContext.HasPendingHistoryReplay);
 
         public bool IsPolling { get; private set; }
         public bool ReplayStarted { get; private set; }
         public int PollCount { get; private set; }
         public string LastState { get; private set; } = string.Empty;
         public string LastError { get; private set; } = string.Empty;
+        public bool IsHistoryReplay { get; private set; }
 
         public void Begin(RaidCommandStreamPresentationController target)
         {
             if (IsPolling || target == null || !ShouldHandleCurrentRaid) return;
             presentation = target;
             service = SpliceServiceHub.RaidContracts;
-            raidId = RaidSessionContext.Current.raidId;
+            if (!TryResolveRaidId(RaidSessionContext.Current, SpliceServiceHub.IsRemoteMeta,
+                    out raidId, out var isHistoryReplay)) return;
+            IsHistoryReplay = isHistoryReplay;
             lifetimeCancellation = new CancellationTokenSource();
             IsPolling = true;
             _ = PollAsync(lifetimeCancellation.Token);
@@ -85,15 +89,20 @@ namespace Splice.RaidWorker
                             throw new InvalidOperationException(validationError);
                         ReplayStarted = true;
                         IsPolling = false;
-                        RaidSessionContext.MarkCompleted(ToOutcome(replay.result.outcome),
-                            replay.result.breachedRings);
+                        if (!IsHistoryReplay)
+                            RaidSessionContext.MarkCompleted(ToOutcome(replay.result.outcome),
+                                replay.result.breachedRings);
                         presentation.Play(replay.input, replay.result);
                         return;
                     }
                     if (IsRefundedState(LastState))
                     {
                         IsPolling = false;
-                        RaidSessionContext.AbortBeforeGameplay("Authoritative raid was refunded.");
+                        if (!IsHistoryReplay)
+                            RaidSessionContext.AbortBeforeGameplay("Authoritative raid was refunded.");
+                        else
+                            presentation.ShowLifecycleError(
+                                "Defense history replay is unavailable because the raid was refunded.");
                         return;
                     }
 
@@ -148,6 +157,23 @@ namespace Splice.RaidWorker
         public static bool IsEligibleSession(RaidSessionIdentity session, bool remoteMeta) =>
             remoteMeta && session != null && session.phase == RaidSessionPhase.Started &&
             !session.isIncomingDefense && Guid.TryParse(session.raidId, out _);
+
+        public static bool TryResolveRaidId(RaidSessionIdentity session, bool remoteMeta,
+            out string resolvedRaidId, out bool isHistoryReplay)
+        {
+            // An explicit history navigation must win over any stale completed/started session
+            // retained across scene loads, otherwise the player could see the wrong replay.
+            if (remoteMeta && RaidReplayLaunchContext.TryConsume(out resolvedRaidId))
+            {
+                isHistoryReplay = true;
+                return true;
+            }
+            resolvedRaidId = IsEligibleSession(session, remoteMeta)
+                ? session.raidId
+                : string.Empty;
+            isHistoryReplay = false;
+            return !string.IsNullOrWhiteSpace(resolvedRaidId);
+        }
 
         private static RaidOutcome ToOutcome(string outcome) => outcome switch
         {

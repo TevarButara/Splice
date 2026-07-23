@@ -94,7 +94,13 @@ public static partial class RaidAuthorityFeature
                        SET state='ACTIVE', started_at=COALESCE(started_at,@now)
                      WHERE id=@raid;
                     UPDATE splice.raid_escrows SET state='ACTIVE'
-                     WHERE raid_id=@raid AND state='FUNDED'
+                     WHERE raid_id=@raid AND state='FUNDED';
+                    UPDATE splice.raid_revenge_requests revenge
+                       SET state='STARTED', started_at=COALESCE(revenge.started_at,@now)
+                      FROM splice.raid_sessions raid, splice.raid_quotes quote
+                     WHERE raid.id=@raid AND quote.id=raid.quote_id
+                       AND revenge.id=quote.revenge_request_id
+                       AND revenge.state='FUNDED'
                     """, connection, transaction);
                 claim.Parameters.AddWithValue("worker", workerId);
                 claim.Parameters.AddWithValue("now", now);

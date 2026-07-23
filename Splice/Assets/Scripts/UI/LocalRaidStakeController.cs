@@ -142,6 +142,7 @@ namespace Splice.UI
                         targetName = target.displayName,
                         difficultyBand = RaidSceneAdapter.DifficultyBandFor(target),
                         attackerLoadoutId = RaidSessionContext.Current?.attackerLoadoutId,
+                        revengeRequestId = target.isRevenge ? target.revengeRequestId : string.Empty,
                     }, Guid.NewGuid().ToString("N"), lifetimeCancellation.Token);
                     confirmIdempotencyKey = Guid.NewGuid().ToString("N");
                     ApplyQuote(activeQuote);

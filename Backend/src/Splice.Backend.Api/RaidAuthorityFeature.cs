@@ -293,7 +293,13 @@ public static partial class RaidAuthorityFeature
                 await ExecuteAsync(connection, transaction, """
                     UPDATE splice.raid_allocations SET state='CLAIMED', claimed_at=@now WHERE id=@allocation;
                     UPDATE splice.raid_sessions SET state='ACTIVE', started_at=@now WHERE id=@raid;
-                    UPDATE splice.raid_escrows SET state='ACTIVE' WHERE raid_id=@raid
+                    UPDATE splice.raid_escrows SET state='ACTIVE' WHERE raid_id=@raid;
+                    UPDATE splice.raid_revenge_requests revenge
+                       SET state='STARTED', started_at=@now
+                      FROM splice.raid_sessions raid, splice.raid_quotes quote
+                     WHERE raid.id=@raid AND quote.id=raid.quote_id
+                       AND revenge.id=quote.revenge_request_id
+                       AND revenge.state='FUNDED'
                     """, cancellationToken, ("now", startedAt), ("allocation", allocationId), ("raid", raidId));
                 return new ApiReply(StatusCodes.Status200OK,
                     StartView(raidId, allocationId, snapshotId, loadoutId, sceneContract,

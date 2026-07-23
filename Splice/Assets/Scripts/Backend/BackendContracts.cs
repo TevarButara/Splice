@@ -113,6 +113,7 @@ namespace Splice.Backend
         public string targetName;
         public string difficultyBand;
         public string attackerLoadoutId;
+        public string revengeRequestId;
     }
 
     [Serializable]
@@ -164,6 +165,7 @@ namespace Splice.Backend
         public int innerExtractionPayout;
         public int coreExtractionPayout;
         public string expiresUtc;
+        public string revengeRequestId;
     }
 
     [Serializable]
@@ -217,6 +219,58 @@ namespace Splice.Backend
         public string createdUtc;
     }
 
+    [Serializable]
+    public sealed class RaidDefenseHistoryItemDto
+    {
+        public string raidId;
+        public string reportId;
+        public string attackerPlayerId;
+        public string attackerDisplayName;
+        public string defenderPlayerId;
+        public string targetSnapshotId;
+        public string state;
+        public string outcome;
+        public int breachedRings;
+        public long entryStake;
+        public long attackerPayout;
+        public long defenderWarGemDelta;
+        public bool replayAvailable;
+        public string completedUtc;
+        public bool revengeAvailable;
+        public string revengeState;
+        public string revengeCooldownUntilUtc;
+    }
+
+    [Serializable]
+    public sealed class RaidDefenseHistoryPageDto
+    {
+        public List<RaidDefenseHistoryItemDto> items = new();
+        public string nextBeforeUtc;
+        public string nextBeforeRaidId;
+    }
+
+    [Serializable]
+    public sealed class PrepareRaidRevengeRequest
+    {
+        public string sourceRaidId;
+    }
+
+    [Serializable]
+    public sealed class RaidRevengeTargetDto
+    {
+        public bool success;
+        public string error;
+        public string sourceRaidId;
+        public string requestId;
+        public string targetDeploymentId;
+        public string targetSnapshotId;
+        public string targetOwnerAccountId;
+        public string targetDisplayName;
+        public string targetFactionId;
+        public long targetPower;
+        public string expiresUtc;
+    }
+
     public interface IWalletService
     {
         Task<WalletView> GetWalletAsync(CancellationToken cancellationToken);
@@ -257,6 +311,10 @@ namespace Splice.Backend
 
     public interface IRaidReportService
     {
+        Task<RaidDefenseHistoryPageDto> GetDefenseHistoryAsync(int limit,
+            string beforeUtc, string beforeRaidId, CancellationToken cancellationToken);
+        Task<RaidRevengeTargetDto> PrepareRevengeAsync(string sourceRaidId,
+            string idempotencyKey, CancellationToken cancellationToken);
         Task<RaidReportWriteResult> RecordCompletedAsync(RaidSessionIdentity session,
             RaidStakeTransaction transaction, int goldLoot, CancellationToken cancellationToken);
         Task<RaidReportWriteResult> RecordCurrentCompletedAsync(int goldLoot,
