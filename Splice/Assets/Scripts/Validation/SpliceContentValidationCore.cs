@@ -129,7 +129,11 @@ namespace Splice.Validation
                         continue;
                     }
                     AddUnique(heroes, hero);
-                    AddUnique(abilities, hero.tacticalAbility);
+                    AddUnique(abilities, hero.GetAbility(HeroAbilitySlot.Blink));
+                    AddUnique(abilities, hero.GetAbility(HeroAbilitySlot.Heal));
+                    AddUnique(abilities, hero.GetAbility(HeroAbilitySlot.Skill1));
+                    AddUnique(abilities, hero.GetAbility(HeroAbilitySlot.Skill2));
+                    AddUnique(abilities, hero.GetAbility(HeroAbilitySlot.Skill3));
                     if (!string.IsNullOrWhiteSpace(hero.heroId) && !ids.Add(hero.heroId))
                         report.Error("HERO_ID_DUPLICATE", $"Hero id '{hero.heroId}' is duplicated in '{registry.name}'.", hero);
                 }
@@ -249,6 +253,10 @@ namespace Splice.Validation
             Positive(hero.attackDamage, "HERO_DAMAGE_INVALID", $"Hero '{hero.heroId}' attack damage", hero, report);
             Positive(hero.attackCooldown, "HERO_COOLDOWN_INVALID", $"Hero '{hero.heroId}' attack cooldown", hero, report);
             Positive(hero.moveSpeed, "HERO_SPEED_INVALID", $"Hero '{hero.heroId}' move speed", hero, report);
+            if (hero.blinkAbility == null)
+                report.Error("HERO_BLINK_MISSING", $"Hero '{hero.heroId}' has no universal Blink ability.", hero);
+            if (hero.healAbility == null)
+                report.Error("HERO_HEAL_MISSING", $"Hero '{hero.heroId}' has no universal Heal ability.", hero);
             if (hero.reviveHealthPercent <= 0f || hero.reviveHealthPercent > 1f)
                 report.Error("HERO_REVIVE_PERCENT_INVALID", $"Hero '{hero.heroId}' revive health percent must be within (0, 1].", hero);
             ValidateNetworkPrefab<RaidHeroCharacter>(hero.prefab, "hero", hero.heroId, hero, report);
@@ -259,10 +267,32 @@ namespace Splice.Validation
             RequireId(ability.abilityId, "ABILITY_ID_MISSING", "Ability id", ability, report);
             RejectSeparator(ability.abilityId, "ABILITY_ID_SEPARATOR", "Ability id", ability, report);
             RequireDisplayName(ability.displayName, "ability", ability, report);
-            Positive(ability.castRange, "ABILITY_RANGE_INVALID", $"Ability '{ability.abilityId}' cast range", ability, report);
-            Positive(ability.effectRadius, "ABILITY_RADIUS_INVALID", $"Ability '{ability.abilityId}' effect radius", ability, report);
-            Positive(ability.damage, "ABILITY_DAMAGE_INVALID", $"Ability '{ability.abilityId}' damage", ability, report);
             Positive(ability.cooldownSeconds, "ABILITY_COOLDOWN_INVALID", $"Ability '{ability.abilityId}' cooldown", ability, report);
+            switch (ability.effect)
+            {
+                case HeroAbilityEffect.AreaDamage:
+                    Positive(ability.castRange, "ABILITY_RANGE_INVALID",
+                        $"Ability '{ability.abilityId}' cast range", ability, report);
+                    Positive(ability.effectRadius, "ABILITY_RADIUS_INVALID",
+                        $"Ability '{ability.abilityId}' effect radius", ability, report);
+                    Positive(ability.damage, "ABILITY_DAMAGE_INVALID",
+                        $"Ability '{ability.abilityId}' damage", ability, report);
+                    break;
+                case HeroAbilityEffect.ForwardBlink:
+                    Positive(ability.movementDistance, "ABILITY_BLINK_DISTANCE_INVALID",
+                        $"Blink '{ability.abilityId}' movement distance", ability, report);
+                    if (ability.targeting != HeroAbilityTargeting.Forward)
+                        report.Error("ABILITY_BLINK_TARGETING_INVALID",
+                            $"Blink '{ability.abilityId}' must use Forward targeting.", ability);
+                    break;
+                case HeroAbilityEffect.SelfHeal:
+                    Positive(ability.healing, "ABILITY_HEAL_AMOUNT_INVALID",
+                        $"Heal '{ability.abilityId}' healing", ability, report);
+                    if (ability.targeting != HeroAbilityTargeting.Self)
+                        report.Error("ABILITY_HEAL_TARGETING_INVALID",
+                            $"Heal '{ability.abilityId}' must use Self targeting.", ability);
+                    break;
+            }
         }
 
         private static void ValidateProjectile(ProjectileDefinitionSO projectile, ContentValidationReport report)

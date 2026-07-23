@@ -1,4 +1,5 @@
 using Splice.Characters;
+using PinePie.SimpleJoystick;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -10,10 +11,13 @@ namespace Splice.Input
         [SerializeField] private RaidHeroCharacter hero;
         [SerializeField] private Camera movementCamera;
         [SerializeField] private HeroVirtualJoystick joystick;
+        [Tooltip("PinePie joystick used by CanvasJoyControl/Static Free moving.")]
+        [SerializeField] private JoystickController simpleJoystick;
         [Min(0.03f)] [SerializeField] private float sendInterval = 0.1f;
 
         private Vector2 lastSent;
         private float nextSendTime;
+        private float nextManualRequestTime;
 
         private void Update()
         {
@@ -22,9 +26,18 @@ namespace Splice.Input
             if (movementCamera == null) movementCamera = Camera.main;
 
             if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) Interact();
-            if (hero.ControlMode != HeroControlMode.Manual) return;
 
             var input = ReadMove();
+            if (hero.ControlMode != HeroControlMode.Manual)
+            {
+                if (input.sqrMagnitude > 0.001f && Time.unscaledTime >= nextManualRequestTime)
+                {
+                    hero.RequestSetControlModeServerRpc(HeroControlMode.Manual);
+                    nextManualRequestTime = Time.unscaledTime + 0.25f;
+                }
+                return;
+            }
+
             var world = CameraRelative(input);
             var world2 = new Vector2(world.x, world.z);
             if (Time.unscaledTime < nextSendTime && (world2 - lastSent).sqrMagnitude < 0.01f) return;
@@ -62,6 +75,9 @@ namespace Splice.Input
 
         private Vector2 ReadMove()
         {
+            if (simpleJoystick == null) simpleJoystick = FindAnyObjectByType<JoystickController>();
+            if (simpleJoystick != null && simpleJoystick.InputDirection.sqrMagnitude > 0.001f)
+                return Vector2.ClampMagnitude(simpleJoystick.InputDirection, 1f);
             if (joystick != null && joystick.Value.sqrMagnitude > 0.001f) return joystick.Value;
 
             var value = Vector2.zero;

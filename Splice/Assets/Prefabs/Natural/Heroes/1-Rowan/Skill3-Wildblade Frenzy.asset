@@ -12,13 +12,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b930d5a413314987a6b7544a46a7f39c, type: 3}
   m_Name: Skill3-Wildblade Frenzy
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.HeroAbilityDefinitionSO
-  abilityId: rowan_Wildblade_Frenzy
+  abilityId: rowan_wildblade_frenzy
   displayName: Wildblade Frenzy
   description: 
   icon: {fileID: 0}
+  targeting: 1
   castRange: 6
   effectRadius: 4
+  effect: 0
   damage: 700
+  healing: 0
+  movementDistance: 0
   cooldownSeconds: 15
+  animationState: Skill3
   castEffectPrefab: {fileID: 1835876825148838861, guid: 61ddfc2bb35044b4bbb0abb41a07c0f2, type: 3}
   castEffectLifetime: 2

@@ -41,6 +41,11 @@ namespace Splice.Characters
         AbilityOutOfRange,
         AbilityNoTargets,
         AbilityUnavailable,
+        AbilityHealed,
+        AbilityBlinked,
+        NormalAttackHit,
+        NormalAttackNoTarget,
+        NormalAttackCooldown,
         FocusTargetSet,
         FocusTargetCleared,
         FocusTargetRejected,
@@ -56,6 +61,8 @@ namespace Splice.Characters
 
         [SerializeField] private HeroDefinitionSO definition;
         [SerializeField] private RaidSide side = RaidSide.Attacker;
+        [Tooltip("Hero model Animator. Auto-resolved from children when left empty.")]
+        [SerializeField] private Animator animator;
         [Tooltip("ขอบเขตตำแหน่ง Hero — เว้นว่าง = ไม่ clamp")]
         [SerializeField] private BoxCollider movementBounds;
 
@@ -79,6 +86,16 @@ namespace Splice.Characters
             0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
         private readonly NetworkVariable<float> tacticalAbilityCooldownRemaining = new(
             0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<float> blinkCooldownRemaining = new(
+            0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<float> healCooldownRemaining = new(
+            0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<float> skill2CooldownRemaining = new(
+            0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<float> skill3CooldownRemaining = new(
+            0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<HeroAbilitySlot> lastAbilitySlot = new(
+            HeroAbilitySlot.Skill1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
         private readonly NetworkVariable<bool> hasFocusTarget = new(
             false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
         private readonly NetworkVariable<NetworkObjectReference> focusTarget = new(
@@ -106,12 +123,38 @@ namespace Splice.Characters
         public HeroLifeState LifeState => lifeState.Value;
         public float DownedRemaining => downedRemaining.Value;
         public int RevivesRemaining => revivesRemaining.Value;
-        public HeroAbilityDefinitionSO TacticalAbility => definition != null ? definition.tacticalAbility : null;
+        public HeroAbilityDefinitionSO TacticalAbility =>
+            definition != null ? definition.GetAbility(HeroAbilitySlot.Skill1) : null;
         public float TacticalAbilityCooldownRemaining => tacticalAbilityCooldownRemaining.Value;
         public bool IsTacticalAbilityReady => TacticalAbility != null && tacticalAbilityCooldownRemaining.Value <= 0f;
         public bool HasFocusTarget => hasFocusTarget.Value;
         public bool CanAct => lifeState.Value == HeroLifeState.Active && !IsDead;
         public float SquadCommandRadius => squadCommandRadius;
+        public HeroAbilitySlot LastAbilitySlot => lastAbilitySlot.Value;
+
+        public HeroAbilityDefinitionSO GetAbility(HeroAbilitySlot slot) =>
+            definition != null ? definition.GetAbility(slot) : null;
+
+        public float GetAbilityCooldownRemaining(HeroAbilitySlot slot)
+        {
+            return slot switch
+            {
+                HeroAbilitySlot.Blink => blinkCooldownRemaining.Value,
+                HeroAbilitySlot.Heal => healCooldownRemaining.Value,
+                HeroAbilitySlot.Skill1 => tacticalAbilityCooldownRemaining.Value,
+                HeroAbilitySlot.Skill2 => skill2CooldownRemaining.Value,
+                HeroAbilitySlot.Skill3 => skill3CooldownRemaining.Value,
+                _ => 0f
+            };
+        }
+
+        public Vector3 GetSuggestedAbilityTargetPoint(HeroAbilitySlot slot)
+        {
+            var ability = GetAbility(slot);
+            if (ability == null || ability.targeting == HeroAbilityTargeting.Self) return transform.position;
+            var distance = Mathf.Min(ability.castRange, Mathf.Max(1f, ability.effectRadius * 0.6f));
+            return transform.position + transform.forward * distance;
+        }
 
         // Shared client/server preview predicate. The server still repeats every check when assigning the
         // actual command, but presentation can highlight the same recruitment snapshot before confirmation.
@@ -135,6 +178,7 @@ namespace Splice.Characters
         {
             base.OnNetworkSpawn();
             Instance = this;
+            if (animator == null) animator = GetComponentInChildren<Animator>();
             feedbackSequence.OnValueChanged += HandleFeedbackSequenceChanged;
             if (IsServer && definition != null && CurrentHealth <= 0) InitializeFromDefinition();
         }
@@ -155,6 +199,11 @@ namespace Splice.Characters
             downedRemaining.Value = 0f;
             revivesRemaining.Value = Mathf.Max(0, definition.maxRevivesPerRaid);
             tacticalAbilityCooldownRemaining.Value = 0f;
+            blinkCooldownRemaining.Value = 0f;
+            healCooldownRemaining.Value = 0f;
+            skill2CooldownRemaining.Value = 0f;
+            skill3CooldownRemaining.Value = 0f;
+            lastAbilitySlot.Value = HeroAbilitySlot.Skill1;
             hasFocusTarget.Value = false;
             focusTarget.Value = default;
             lastFeedback.Value = HeroFeedback.None;
@@ -169,6 +218,10 @@ namespace Splice.Characters
             if (tacticalAbilityCooldownRemaining.Value > 0f)
                 tacticalAbilityCooldownRemaining.Value = Mathf.Max(
                     0f, tacticalAbilityCooldownRemaining.Value - Time.deltaTime);
+            TickAbilityCooldown(blinkCooldownRemaining);
+            TickAbilityCooldown(healCooldownRemaining);
+            TickAbilityCooldown(skill2CooldownRemaining);
+            TickAbilityCooldown(skill3CooldownRemaining);
 
             if (hasFocusTarget.Value && !TryResolveFocusTarget(out _))
                 ClearFocusTarget(HeroFeedback.FocusTargetCompleted);
@@ -183,7 +236,7 @@ namespace Splice.Characters
             if (!CanAct || (RaidManager.Instance != null && RaidManager.Instance.IsOver)) return;
 
             attackTimer += Time.deltaTime;
-            TickCombat();
+            if (controlMode.Value == HeroControlMode.Auto) TickCombat();
 
             if (controlMode.Value == HeroControlMode.Manual) TickManualMovement();
             else TickAutoMovement();
@@ -341,37 +394,87 @@ namespace Splice.Characters
             ServerRpcParams rpcParams = default)
         {
             if (!CanControl(rpcParams.Receive.SenderClientId)) return;
+            TryCastAbility(HeroAbilitySlot.Skill1, requestedTargetPoint);
+        }
 
-            var ability = TacticalAbility;
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestCastAbilityServerRpc(
+            HeroAbilitySlot slot,
+            Vector3 requestedTargetPoint,
+            ServerRpcParams rpcParams = default)
+        {
+            if (!CanControl(rpcParams.Receive.SenderClientId)) return;
+            TryCastAbility(slot, requestedTargetPoint);
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestNormalAttackServerRpc(ServerRpcParams rpcParams = default)
+        {
+            if (!CanControl(rpcParams.Receive.SenderClientId)) return;
+            if (!CanAct || definition == null || (RaidManager.Instance != null && RaidManager.Instance.IsOver))
+            {
+                PublishFeedback(HeroFeedback.AbilityUnavailable);
+                return;
+            }
+
+            if (attackTimer < definition.attackCooldown)
+            {
+                PublishFeedback(
+                    HeroFeedback.NormalAttackCooldown,
+                    Mathf.CeilToInt(definition.attackCooldown - attackTimer));
+                return;
+            }
+
+            var target = FindNearestEnemy(definition.attackRange);
+            if (target == null)
+            {
+                PublishFeedback(HeroFeedback.NormalAttackNoTarget);
+                return;
+            }
+
+            Face(target.transform.position - transform.position);
+            target.ApplyDamage(definition.attackDamage, this);
+            attackTimer = 0f;
+            PublishFeedback(HeroFeedback.NormalAttackHit, definition.attackDamage);
+            PlayActionAnimationClientRpc("Attack");
+        }
+
+        private void TryCastAbility(HeroAbilitySlot slot, Vector3 requestedTargetPoint)
+        {
+            lastAbilitySlot.Value = slot;
+            var ability = GetAbility(slot);
             if (ability == null || !CanAct || (RaidManager.Instance != null && RaidManager.Instance.IsOver))
             {
                 PublishFeedback(HeroFeedback.AbilityUnavailable);
                 return;
             }
 
-            if (tacticalAbilityCooldownRemaining.Value > 0f)
+            var remaining = GetAbilityCooldownRemaining(slot);
+            if (remaining > 0f)
             {
                 PublishFeedback(
                     HeroFeedback.AbilityCooldown,
-                    Mathf.CeilToInt(tacticalAbilityCooldownRemaining.Value));
+                    Mathf.CeilToInt(remaining));
                 return;
             }
 
-            if (!IsFinite(requestedTargetPoint))
+            if (ability.effect == HeroAbilityEffect.ForwardBlink)
             {
-                PublishFeedback(HeroFeedback.AbilityOutOfRange);
+                CastBlink(slot, ability);
                 return;
             }
 
-            var targetPoint = requestedTargetPoint;
+            if (ability.effect == HeroAbilityEffect.SelfHeal)
+            {
+                CastHeal(slot, ability);
+                return;
+            }
+
+            if (!TryResolveAbilityTargetPoint(ability, requestedTargetPoint, out var targetPoint)) return;
+
             // Preserve the ground hit height for presentation, but cap vertical input so a client cannot
             // spawn the cosmetic effect at an arbitrary altitude. Damage/range always use XZ distance.
             targetPoint.y = Mathf.Clamp(targetPoint.y, transform.position.y - 3f, transform.position.y + 3f);
-            if (HorizontalSqrDistance(transform.position, targetPoint) > ability.castRange * ability.castRange)
-            {
-                PublishFeedback(HeroFeedback.AbilityOutOfRange);
-                return;
-            }
 
             var hitCount = CollectBreachChargeTargets(targetPoint, ability.effectRadius);
             if (hitCount <= 0)
@@ -386,9 +489,9 @@ namespace Splice.Characters
                 if (target != null && !target.IsDead) target.ApplyDamage(ability.damage, this);
             }
 
-            tacticalAbilityCooldownRemaining.Value = ability.cooldownSeconds;
+            SetAbilityCooldown(slot, ability.cooldownSeconds);
             PublishFeedback(HeroFeedback.AbilityCast, hitCount);
-            PlayTacticalAbilityEffectClientRpc(targetPoint);
+            PlayAbilityPresentationClientRpc(slot, targetPoint);
         }
 
         // Lets the target-mode button produce server-confirmed feedback without entering targeting while the
@@ -397,16 +500,139 @@ namespace Splice.Characters
         public void RequestTacticalAbilityStatusFeedbackServerRpc(ServerRpcParams rpcParams = default)
         {
             if (!CanControl(rpcParams.Receive.SenderClientId)) return;
-            if (TacticalAbility == null || !CanAct)
+            PublishAbilityStatus(HeroAbilitySlot.Skill1);
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestAbilityStatusFeedbackServerRpc(
+            HeroAbilitySlot slot,
+            ServerRpcParams rpcParams = default)
+        {
+            if (!CanControl(rpcParams.Receive.SenderClientId)) return;
+            PublishAbilityStatus(slot);
+        }
+
+        private void PublishAbilityStatus(HeroAbilitySlot slot)
+        {
+            lastAbilitySlot.Value = slot;
+            if (GetAbility(slot) == null || !CanAct)
             {
                 PublishFeedback(HeroFeedback.AbilityUnavailable);
                 return;
             }
 
-            if (tacticalAbilityCooldownRemaining.Value > 0f)
+            var remaining = GetAbilityCooldownRemaining(slot);
+            if (remaining > 0f)
                 PublishFeedback(
                     HeroFeedback.AbilityCooldown,
-                    Mathf.CeilToInt(tacticalAbilityCooldownRemaining.Value));
+                    Mathf.CeilToInt(remaining));
+        }
+
+        private void CastBlink(HeroAbilitySlot slot, HeroAbilityDefinitionSO ability)
+        {
+            var distance = Mathf.Max(0f, ability.movementDistance);
+            if (distance <= 0f)
+            {
+                PublishFeedback(HeroFeedback.AbilityUnavailable);
+                return;
+            }
+
+            var forward = transform.forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+            var destination = transform.position + forward.normalized * distance;
+            destination = ClampToMovementBounds(destination);
+            var movedDistance = Vector3.Distance(transform.position, destination);
+            if (movedDistance < 0.01f)
+            {
+                PublishFeedback(HeroFeedback.AbilityOutOfRange);
+                return;
+            }
+
+            transform.position = destination;
+            manualInput = Vector2.zero;
+            SetAbilityCooldown(slot, ability.cooldownSeconds);
+            PublishFeedback(HeroFeedback.AbilityBlinked, Mathf.RoundToInt(movedDistance * 10f));
+            PlayAbilityPresentationClientRpc(slot, destination);
+        }
+
+        private void CastHeal(HeroAbilitySlot slot, HeroAbilityDefinitionSO ability)
+        {
+            if (ability.healing <= 0 || CurrentHealth >= MaxHealth)
+            {
+                PublishFeedback(HeroFeedback.AbilityNoTargets);
+                return;
+            }
+
+            var previousHealth = CurrentHealth;
+            Heal(ability.healing);
+            var restored = CurrentHealth - previousHealth;
+            if (restored <= 0)
+            {
+                PublishFeedback(HeroFeedback.AbilityNoTargets);
+                return;
+            }
+
+            SetAbilityCooldown(slot, ability.cooldownSeconds);
+            PublishFeedback(HeroFeedback.AbilityHealed, restored);
+            PlayAbilityPresentationClientRpc(slot, transform.position);
+        }
+
+        private bool TryResolveAbilityTargetPoint(
+            HeroAbilityDefinitionSO ability,
+            Vector3 requestedTargetPoint,
+            out Vector3 targetPoint)
+        {
+            targetPoint = transform.position;
+            if (ability.targeting == HeroAbilityTargeting.Self) return true;
+            if (ability.targeting == HeroAbilityTargeting.Forward)
+            {
+                var distance = Mathf.Min(ability.castRange, Mathf.Max(1f, ability.effectRadius * 0.6f));
+                targetPoint += transform.forward * distance;
+                return true;
+            }
+
+            if (!IsFinite(requestedTargetPoint))
+            {
+                PublishFeedback(HeroFeedback.AbilityOutOfRange);
+                return false;
+            }
+
+            targetPoint = requestedTargetPoint;
+            if (HorizontalSqrDistance(transform.position, targetPoint) <= ability.castRange * ability.castRange)
+                return true;
+
+            PublishFeedback(HeroFeedback.AbilityOutOfRange);
+            return false;
+        }
+
+        private void SetAbilityCooldown(HeroAbilitySlot slot, float seconds)
+        {
+            var value = Mathf.Max(0f, seconds);
+            switch (slot)
+            {
+                case HeroAbilitySlot.Blink: blinkCooldownRemaining.Value = value; break;
+                case HeroAbilitySlot.Heal: healCooldownRemaining.Value = value; break;
+                case HeroAbilitySlot.Skill1: tacticalAbilityCooldownRemaining.Value = value; break;
+                case HeroAbilitySlot.Skill2: skill2CooldownRemaining.Value = value; break;
+                case HeroAbilitySlot.Skill3: skill3CooldownRemaining.Value = value; break;
+            }
+        }
+
+        private static void TickAbilityCooldown(NetworkVariable<float> cooldown)
+        {
+            if (cooldown.Value > 0f)
+                cooldown.Value = Mathf.Max(0f, cooldown.Value - Time.deltaTime);
+        }
+
+        private Vector3 ClampToMovementBounds(Vector3 position)
+        {
+            if (movementBounds == null) return position;
+            var bounds = movementBounds.bounds;
+            position.x = Mathf.Clamp(position.x, bounds.min.x, bounds.max.x);
+            position.y = transform.position.y;
+            position.z = Mathf.Clamp(position.z, bounds.min.z, bounds.max.z);
+            return position;
         }
 
         private bool CanControl(ulong senderClientId) =>
@@ -525,12 +751,24 @@ namespace Splice.Characters
             !float.IsNaN(value.z) && !float.IsInfinity(value.z);
 
         [ClientRpc]
-        private void PlayTacticalAbilityEffectClientRpc(Vector3 targetPoint)
+        private void PlayAbilityPresentationClientRpc(HeroAbilitySlot slot, Vector3 targetPoint)
         {
-            var ability = TacticalAbility;
-            if (ability == null || ability.castEffectPrefab == null) return;
-            var effect = Instantiate(ability.castEffectPrefab, targetPoint, Quaternion.identity);
-            if (ability.castEffectLifetime > 0f) Destroy(effect, ability.castEffectLifetime);
+            var ability = GetAbility(slot);
+            if (ability == null) return;
+            if (animator == null) animator = GetComponentInChildren<Animator>();
+            AnimatorUtil.SafeCrossFade(animator, ability.animationState, 0.05f);
+            if (ability.castEffectPrefab != null)
+            {
+                var effect = Instantiate(ability.castEffectPrefab, targetPoint, Quaternion.identity);
+                if (ability.castEffectLifetime > 0f) Destroy(effect, ability.castEffectLifetime);
+            }
+        }
+
+        [ClientRpc]
+        private void PlayActionAnimationClientRpc(string stateName)
+        {
+            if (animator == null) animator = GetComponentInChildren<Animator>();
+            AnimatorUtil.SafeCrossFade(animator, stateName, 0.05f);
         }
 
         private void TryInteractNearby()

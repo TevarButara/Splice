@@ -1,7 +1,9 @@
 using System;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.EventSystems;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace PinePie.SimpleJoystick
 {
@@ -152,7 +154,7 @@ namespace PinePie.SimpleJoystick
 #if UNITY_EDITOR
         void OnDrawGizmos()
         {
-            if (joystickBase != null)
+            if (joystickBase != null && directionSnaps > 0)
             {
                 Vector3 baseWorldPos = joystickBase.position;
 

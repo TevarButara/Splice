@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Splice.Characters;
+using Splice.Data;
 using Splice.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -31,8 +32,12 @@ namespace Splice.Input
         private Camera inspectorCamera;
         private bool targeting;
         private int armedFrame;
+        private HeroAbilitySlot selectedSlot = HeroAbilitySlot.Skill1;
 
         public bool IsTargeting => targeting;
+        public HeroAbilitySlot SelectedSlot => selectedSlot;
+        private HeroAbilityDefinitionSO SelectedAbility =>
+            hero != null ? hero.GetAbility(selectedSlot) : null;
 
         private void Awake()
         {
@@ -66,7 +71,7 @@ namespace Splice.Input
                 return;
             }
 
-            if (hero == null || !hero.IsOwner || !hero.CanAct || hero.TacticalAbility == null)
+            if (hero == null || !hero.IsOwner || !hero.CanAct || SelectedAbility == null)
             {
                 CancelTargeting();
             }
@@ -77,7 +82,8 @@ namespace Splice.Input
             if (!targeting) return;
 
             ResolveReferences();
-            if (hero == null || !hero.IsOwner || !hero.CanAct || hero.TacticalAbility == null)
+            var ability = SelectedAbility;
+            if (hero == null || !hero.IsOwner || !hero.CanAct || ability == null)
             {
                 CancelTargeting();
                 return;
@@ -91,35 +97,46 @@ namespace Splice.Input
 
             var castCenter = hero.transform.position;
             castCenter.y = targetPoint.y;
-            castRangeIndicator?.Show(castCenter, hero.TacticalAbility.castRange, castRangeColor);
+            castRangeIndicator?.Show(castCenter, ability.castRange, castRangeColor);
 
             var inRange = HorizontalSqrDistance(hero.transform.position, targetPoint) <=
-                          hero.TacticalAbility.castRange * hero.TacticalAbility.castRange;
+                          ability.castRange * ability.castRange;
             effectRadiusIndicator?.Show(
                 targetPoint,
-                hero.TacticalAbility.effectRadius,
+                ability.effectRadius,
                 inRange ? validColor : invalidColor);
 
             if (Time.frameCount <= armedFrame || !WasPrimaryPressedThisFrame() || IsOverUI(screenPoint)) return;
 
             // Send even an out-of-range point so the authoritative server can reject it and publish feedback.
-            hero.RequestCastTacticalAbilityServerRpc(targetPoint);
+            hero.RequestCastAbilityServerRpc(selectedSlot, targetPoint);
             CancelTargeting();
         }
 
-        public void BeginTargeting()
+        public void BeginTargeting() => BeginTargeting(HeroAbilitySlot.Skill1);
+
+        public void BeginTargeting(HeroAbilitySlot slot)
         {
             ResolveReferences();
-            if (hero == null || !hero.IsOwner || hero.TacticalAbility == null) return;
+            if (hero == null || !hero.IsOwner) return;
+            var ability = hero.GetAbility(slot);
+            if (ability == null) return;
+            selectedSlot = slot;
+
+            if (ability.targeting != HeroAbilityTargeting.TargetPoint)
+            {
+                hero.RequestCastAbilityServerRpc(slot, hero.GetSuggestedAbilityTargetPoint(slot));
+                return;
+            }
 
             // Only one pointer-targeting mode may own the next click.
             var orderTargeting = GetComponent<HeroTacticalOrderController>();
             if (orderTargeting == null) orderTargeting = FindAnyObjectByType<HeroTacticalOrderController>();
             orderTargeting?.CancelTargeting();
 
-            if (!hero.CanAct || hero.TacticalAbilityCooldownRemaining > 0f)
+            if (!hero.CanAct || hero.GetAbilityCooldownRemaining(slot) > 0f)
             {
-                hero.RequestTacticalAbilityStatusFeedbackServerRpc();
+                hero.RequestAbilityStatusFeedbackServerRpc(slot);
                 return;
             }
 

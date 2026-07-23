@@ -113,6 +113,47 @@ namespace Splice.Tests.EditMode
             Assert.That(registry.ResolveCard("natural/second"), Is.SameAs(second));
         }
 
+        [Test]
+        public void HeroActions_ValidateUniversalEffectContracts()
+        {
+            var hero = Make<HeroDefinitionSO>();
+            hero.heroId = "broken_actions";
+            hero.displayName = "Broken Actions";
+            hero.maxHealth = 100;
+            hero.attackDamage = 10;
+            hero.attackCooldown = 1f;
+            hero.moveSpeed = 1f;
+            hero.reviveHealthPercent = 0.5f;
+
+            var blink = Make<HeroAbilityDefinitionSO>();
+            blink.abilityId = "bad_blink";
+            blink.displayName = "Bad Blink";
+            blink.effect = HeroAbilityEffect.ForwardBlink;
+            blink.targeting = HeroAbilityTargeting.Self;
+            blink.movementDistance = 0f;
+            blink.cooldownSeconds = 1f;
+            hero.blinkAbility = blink;
+
+            var heal = Make<HeroAbilityDefinitionSO>();
+            heal.abilityId = "bad_heal";
+            heal.displayName = "Bad Heal";
+            heal.effect = HeroAbilityEffect.SelfHeal;
+            heal.targeting = HeroAbilityTargeting.Forward;
+            heal.healing = 0;
+            heal.cooldownSeconds = 1f;
+            hero.healAbility = heal;
+
+            var registry = Make<HeroRegistrySO>();
+            SetPrivateList(registry, "heroes", hero);
+            var report = SpliceContentValidationCore.Validate(
+                System.Array.Empty<FactionRegistrySO>(), new[] { registry });
+
+            AssertCode(report, "ABILITY_BLINK_DISTANCE_INVALID");
+            AssertCode(report, "ABILITY_BLINK_TARGETING_INVALID");
+            AssertCode(report, "ABILITY_HEAL_AMOUNT_INVALID");
+            AssertCode(report, "ABILITY_HEAL_TARGETING_INVALID");
+        }
+
         private T Make<T>() where T : ScriptableObject
         {
             var item = ScriptableObject.CreateInstance<T>();

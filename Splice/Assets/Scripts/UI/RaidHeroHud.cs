@@ -255,8 +255,11 @@ namespace Splice.UI
         private void HandleFeedback(HeroFeedback feedback, int value)
         {
             if (feedbackText == null) return;
-            var displayName = boundHero != null && boundHero.TacticalAbility != null
-                ? boundHero.TacticalAbility.displayName
+            var feedbackAbility = boundHero != null
+                ? boundHero.GetAbility(boundHero.LastAbilitySlot)
+                : null;
+            var displayName = feedbackAbility != null
+                ? feedbackAbility.displayName
                 : null;
             var abilityName = string.IsNullOrWhiteSpace(displayName)
                 ? "TACTICAL ABILITY"
@@ -273,8 +276,13 @@ namespace Splice.UI
                 HeroFeedback.AbilityCast => $"{abilityName} HIT {value} TARGET(S)",
                 HeroFeedback.AbilityCooldown => $"{abilityName} COOLDOWN {value}s",
                 HeroFeedback.AbilityOutOfRange => "TARGET OUT OF RANGE",
-                HeroFeedback.AbilityNoTargets => "NO DEFENSIVE TARGET IN BLAST RADIUS",
-                HeroFeedback.AbilityUnavailable => "TACTICAL ABILITY UNAVAILABLE",
+                HeroFeedback.AbilityNoTargets => $"{abilityName} HAS NO VALID TARGET",
+                HeroFeedback.AbilityUnavailable => $"{abilityName} UNAVAILABLE",
+                HeroFeedback.AbilityHealed => $"HEAL RESTORED +{value} HP",
+                HeroFeedback.AbilityBlinked => $"BLINK {value / 10f:0.0}m",
+                HeroFeedback.NormalAttackHit => $"ATTACK HIT • {value} DAMAGE",
+                HeroFeedback.NormalAttackNoTarget => "NO ENEMY IN ATTACK RANGE",
+                HeroFeedback.NormalAttackCooldown => $"ATTACK COOLDOWN {value}s",
                 HeroFeedback.FocusTargetSet => value > 0
                     ? $"FOCUS TARGET CONFIRMED • SQUAD ×{value}"
                     : "FOCUS TARGET CONFIRMED • HERO ONLY",

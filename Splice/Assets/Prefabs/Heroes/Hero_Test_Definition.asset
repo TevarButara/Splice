@@ -28,6 +28,11 @@ MonoBehaviour:
   startsInAutoMode: 1
   interactionRange: 2.5
   tacticalAbility: {fileID: 11400000, guid: de1f5b66808024526a59f005f61dbe82, type: 2}
+  blinkAbility: {fileID: 11400000, guid: d7dd40b7ff37f4b0284d02f11aea5465, type: 2}
+  healAbility: {fileID: 11400000, guid: ee1f3fe30e77d4f8e85e3617b6c5c028, type: 2}
+  skill1: {fileID: 0}
+  skill2: {fileID: 0}
+  skill3: {fileID: 0}
   downedWindowSeconds: 10
   reviveHealthPercent: 0.4
   maxRevivesPerRaid: 1

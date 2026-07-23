@@ -2,7 +2,7 @@
     "schemaVersion": 2,
     "liveContentVersion": "1.0.0",
     "serverContentVersion": "content-c4c2-v1",
-    "sourceSha256": "7218641a3ec1977cbb5815c76536ab5ac362122079e1c108d8b5406740d2527b",
+    "sourceSha256": "72cb33cea1c3b247414f5ccef56283dd96547a53be674a48654292e3707e6407",
     "items": [
         {
             "contentId": "1/0",
@@ -158,6 +158,32 @@
             "serverContentVersion": "content-c4c2-v1",
             "addressablesLabel": "faction/1",
             "address": "1/4",
+            "backendAuthoritative": true
+        },
+        {
+            "contentId": "hero/hero_rowan",
+            "factionId": "",
+            "contentKind": "HERO",
+            "defenseCapacityCost": 0,
+            "goldCost": 0,
+            "raidPower": 305,
+            "combat": {
+                "maxHealth": 2500,
+                "armor": 10,
+                "attackDamage": 200,
+                "attackCooldownMs": 2000,
+                "attackRangeMilli": 1800,
+                "moveSpeedMilli": 9000,
+                "abilityId": "rowan_leaf_slash",
+                "abilityDamage": 300,
+                "abilityCooldownMs": 4000,
+                "abilityCastRangeMilli": 5000,
+                "abilityRadiusMilli": 2500,
+                "maxTargets": 1
+            },
+            "serverContentVersion": "content-c4c2-v1",
+            "addressablesLabel": "hero/hero_rowan",
+            "address": "hero/hero_rowan",
             "backendAuthoritative": true
         },
         {

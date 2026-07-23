@@ -10,20 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: b930d5a413314987a6b7544a46a7f39c, type: 3}
-  m_Name: Skill2-Whirlbloom
+  m_Name: Universal_Blink
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.HeroAbilityDefinitionSO
-  abilityId: rowan_whirlbloom
-  displayName: Whirlbloom
-  description: 
+  abilityId: universal_blink
+  displayName: Blink
+  description: Dash rapidly in the Hero's current facing direction.
   icon: {fileID: 0}
-  targeting: 1
-  castRange: 4
-  effectRadius: 3
-  effect: 0
-  damage: 500
+  targeting: 2
+  castRange: 5
+  effectRadius: 0.1
+  effect: 1
+  damage: 1
   healing: 0
-  movementDistance: 0
-  cooldownSeconds: 8
-  animationState: Skill2
-  castEffectPrefab: {fileID: 2206962618483470306, guid: 5585510101a816940bd00605d4cfcbd9, type: 3}
-  castEffectLifetime: 2
+  movementDistance: 5
+  cooldownSeconds: 4
+  animationState: Sprint
+  castEffectPrefab: {fileID: 0}
+  castEffectLifetime: 0
