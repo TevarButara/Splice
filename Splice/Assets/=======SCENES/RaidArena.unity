@@ -23779,7 +23779,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -25.621948, y: -396.71997}
+  m_AnchoredPosition: {x: -25.62207, y: -396.7201}
   m_SizeDelta: {x: 0, y: -1005.897}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1411790385
@@ -37010,8 +37010,10 @@ MonoBehaviour:
   contentRoot: {fileID: 0}
   healthSlider: {fileID: 2045382581}
   shieldSlider: {fileID: 835610277}
+  manaSlider: {fileID: 0}
   heroNameText: {fileID: 1027326604}
   healthText: {fileID: 344309824}
+  manaText: {fileID: 0}
   modeText: {fileID: 2076106207}
   modeButtonText: {fileID: 1071012552}
   lifeStateText: {fileID: 1998001486}
@@ -37152,7 +37154,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 7964075010601686290, guid: 501ea7b945430b249bc23b10463584b3, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 2.2905686
+      value: 2.82
       objectReference: {fileID: 0}
     - target: {fileID: 7964075010601686290, guid: 501ea7b945430b249bc23b10463584b3, type: 3}
       propertyPath: m_LocalPosition.z

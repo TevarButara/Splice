@@ -26,7 +26,7 @@ MonoBehaviour:
   manaCost: 15
   cooldownSeconds: 4
   animationState: Sprint
-  castEffectPrefab: {fileID: 0}
+  castEffectPrefab: {fileID: 5607311613934148103, guid: 7c4abdbfd07463c45861dca91a7d4a0d, type: 3}
   castEffectLifetime: 1.25
   effectPlacement: 2
   effectLocalOffset: {x: 0, y: 0, z: 0}

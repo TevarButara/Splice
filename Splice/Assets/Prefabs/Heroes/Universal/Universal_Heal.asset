@@ -25,8 +25,8 @@ MonoBehaviour:
   movementDistance: 0
   manaCost: 30
   cooldownSeconds: 12
-  animationState:
-  castEffectPrefab: {fileID: 0}
+  animationState: 
+  castEffectPrefab: {fileID: 7852059613287517110, guid: 501ea7b945430b249bc23b10463584b3, type: 3}
   castEffectLifetime: 1.5
   effectPlacement: 2
   effectLocalOffset: {x: 0, y: 0, z: 0}
