@@ -16,11 +16,15 @@ MonoBehaviour:
   displayName: Whirlbloom
   description: 
   icon: {fileID: 0}
+  castType: 1
   targeting: 1
   castRange: 4
   effectRadius: 3
   effect: 0
+  damageMode: 0
   damage: 500
+  damageDurationSeconds: 3
+  dotTickIntervalSeconds: 0.5
   healing: 0
   movementDistance: 0
   manaCost: 30

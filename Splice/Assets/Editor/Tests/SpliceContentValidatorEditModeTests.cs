@@ -134,6 +134,9 @@ namespace Splice.Tests.EditMode
             blink.movementDistance = 0f;
             blink.cooldownSeconds = 1f;
             blink.manaCost = -1f;
+            blink.damageMode = HeroAbilityDamageMode.DamageOverTime;
+            blink.damageDurationSeconds = 0f;
+            blink.dotTickIntervalSeconds = 0f;
             hero.blinkAbility = blink;
 
             var heal = Make<HeroAbilityDefinitionSO>();
@@ -153,6 +156,8 @@ namespace Splice.Tests.EditMode
             AssertCode(report, "ABILITY_BLINK_DISTANCE_INVALID");
             AssertCode(report, "ABILITY_BLINK_TARGETING_INVALID");
             AssertCode(report, "ABILITY_MANA_COST_INVALID");
+            AssertCode(report, "ABILITY_DOT_DURATION_INVALID");
+            AssertCode(report, "ABILITY_DOT_TICK_INVALID");
             AssertCode(report, "ABILITY_HEAL_AMOUNT_INVALID");
             AssertCode(report, "ABILITY_HEAL_TARGETING_INVALID");
             AssertCode(report, "HERO_STARTING_MANA_INVALID");

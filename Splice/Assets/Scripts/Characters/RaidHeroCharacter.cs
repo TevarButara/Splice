@@ -152,6 +152,17 @@ namespace Splice.Characters
         private const float MovementSampleThreshold = 0.001f;
         private const float MovementHoldSeconds = 0.18f;
         private static readonly System.Collections.Generic.List<CharacterBase> abilityTargets = new();
+        private sealed class PendingAbilityDot
+        {
+            public HeroAbilityDefinitionSO ability;
+            public HeroAbilityCastType castType;
+            public Vector3 center;
+            public CharacterBase lockedTarget;
+            public int tickIndex;
+            public float tickSpacing;
+            public float nextTickAt;
+        }
+        private readonly List<PendingAbilityDot> pendingAbilityDots = new();
 
         public event System.Action<HeroFeedback, int> FeedbackReceived;
 
@@ -165,6 +176,7 @@ namespace Splice.Characters
         public float ManaGenerationPercentPerSecond =>
             definition != null ? Mathf.Max(0f, definition.manaGenerationPercentPerSecond) : 0f;
         public HeroTargetPreference TargetPreference => targetPreference.Value;
+        public static HeroControlMode TargetAssistControlMode => HeroControlMode.Manual;
         public float DownedRemaining => downedRemaining.Value;
         public int RevivesRemaining => revivesRemaining.Value;
         public HeroAbilityDefinitionSO TacticalAbility =>
@@ -204,7 +216,11 @@ namespace Splice.Characters
         public Vector3 GetSuggestedAbilityTargetPoint(HeroAbilitySlot slot)
         {
             var ability = GetAbility(slot);
-            if (ability == null || ability.targeting == HeroAbilityTargeting.Self) return transform.position;
+            if (ability == null || ability.castType == HeroAbilityCastType.SelfCast)
+                return transform.position;
+            if (ability.castType == HeroAbilityCastType.LockedTarget &&
+                TryGetFocusTarget(out var lockedTarget))
+                return lockedTarget.transform.position;
             var distance = Mathf.Min(ability.castRange, Mathf.Max(1f, ability.effectRadius * 0.6f));
             return transform.position + transform.forward * distance;
         }
@@ -282,6 +298,7 @@ namespace Splice.Characters
             attackTimer = definition.attackCooldown;
             normalAttackPending = false;
             pendingNormalAttackTarget = null;
+            pendingAbilityDots.Clear();
         }
 
         private void Update()
@@ -297,6 +314,7 @@ namespace Splice.Characters
             TickAbilityCooldown(skill3CooldownRemaining);
             TickManaRegeneration();
             TickPendingNormalAttack();
+            TickPendingAbilityDots();
 
             if (hasFocusTarget.Value && !TryResolveFocusTarget(out _))
             {
@@ -368,7 +386,23 @@ namespace Splice.Characters
         private void TickManualMovement()
         {
             if (Time.time - lastManualInputTime > 0.35f) manualInput = Vector2.zero;
-            Move(new Vector3(manualInput.x, 0f, manualInput.y));
+            var direction = new Vector3(manualInput.x, 0f, manualInput.y);
+            var hasManualInput = direction.sqrMagnitude > 0.0001f;
+            var hasLockedTarget = TryResolveFocusTarget(out var lockedTarget);
+
+            if (hasManualInput)
+                Move(direction, !hasLockedTarget);
+            else if (hasLockedTarget)
+            {
+                var delta = lockedTarget.transform.position - transform.position;
+                delta.y = 0f;
+                if (delta.magnitude > definition.attackRange * 0.9f)
+                    Move(delta.normalized, false);
+            }
+
+            // Target assist is strafing-friendly: joystick remains active, while facing stays locked.
+            if (hasLockedTarget)
+                Face(lockedTarget.transform.position - transform.position);
         }
 
         private void TickAutoMovement()
@@ -385,7 +419,7 @@ namespace Splice.Characters
             Move(delta.normalized);
         }
 
-        private void Move(Vector3 direction)
+        private void Move(Vector3 direction, bool faceMovement = true)
         {
             direction.y = 0f;
             if (direction.sqrMagnitude > 1f) direction.Normalize();
@@ -406,7 +440,7 @@ namespace Splice.Characters
                     definition.groundOffset))
                 position = snappedPosition;
             transform.position = position;
-            Face(direction);
+            if (faceMovement) Face(direction);
         }
 
         private void Face(Vector3 direction)
@@ -535,15 +569,14 @@ namespace Splice.Characters
         {
             if (!CanControl(rpcParams.Receive.SenderClientId) || !CanAct) return;
             targetPreference.Value = requested;
-            controlMode.Value = HeroControlMode.Auto;
-            manualInput = Vector2.zero;
+            controlMode.Value = TargetAssistControlMode;
             ClearFocusTarget(HeroFeedback.FocusTargetCleared);
 
             if (requested == HeroTargetPreference.Monster &&
                 TryResolveRequestedFocusTarget(visibleEnemyHero, out var visibleHero) &&
                 visibleHero is RaidHeroCharacter)
             {
-                SetFocusTarget(visibleHero);
+                SetFocusTarget(visibleHero, false);
                 return;
             }
             AcquirePreferredFocusTarget();
@@ -573,7 +606,7 @@ namespace Splice.Characters
 
             // Write the reference before the flag so clients never observe "has target" with an old ref.
             targetPreference.Value = HeroTargetPreference.Default;
-            SetFocusTarget(target);
+            SetFocusTarget(target, true);
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -633,9 +666,9 @@ namespace Splice.Characters
                 return;
             }
 
-            var target = TryResolveFocusTarget(out var lockedTarget) &&
-                         IsWithinHorizontalRange(lockedTarget, definition.attackRange)
-                ? lockedTarget
+            var hasLockedTarget = TryResolveFocusTarget(out var lockedTarget);
+            var target = hasLockedTarget
+                ? IsWithinHorizontalRange(lockedTarget, definition.attackRange) ? lockedTarget : null
                 : FindNearestEnemy(definition.attackRange);
             if (target != null)
             {
@@ -673,12 +706,9 @@ namespace Splice.Characters
                 return;
             }
 
-            if (TryResolveFocusTarget(out var lockedTarget))
-            {
-                Face(lockedTarget.transform.position - transform.position);
-                if (ability.targeting == HeroAbilityTargeting.TargetPoint)
-                    requestedTargetPoint = lockedTarget.transform.position;
-            }
+            var hasLockedTarget = TryResolveFocusTarget(out var lockedTarget);
+            if (ability.castType == HeroAbilityCastType.LockedTarget && hasLockedTarget)
+                requestedTargetPoint = lockedTarget.transform.position;
 
             if (ability.effect == HeroAbilityEffect.ForwardBlink)
             {
@@ -697,13 +727,20 @@ namespace Splice.Characters
             // Preserve the ground hit height for presentation, but cap vertical input so a client cannot
             // spawn the cosmetic effect at an arbitrary altitude. Damage/range always use XZ distance.
             targetPoint.y = Mathf.Clamp(targetPoint.y, transform.position.y - 3f, transform.position.y + 3f);
+            if (ability.castType != HeroAbilityCastType.SelfCast)
+                Face(targetPoint - transform.position);
 
-            var hitCount = CollectBreachChargeTargets(targetPoint, ability.effectRadius);
-            for (var i = 0; i < abilityTargets.Count; i++)
-            {
-                var target = abilityTargets[i];
-                if (target != null && !target.IsDead) target.ApplyDamage(ability.damage, this);
-            }
+            var directTarget = ability.castType == HeroAbilityCastType.LockedTarget && hasLockedTarget
+                ? lockedTarget
+                : null;
+            var hitCount = ability.damageMode == HeroAbilityDamageMode.DamageOverTime
+                ? StartAbilityDot(ability, targetPoint, directTarget)
+                : ApplyAbilityDamage(
+                    ability.castType,
+                    targetPoint,
+                    directTarget,
+                    ability.effectRadius,
+                    ability.damage);
 
             ConsumeMana(ability.manaCost);
             SetAbilityCooldown(slot, ability.cooldownSeconds);
@@ -820,9 +857,19 @@ namespace Splice.Characters
             out Vector3 targetPoint)
         {
             targetPoint = transform.position;
-            if (ability.targeting == HeroAbilityTargeting.Self) return true;
-            if (ability.targeting == HeroAbilityTargeting.Forward)
+            if (ability.castType == HeroAbilityCastType.SelfCast) return true;
+            if (ability.castType == HeroAbilityCastType.LockedTarget)
             {
+                if (TryResolveFocusTarget(out var lockedTarget))
+                {
+                    targetPoint = lockedTarget.transform.position;
+                    if (HorizontalSqrDistance(transform.position, targetPoint) <=
+                        ability.castRange * ability.castRange)
+                        return true;
+                    PublishFeedback(HeroFeedback.AbilityOutOfRange);
+                    return false;
+                }
+
                 var distance = Mathf.Min(ability.castRange, Mathf.Max(1f, ability.effectRadius * 0.6f));
                 targetPoint += transform.forward * distance;
                 return true;
@@ -914,12 +961,14 @@ namespace Splice.Characters
             return target is RaidHeroCharacter hero && hero != this && hero.side != side;
         }
 
-        private void SetFocusTarget(CharacterBase target)
+        private void SetFocusTarget(CharacterBase target, bool issueSquadOrder)
         {
             if (!IsServer || target == null || target.IsDead || target.NetworkObject == null) return;
             focusTarget.Value = new NetworkObjectReference(target.NetworkObject);
             hasFocusTarget.Value = true;
-            var assignedUnitCount = target is RaidHeroCharacter ? 0 : IssueSquadFocusOrder(target);
+            var assignedUnitCount = issueSquadOrder && target is not RaidHeroCharacter
+                ? IssueSquadFocusOrder(target)
+                : 0;
             PublishFeedback(HeroFeedback.FocusTargetSet, assignedUnitCount);
         }
 
@@ -932,7 +981,7 @@ namespace Splice.Characters
                 HeroTargetPreference.Tower => FindNearestTowerTarget(),
                 _ => null
             };
-            if (target != null) SetFocusTarget(target);
+            if (target != null) SetFocusTarget(target, false);
         }
 
         private void ClearFocusTarget(HeroFeedback feedback)
@@ -978,7 +1027,85 @@ namespace Splice.Characters
         private bool IsWithinHorizontalRange(CharacterBase target, float range) =>
             target != null && HorizontalSqrDistance(transform.position, target.transform.position) <= range * range;
 
-        private int CollectBreachChargeTargets(Vector3 targetPoint, float radius)
+        private int StartAbilityDot(
+            HeroAbilityDefinitionSO ability,
+            Vector3 center,
+            CharacterBase directTarget)
+        {
+            var previewCount = directTarget != null && !directTarget.IsDead
+                ? 1
+                : CollectAreaTargets(center, ability.effectRadius);
+            var tickCount = ability.DamageTickCount;
+            pendingAbilityDots.Add(new PendingAbilityDot
+            {
+                ability = ability,
+                castType = ability.castType,
+                center = center,
+                lockedTarget = directTarget,
+                tickIndex = 0,
+                tickSpacing = Mathf.Max(0.01f, ability.damageDurationSeconds / tickCount),
+                nextTickAt = Time.time + Mathf.Max(0.01f, ability.damageDurationSeconds / tickCount)
+            });
+            return previewCount;
+        }
+
+        private void TickPendingAbilityDots()
+        {
+            for (var i = pendingAbilityDots.Count - 1; i >= 0; i--)
+            {
+                var dot = pendingAbilityDots[i];
+                if (dot == null || dot.ability == null)
+                {
+                    pendingAbilityDots.RemoveAt(i);
+                    continue;
+                }
+
+                while (Time.time >= dot.nextTickAt && dot.tickIndex < dot.ability.DamageTickCount)
+                {
+                    var damage = dot.ability.DamageAtTick(dot.tickIndex);
+                    if (damage > 0)
+                        ApplyAbilityDamage(
+                            dot.castType,
+                            dot.center,
+                            dot.lockedTarget,
+                            dot.ability.effectRadius,
+                            damage);
+                    dot.tickIndex++;
+                    dot.nextTickAt += dot.tickSpacing;
+                }
+
+                if (dot.tickIndex >= dot.ability.DamageTickCount)
+                    pendingAbilityDots.RemoveAt(i);
+            }
+        }
+
+        private int ApplyAbilityDamage(
+            HeroAbilityCastType castType,
+            Vector3 center,
+            CharacterBase directTarget,
+            float radius,
+            int damage)
+        {
+            abilityTargets.Clear();
+            if (castType == HeroAbilityCastType.LockedTarget && directTarget != null)
+            {
+                if (!directTarget.IsDead && IsValidFocusTarget(directTarget))
+                    abilityTargets.Add(directTarget);
+            }
+            else
+            {
+                CollectAreaTargets(center, radius);
+            }
+
+            for (var i = 0; i < abilityTargets.Count; i++)
+            {
+                var target = abilityTargets[i];
+                if (target != null && !target.IsDead) target.ApplyDamage(damage, this);
+            }
+            return abilityTargets.Count;
+        }
+
+        private int CollectAreaTargets(Vector3 targetPoint, float radius)
         {
             abilityTargets.Clear();
             var radiusSqr = radius * radius;
@@ -1043,6 +1170,9 @@ namespace Splice.Characters
             if (ability == null) return;
             PlayActionState(ResolveAbilityAnimationState(slot, ability));
             if (ability.castEffectPrefab == null) return;
+            var effectLifetime = ability.damageMode == HeroAbilityDamageMode.DamageOverTime
+                ? Mathf.Max(ability.castEffectLifetime, ability.damageDurationSeconds)
+                : ability.castEffectLifetime;
 
             switch (ability.effectPlacement)
             {
@@ -1050,7 +1180,7 @@ namespace Splice.Characters
                     OneShotEffect.SpawnAttached(
                         ability.castEffectPrefab,
                         transform,
-                        ability.castEffectLifetime,
+                        effectLifetime,
                         ability.effectLocalOffset);
                     break;
                 case HeroAbilityEffectPlacement.HeroEffectAnchor:
@@ -1060,13 +1190,13 @@ namespace Splice.Characters
                             abilityEffectAnchor != null ? abilityEffectAnchor : transform,
                             originPoint,
                             targetPoint,
-                            ability.castEffectLifetime,
+                            effectLifetime,
                             ability.effectLocalOffset);
                     else
                         OneShotEffect.SpawnAttached(
                             ability.castEffectPrefab,
                             abilityEffectAnchor != null ? abilityEffectAnchor : transform,
-                            ability.castEffectLifetime,
+                            effectLifetime,
                             ability.effectLocalOffset);
                     break;
                 case HeroAbilityEffectPlacement.WorldPoint:
@@ -1074,7 +1204,7 @@ namespace Splice.Characters
                         ability.castEffectPrefab,
                         targetPoint + ability.effectLocalOffset,
                         Quaternion.identity,
-                        ability.castEffectLifetime);
+                        effectLifetime);
                     break;
                 default:
                     GroundSurfaceResolver.TrySnap(
@@ -1086,7 +1216,7 @@ namespace Splice.Characters
                         ability.castEffectPrefab,
                         targetPoint + ability.effectLocalOffset,
                         Quaternion.identity,
-                        ability.castEffectLifetime);
+                        effectLifetime);
                     break;
             }
         }

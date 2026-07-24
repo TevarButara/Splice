@@ -90,6 +90,12 @@ namespace Splice.Tests.EditMode
             Assert.That(rowan.normalAttackImpactDelay, Is.GreaterThan(0f));
             Assert.That(rowan.blinkAbility.effectPlacement, Is.EqualTo(HeroAbilityEffectPlacement.HeroEffectAnchor));
             Assert.That(rowan.healAbility.effectPlacement, Is.EqualTo(HeroAbilityEffectPlacement.HeroEffectAnchor));
+            Assert.That(rowan.blinkAbility.castType, Is.EqualTo(HeroAbilityCastType.SelfCast));
+            Assert.That(rowan.healAbility.castType, Is.EqualTo(HeroAbilityCastType.SelfCast));
+            Assert.That(rowan.skill1.castType, Is.EqualTo(HeroAbilityCastType.LockedTarget));
+            Assert.That(rowan.skill2.castType, Is.EqualTo(HeroAbilityCastType.SelfCast));
+            Assert.That(rowan.skill3.castType, Is.EqualTo(HeroAbilityCastType.DragArea));
+            Assert.That(rowan.skill3.damageMode, Is.EqualTo(HeroAbilityDamageMode.DamageOverTime));
             Assert.That(rowan.normalAttackEffectPrefab, Is.Not.Null);
         }
 
@@ -157,6 +163,41 @@ namespace Splice.Tests.EditMode
             finally
             {
                 Object.DestroyImmediate(surface);
+            }
+        }
+
+        [Test]
+        public void TargetAssist_KeepsHeroModeAndJoystickContract()
+        {
+            Assert.That(
+                RaidHeroCharacter.TargetAssistControlMode,
+                Is.EqualTo(HeroControlMode.Manual),
+                "Target buttons must not switch the Hero to Auto or hide Manual controls.");
+        }
+
+        [Test]
+        public void DotDamage_DistributesConfiguredTotalExactlyAcrossDuration()
+        {
+            var ability = ScriptableObject.CreateInstance<HeroAbilityDefinitionSO>();
+            try
+            {
+                ability.damageMode = HeroAbilityDamageMode.DamageOverTime;
+                ability.damage = 101;
+                ability.damageDurationSeconds = 3f;
+                ability.dotTickIntervalSeconds = 0.5f;
+
+                var distributed = 0;
+                for (var i = 0; i < ability.DamageTickCount; i++)
+                    distributed += ability.DamageAtTick(i);
+
+                Assert.That(ability.DamageTickCount, Is.EqualTo(6));
+                Assert.That(distributed, Is.EqualTo(101));
+                Assert.That(ability.DamageAtTick(-1), Is.Zero);
+                Assert.That(ability.DamageAtTick(ability.DamageTickCount), Is.Zero);
+            }
+            finally
+            {
+                Object.DestroyImmediate(ability);
             }
         }
 

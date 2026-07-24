@@ -29,6 +29,8 @@ namespace Splice.Input
         private bool? lastControlAvailability;
         private HeroControlMode? lastControlMode;
         private JoystickController subscribedJoystick;
+        private HeroAbilitySlot suppressedClickSlot;
+        private int suppressClickThroughFrame = -1;
 
         public JoystickController MovementJoystick => movementJoystick;
         public bool HasCompleteBinding =>
@@ -106,6 +108,11 @@ namespace Splice.Input
 
         private void UseAbility(HeroAbilitySlot slot)
         {
+            if (slot == suppressedClickSlot && Time.frameCount <= suppressClickThroughFrame)
+            {
+                suppressClickThroughFrame = -1;
+                return;
+            }
             ResolveHero();
             if (hero == null || !hero.CanLocalPlayerControl) return;
 
@@ -116,8 +123,7 @@ namespace Splice.Input
                 return;
             }
 
-            if (ability.targeting == HeroAbilityTargeting.TargetPoint &&
-                ability.effect == HeroAbilityEffect.AreaDamage)
+            if (ability.castType == HeroAbilityCastType.DragArea)
             {
                 if (targetingController == null)
                     targetingController = FindAnyObjectByType<HeroAbilityTargetingController>();
@@ -184,6 +190,9 @@ namespace Splice.Input
             autoButton?.onClick.AddListener(Auto);
             targetMonsterButton?.onClick.AddListener(TargetMonster);
             targetTowerButton?.onClick.AddListener(TargetTower);
+            EnsureSkillDragHandler(skill1Button, HeroAbilitySlot.Skill1);
+            EnsureSkillDragHandler(skill2Button, HeroAbilitySlot.Skill2);
+            EnsureSkillDragHandler(skill3Button, HeroAbilitySlot.Skill3);
             lastControlAvailability = null;
             lastControlMode = null;
             RefreshControlAvailability();
@@ -235,6 +244,47 @@ namespace Splice.Input
             if (subscribedJoystick != null) subscribedJoystick.OnTouchPressed -= EnterHeroMode;
             subscribedJoystick = movementJoystick;
             if (subscribedJoystick != null) subscribedJoystick.OnTouchPressed += EnterHeroMode;
+        }
+
+        public bool TryBeginAbilityDrag(HeroAbilitySlot slot, Vector2 screenPoint)
+        {
+            ResolveHero();
+            if (hero == null || !hero.CanLocalPlayerControl) return false;
+            var ability = hero.GetAbility(slot);
+            if (ability == null || ability.castType != HeroAbilityCastType.DragArea) return false;
+            if (targetingController == null)
+                targetingController = FindAnyObjectByType<HeroAbilityTargetingController>();
+            return targetingController != null &&
+                   targetingController.BeginDragTargeting(slot, screenPoint);
+        }
+
+        public void UpdateAbilityDrag(HeroAbilitySlot slot, Vector2 screenPoint)
+        {
+            targetingController?.UpdateDragTargeting(slot, screenPoint);
+        }
+
+        public void ReleaseAbilityDrag(HeroAbilitySlot slot, Vector2 screenPoint)
+        {
+            if (targetingController == null ||
+                !targetingController.ReleaseDragTargeting(slot, screenPoint))
+                return;
+            suppressedClickSlot = slot;
+            suppressClickThroughFrame = Time.frameCount + 1;
+        }
+
+        public void CancelAbilityDrag(HeroAbilitySlot slot)
+        {
+            if (targetingController != null && targetingController.IsDragTargeting &&
+                targetingController.SelectedSlot == slot)
+                targetingController.CancelTargeting();
+        }
+
+        private void EnsureSkillDragHandler(Button button, HeroAbilitySlot slot)
+        {
+            if (button == null) return;
+            var handler = button.GetComponent<HeroSkillDragButton>();
+            if (handler == null) handler = button.gameObject.AddComponent<HeroSkillDragButton>();
+            handler.Configure(this, slot);
         }
 
         private NetworkObjectReference FindVisibleEnemyHero()

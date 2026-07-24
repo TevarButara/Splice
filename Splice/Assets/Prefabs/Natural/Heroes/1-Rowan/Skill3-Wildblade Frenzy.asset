@@ -16,11 +16,15 @@ MonoBehaviour:
   displayName: Wildblade Frenzy
   description: 
   icon: {fileID: 0}
+  castType: 0
   targeting: 1
   castRange: 6
   effectRadius: 4
   effect: 0
+  damageMode: 1
   damage: 700
+  damageDurationSeconds: 1.866667
+  dotTickIntervalSeconds: 0.46666676
   healing: 0
   movementDistance: 0
   manaCost: 40
@@ -28,6 +32,6 @@ MonoBehaviour:
   animationState: Skill3
   castEffectPrefab: {fileID: 1835876825148838861, guid: 61ddfc2bb35044b4bbb0abb41a07c0f2, type: 3}
   castEffectLifetime: 2
-  effectPlacement: 2
+  effectPlacement: 0
   effectLocalOffset: {x: 0, y: 0, z: 0}
-  groundEffectOffset: 0.05
+  groundEffectOffset: 0.08

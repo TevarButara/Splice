@@ -31,10 +31,13 @@ namespace Splice.Input
         private static readonly List<RaycastResult> uiHits = new();
         private Camera inspectorCamera;
         private bool targeting;
+        private bool dragTargeting;
+        private Vector2 dragScreenPoint;
         private int armedFrame;
         private HeroAbilitySlot selectedSlot = HeroAbilitySlot.Skill1;
 
         public bool IsTargeting => targeting;
+        public bool IsDragTargeting => dragTargeting;
         public HeroAbilitySlot SelectedSlot => selectedSlot;
         private HeroAbilityDefinitionSO SelectedAbility =>
             hero != null ? hero.GetAbility(selectedSlot) : null;
@@ -89,7 +92,11 @@ namespace Splice.Input
                 return;
             }
 
-            if (!TryGetPointerPosition(out var screenPoint) || !TryGetGroundPoint(screenPoint, out var targetPoint))
+            var hasPointer = dragTargeting
+                ? true
+                : TryGetPointerPosition(out dragScreenPoint);
+            var screenPoint = dragScreenPoint;
+            if (!hasPointer || !TryGetGroundPoint(screenPoint, out var targetPoint))
             {
                 effectRadiusIndicator?.Hide();
                 return;
@@ -106,6 +113,7 @@ namespace Splice.Input
                 ability.effectRadius,
                 inRange ? validColor : invalidColor);
 
+            if (dragTargeting) return;
             if (Time.frameCount <= armedFrame || !WasPrimaryPressedThisFrame() || IsOverUI(screenPoint)) return;
 
             // Send even an out-of-range point so the authoritative server can reject it and publish feedback.
@@ -123,31 +131,74 @@ namespace Splice.Input
             if (ability == null) return;
             selectedSlot = slot;
 
-            if (ability.targeting != HeroAbilityTargeting.TargetPoint)
+            if (ability.castType != HeroAbilityCastType.DragArea)
             {
                 hero.RequestCastAbilityServerRpc(slot, hero.GetSuggestedAbilityTargetPoint(slot));
                 return;
             }
 
+            if (!PrepareTargeting(slot)) return;
+            dragTargeting = false;
+            armedFrame = Time.frameCount;
+        }
+
+        public bool BeginDragTargeting(HeroAbilitySlot slot, Vector2 screenPoint)
+        {
+            ResolveReferences();
+            var ability = hero != null ? hero.GetAbility(slot) : null;
+            if (ability == null || ability.castType != HeroAbilityCastType.DragArea) return false;
+            if (!PrepareTargeting(slot)) return false;
+
+            dragTargeting = true;
+            dragScreenPoint = screenPoint;
+            return true;
+        }
+
+        public void UpdateDragTargeting(HeroAbilitySlot slot, Vector2 screenPoint)
+        {
+            if (!targeting || !dragTargeting || selectedSlot != slot) return;
+            dragScreenPoint = screenPoint;
+        }
+
+        public bool ReleaseDragTargeting(HeroAbilitySlot slot, Vector2 screenPoint)
+        {
+            if (!targeting || !dragTargeting || selectedSlot != slot) return false;
+            dragScreenPoint = screenPoint;
+            ResolveReferences();
+            var targetPoint = default(Vector3);
+            var cast = hero != null && hero.CanLocalPlayerControl &&
+                       TryGetGroundPoint(screenPoint, out targetPoint);
+            if (cast) hero.RequestCastAbilityServerRpc(slot, targetPoint);
+            CancelTargeting();
+            return true;
+        }
+
+        private bool PrepareTargeting(HeroAbilitySlot slot)
+        {
+            selectedSlot = slot;
             // Only one pointer-targeting mode may own the next click.
             var orderTargeting = GetComponent<HeroTacticalOrderController>();
             if (orderTargeting == null) orderTargeting = FindAnyObjectByType<HeroTacticalOrderController>();
             orderTargeting?.CancelTargeting();
 
-            if (!hero.CanAct || hero.GetAbilityCooldownRemaining(slot) > 0f)
+            var ability = hero.GetAbility(slot);
+            if (!hero.CanAct || ability == null ||
+                hero.GetAbilityCooldownRemaining(slot) > 0f ||
+                hero.Mana + 0.001f < ability.manaCost)
             {
                 hero.RequestAbilityStatusFeedbackServerRpc(slot);
-                return;
+                return false;
             }
 
             targeting = true;
-            armedFrame = Time.frameCount;
             if (targetingUiRoot != null && targetingUiRoot != gameObject) targetingUiRoot.SetActive(true);
+            return true;
         }
 
         public void CancelTargeting()
         {
             targeting = false;
+            dragTargeting = false;
             effectRadiusIndicator?.Hide();
             castRangeIndicator?.Hide();
             if (targetingUiRoot != null && targetingUiRoot != gameObject) targetingUiRoot.SetActive(false);

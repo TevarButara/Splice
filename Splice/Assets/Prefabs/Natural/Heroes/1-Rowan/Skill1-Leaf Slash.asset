@@ -16,11 +16,15 @@ MonoBehaviour:
   displayName: Leaf Slash
   description: 
   icon: {fileID: 0}
+  castType: 2
   targeting: 2
   castRange: 5
   effectRadius: 2.5
   effect: 0
+  damageMode: 0
   damage: 300
+  damageDurationSeconds: 3
+  dotTickIntervalSeconds: 0.5
   healing: 0
   movementDistance: 0
   manaCost: 20

@@ -25,6 +25,19 @@ namespace Splice.Data
         Forward
     }
 
+    public enum HeroAbilityCastType
+    {
+        [InspectorName("AOE — Drag From Skill Button")] DragArea,
+        [InspectorName("Self — Cast Around Hero Immediately")] SelfCast,
+        [InspectorName("Target — Locked Target, Forward Fallback")] LockedTarget
+    }
+
+    public enum HeroAbilityDamageMode
+    {
+        Instant,
+        [InspectorName("Damage Over Time")] DamageOverTime
+    }
+
     public enum HeroAbilityEffectPlacement
     {
         GroundSurface,
@@ -44,13 +57,22 @@ namespace Splice.Data
         public Sprite icon;
 
         [Header("Targeting")]
+        [Tooltip("Self casts instantly around the Hero. Target uses the locked target or fires forward. AOE is aimed by dragging from the skill button and releases on the ground.")]
+        public HeroAbilityCastType castType = HeroAbilityCastType.DragArea;
+        [Tooltip("Legacy low-level targeting used by universal Blink/Heal effects.")]
         public HeroAbilityTargeting targeting = HeroAbilityTargeting.TargetPoint;
         [Min(0.1f)] public float castRange = 7f;
         [Min(0.1f)] public float effectRadius = 2.5f;
 
         [Header("Effect")]
         public HeroAbilityEffect effect = HeroAbilityEffect.AreaDamage;
+        public HeroAbilityDamageMode damageMode = HeroAbilityDamageMode.Instant;
+        [Tooltip("Instant = damage per cast. DOT = TOTAL damage dealt to each target that remains affected for the full duration.")]
         [Min(1)] public int damage = 80;
+        [Tooltip("Duration of a DOT zone/effect. Ignored by Instant damage.")]
+        [Min(0.05f)] public float damageDurationSeconds = 3f;
+        [Tooltip("Server tick interval for DOT. Total Damage is divided exactly across these ticks.")]
+        [Min(0.05f)] public float dotTickIntervalSeconds = 0.5f;
         [Min(0)] public int healing;
         [Min(0f)] public float movementDistance;
         [Min(0f)] public float manaCost;
@@ -66,5 +88,23 @@ namespace Splice.Data
         public HeroAbilityEffectPlacement effectPlacement = HeroAbilityEffectPlacement.GroundSurface;
         public Vector3 effectLocalOffset;
         [Min(0f)] public float groundEffectOffset = 0.05f;
+
+        public int DamageTickCount =>
+            damageMode == HeroAbilityDamageMode.Instant
+                ? 1
+                : Mathf.Min(
+                    Mathf.Max(1, damage),
+                    Mathf.Max(1, Mathf.CeilToInt(
+                        Mathf.Max(0.05f, damageDurationSeconds) /
+                        Mathf.Max(0.05f, dotTickIntervalSeconds))));
+
+        public int DamageAtTick(int zeroBasedTick)
+        {
+            if (zeroBasedTick < 0 || zeroBasedTick >= DamageTickCount) return 0;
+            var total = Mathf.Max(0, damage);
+            var baseDamage = total / DamageTickCount;
+            var remainder = total % DamageTickCount;
+            return baseDamage + (zeroBasedTick < remainder ? 1 : 0);
+        }
     }
 }

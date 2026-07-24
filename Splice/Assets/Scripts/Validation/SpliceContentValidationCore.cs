@@ -292,11 +292,27 @@ namespace Splice.Validation
                 $"Ability '{ability.abilityId}' mana cost",
                 ability,
                 report);
+            if (ability.damageMode == HeroAbilityDamageMode.DamageOverTime)
+            {
+                Positive(
+                    ability.damageDurationSeconds,
+                    "ABILITY_DOT_DURATION_INVALID",
+                    $"Ability '{ability.abilityId}' DOT duration",
+                    ability,
+                    report);
+                Positive(
+                    ability.dotTickIntervalSeconds,
+                    "ABILITY_DOT_TICK_INVALID",
+                    $"Ability '{ability.abilityId}' DOT tick interval",
+                    ability,
+                    report);
+            }
             switch (ability.effect)
             {
                 case HeroAbilityEffect.AreaDamage:
-                    Positive(ability.castRange, "ABILITY_RANGE_INVALID",
-                        $"Ability '{ability.abilityId}' cast range", ability, report);
+                    if (ability.castType != HeroAbilityCastType.SelfCast)
+                        Positive(ability.castRange, "ABILITY_RANGE_INVALID",
+                            $"Ability '{ability.abilityId}' cast range", ability, report);
                     Positive(ability.effectRadius, "ABILITY_RADIUS_INVALID",
                         $"Ability '{ability.abilityId}' effect radius", ability, report);
                     Positive(ability.damage, "ABILITY_DAMAGE_INVALID",
@@ -308,6 +324,11 @@ namespace Splice.Validation
                     if (ability.targeting != HeroAbilityTargeting.Forward)
                         report.Error("ABILITY_BLINK_TARGETING_INVALID",
                             $"Blink '{ability.abilityId}' must use Forward targeting.", ability);
+                    if (ability.castType != HeroAbilityCastType.SelfCast)
+                        report.Error(
+                            "ABILITY_BLINK_CAST_TYPE_INVALID",
+                            $"Blink '{ability.abilityId}' must use Self Cast.",
+                            ability);
                     break;
                 case HeroAbilityEffect.SelfHeal:
                     Positive(ability.healing, "ABILITY_HEAL_AMOUNT_INVALID",
@@ -315,6 +336,11 @@ namespace Splice.Validation
                     if (ability.targeting != HeroAbilityTargeting.Self)
                         report.Error("ABILITY_HEAL_TARGETING_INVALID",
                             $"Heal '{ability.abilityId}' must use Self targeting.", ability);
+                    if (ability.castType != HeroAbilityCastType.SelfCast)
+                        report.Error(
+                            "ABILITY_HEAL_CAST_TYPE_INVALID",
+                            $"Heal '{ability.abilityId}' must use Self Cast.",
+                            ability);
                     break;
             }
         }
