@@ -25,9 +25,11 @@ namespace Splice.UI
 
         private IEnumerator Start()
         {
-            // Wait one frame so feature controllers can create their runtime controls first.
+            // Layout and skin are baked into the scene in Edit Mode so designers can move every RectTransform.
+            // Runtime only keeps the already-serialized selection backdrop in sync; it must never overwrite
+            // designer positioning when the scene starts.
             yield return null;
-            ApplyTheme();
+            BindExistingSelectionObjects();
             var wait = new WaitForSecondsRealtime(.1f);
             while (isActiveAndEnabled)
             {
@@ -36,7 +38,7 @@ namespace Splice.UI
             }
         }
 
-        [ContextMenu("Apply Splice UI Theme")]
+        [ContextMenu("Bake Splice UI Theme Into Scene")]
         public void ApplyTheme()
         {
             SpliceUiSkinLibrary.EnsureLoaded();
@@ -46,6 +48,15 @@ namespace Splice.UI
             var sceneName = SceneManager.GetActiveScene().name;
             if (sceneName == "BuildZone") LayoutBuildZone();
             else if (sceneName == "Bootstrap" || sceneName == "RaidArena") LayoutBootstrap();
+        }
+
+        private void BindExistingSelectionObjects()
+        {
+            var chooseCanvas = FindDeep(transform, "CanvasChooseSide");
+            roleSelectionPanel = FindDirectChild(chooseCanvas, "Panel");
+            stakeOfferPanel = FindDirectChild(chooseCanvas, "WarGemOfferPanel");
+            var backdrop = FindDirectChild(chooseCanvas, "Raid Selection Backdrop");
+            selectionBackdrop = backdrop != null ? backdrop.gameObject : null;
         }
 
         private void StyleCommonPanels()

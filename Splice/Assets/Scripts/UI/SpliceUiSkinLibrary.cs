@@ -3,10 +3,14 @@ using UnityEngine.UI;
 
 namespace Splice.UI
 {
-    // Central runtime skin library. Source textures stay reusable and are cropped from their transparent
-    // canvas before Sprite creation, so generated artwork fills UI rects without stretching its corners.
+    // Central skin library. Persistent cropped Sprite assets let the same artwork render in Edit Mode and
+    // runtime. Runtime Sprite creation remains a compatibility fallback for older project checkouts.
     public static class SpliceUiSkinLibrary
     {
+        public const string PanelSpriteResource = "SpliceUI/SplicePanelFrameSprite";
+        public const string ButtonSpriteResource = "SpliceUI/SpliceButtonFrameSprite";
+        public const string HeaderSpriteResource = "SpliceUI/SpliceHeaderFrameSprite";
+
         private static Sprite panel;
         private static Sprite button;
         private static Sprite header;
@@ -25,9 +29,12 @@ namespace Splice.UI
         {
             if (attemptedLoad) return;
             attemptedLoad = true;
-            panel = CreateCroppedSprite("SpliceUI/SplicePanelFrame", .19f, .19f);
-            button = CreateCroppedSprite("SpliceUI/SpliceButtonFrame", .18f, .32f);
-            header = CreateCroppedSprite("SpliceUI/SpliceHeaderFrame", .18f, .30f);
+            panel = Resources.Load<Sprite>(PanelSpriteResource) ??
+                    CreateCroppedSprite("SpliceUI/SplicePanelFrame", .19f, .19f);
+            button = Resources.Load<Sprite>(ButtonSpriteResource) ??
+                     CreateCroppedSprite("SpliceUI/SpliceButtonFrame", .18f, .32f);
+            header = Resources.Load<Sprite>(HeaderSpriteResource) ??
+                     CreateCroppedSprite("SpliceUI/SpliceHeaderFrame", .18f, .30f);
         }
 
         public static bool ApplyPanel(Image image, Color? tint = null)

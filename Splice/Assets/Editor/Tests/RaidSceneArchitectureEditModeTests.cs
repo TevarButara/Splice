@@ -9,6 +9,8 @@ using Splice.Validation;
 using Splice.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
 namespace Splice.Tests.EditMode
@@ -56,6 +58,52 @@ namespace Splice.Tests.EditMode
                 Assert.That(presentations[0].gameObject.name, Is.EqualTo("[Authoritative Raid Replay]"));
                 Assert.That(serialized.FindProperty("autoStartOnPlay").boolValue, Is.False,
                     "Legacy incoming demo must not auto-start beside command-stream replay.");
+            }
+            finally
+            {
+                if (openedForTest) EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+
+        [TestCase(SpliceUiSkinLibrary.PanelSpriteResource)]
+        [TestCase(SpliceUiSkinLibrary.ButtonSpriteResource)]
+        [TestCase(SpliceUiSkinLibrary.HeaderSpriteResource)]
+        public void UiThemeSkin_IsPersistentAndEditorVisible(string resourcePath)
+        {
+            var sprite = Resources.Load<Sprite>(resourcePath);
+            Assert.That(sprite, Is.Not.Null, $"Missing persistent UI sprite at Resources/{resourcePath}");
+            Assert.That(AssetDatabase.GetAssetPath(sprite), Is.Not.Empty,
+                "Editor-visible UI must reference a serialized asset, not a runtime-created Sprite.");
+        }
+
+        [Test]
+        public void RaidArena_ThemeIsBakedIntoEditableSceneObjects()
+        {
+            var existing = SceneManager.GetSceneByPath(RaidSceneCompositionController.ArenaScenePath);
+            var openedForTest = !existing.isLoaded;
+            var scene = openedForTest
+                ? EditorSceneManager.OpenScene(RaidSceneCompositionController.ArenaScenePath,
+                    OpenSceneMode.Additive)
+                : existing;
+            try
+            {
+                var ui = scene.GetRootGameObjects().Single(root => root.name == "UI").transform;
+                var backdrop = ui.Find("CanvasChooseSide/Raid Selection Backdrop");
+                var roleHeader = ui.Find("CanvasChooseSide/Panel/Role Header Skin");
+                var contractHeader = ui.Find("CanvasChooseSide/WarGemOfferPanel/Contract Header Skin");
+                var topAccent = ui.Find("CanvasTOP/Panel/Top Accent");
+
+                Assert.That(backdrop, Is.Not.Null);
+                Assert.That(roleHeader, Is.Not.Null);
+                Assert.That(contractHeader, Is.Not.Null);
+                Assert.That(topAccent, Is.Not.Null);
+
+                foreach (var header in new[] { roleHeader, contractHeader })
+                {
+                    var sprite = header.GetComponent<Image>().sprite;
+                    Assert.That(sprite, Is.Not.Null);
+                    Assert.That(AssetDatabase.GetAssetPath(sprite), Is.Not.Empty);
+                }
             }
             finally
             {
