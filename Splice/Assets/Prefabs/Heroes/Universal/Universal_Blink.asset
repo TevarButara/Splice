@@ -22,7 +22,7 @@ MonoBehaviour:
   effect: 1
   damage: 1
   healing: 0
-  movementDistance: 5
+  movementDistance: 10
   cooldownSeconds: 4
   animationState: Sprint
   castEffectPrefab: {fileID: 0}

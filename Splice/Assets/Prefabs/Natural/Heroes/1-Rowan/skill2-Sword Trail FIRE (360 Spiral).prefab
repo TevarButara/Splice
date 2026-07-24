@@ -9739,35 +9739,35 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6710139492206580329, guid: 95b8d3d65b5d7f1409c4ed1723887826, type: 3}
       propertyPath: m_LocalRotation.w
-      value: 0.6227543
+      value: 0.056160714
       objectReference: {fileID: 0}
     - target: {fileID: 6710139492206580329, guid: 95b8d3d65b5d7f1409c4ed1723887826, type: 3}
       propertyPath: m_LocalRotation.x
-      value: 0.33492848
+      value: -0.05937109
       objectReference: {fileID: 0}
     - target: {fileID: 6710139492206580329, guid: 95b8d3d65b5d7f1409c4ed1723887826, type: 3}
       propertyPath: m_LocalRotation.y
-      value: 0.62275434
+      value: 0.64832133
       objectReference: {fileID: 0}
     - target: {fileID: 6710139492206580329, guid: 95b8d3d65b5d7f1409c4ed1723887826, type: 3}
       propertyPath: m_LocalRotation.z
-      value: -0.33492854
+      value: -0.7569679
       objectReference: {fileID: 0}
     - target: {fileID: 6710139492206580329, guid: 95b8d3d65b5d7f1409c4ed1723887826, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
-      value: 56.544
+      value: 77.122
       objectReference: {fileID: 0}
     - target: {fileID: 6710139492206580329, guid: 95b8d3d65b5d7f1409c4ed1723887826, type: 3}
       propertyPath: m_LocalEulerAnglesHint.y
-      value: 90
+      value: 46.89
       objectReference: {fileID: 0}
     - target: {fileID: 6710139492206580329, guid: 95b8d3d65b5d7f1409c4ed1723887826, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
+      value: -133.372
       objectReference: {fileID: 0}
     - target: {fileID: 6710139492206580332, guid: 95b8d3d65b5d7f1409c4ed1723887826, type: 3}
       propertyPath: m_Name
-      value: CFXR4 Sword Trail FIRE (360 Spiral)
+      value: skill2-Sword Trail FIRE (360 Spiral)
       objectReference: {fileID: 0}
     - target: {fileID: 6710139492206580334, guid: 95b8d3d65b5d7f1409c4ed1723887826, type: 3}
       propertyPath: CustomDataModule.vector0_1.scalar
