@@ -71,7 +71,7 @@ namespace Splice.Input
                 return;
             }
 
-            if (hero == null || !hero.IsOwner || !hero.CanAct || SelectedAbility == null)
+            if (hero == null || !hero.CanLocalPlayerControl || !hero.CanAct || SelectedAbility == null)
             {
                 CancelTargeting();
             }
@@ -83,7 +83,7 @@ namespace Splice.Input
 
             ResolveReferences();
             var ability = SelectedAbility;
-            if (hero == null || !hero.IsOwner || !hero.CanAct || ability == null)
+            if (hero == null || !hero.CanLocalPlayerControl || !hero.CanAct || ability == null)
             {
                 CancelTargeting();
                 return;
@@ -118,7 +118,7 @@ namespace Splice.Input
         public void BeginTargeting(HeroAbilitySlot slot)
         {
             ResolveReferences();
-            if (hero == null || !hero.IsOwner) return;
+            if (hero == null || !hero.CanLocalPlayerControl) return;
             var ability = hero.GetAbility(slot);
             if (ability == null) return;
             selectedSlot = slot;

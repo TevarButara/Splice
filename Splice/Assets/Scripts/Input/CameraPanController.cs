@@ -200,7 +200,8 @@ namespace Splice.Input
         {
             if (!heroFollowRuntimeEnabled) return;
             var hero = RaidHeroCharacter.Instance;
-            if (hero == null || !hero.IsOwner || hero.LifeState != HeroLifeState.Active || isTilting ||
+            if (hero == null || !hero.CanLocalPlayerControl ||
+                hero.LifeState != HeroLifeState.Active || isTilting ||
                 returningHome || Time.unscaledTime < heroFollowSuspendedUntil)
                 return;
 

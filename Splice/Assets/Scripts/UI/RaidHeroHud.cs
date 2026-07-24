@@ -72,7 +72,7 @@ namespace Splice.UI
             var current = hero != null ? hero : RaidHeroCharacter.Instance;
             if (current != boundHero) Bind(current);
 
-            var ready = boundHero != null && boundHero.IsSpawned && boundHero.IsOwner;
+            var ready = boundHero != null && boundHero.IsSpawned && boundHero.CanLocalPlayerControl;
             // contentRoot must be a child; disabling the GameObject that owns this script would prevent
             // the HUD from detecting a Hero that spawns later.
             if (contentRoot != null && contentRoot != gameObject && contentRoot.activeSelf != ready)
@@ -300,7 +300,7 @@ namespace Splice.UI
         // UI Button hooks. The server still validates ownership/state and performs the mutation.
         public void ToggleControlMode()
         {
-            if (boundHero == null || !boundHero.IsOwner) return;
+            if (boundHero == null || !boundHero.CanLocalPlayerControl) return;
             var next = boundHero.ControlMode == HeroControlMode.Auto
                 ? HeroControlMode.Manual
                 : HeroControlMode.Auto;
@@ -309,7 +309,8 @@ namespace Splice.UI
 
         public void Interact()
         {
-            if (boundHero != null && boundHero.IsOwner) boundHero.RequestInteractServerRpc();
+            if (boundHero != null && boundHero.CanLocalPlayerControl)
+                boundHero.RequestInteractServerRpc();
         }
     }
 }

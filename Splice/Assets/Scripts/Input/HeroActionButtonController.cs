@@ -21,6 +21,7 @@ namespace Splice.Input
         private Button skill1Button;
         private Button skill2Button;
         private Button skill3Button;
+        private bool? lastControlAvailability;
 
         public JoystickController MovementJoystick => movementJoystick;
         public bool HasCompleteBinding =>
@@ -37,6 +38,12 @@ namespace Splice.Input
             UnbindButtons();
         }
 
+        private void Update()
+        {
+            ResolveHero();
+            RefreshControlAvailability();
+        }
+
         public void Blink() => UseAbility(HeroAbilitySlot.Blink);
         public void Heal() => UseAbility(HeroAbilitySlot.Heal);
         public void Skill1() => UseAbility(HeroAbilitySlot.Skill1);
@@ -46,7 +53,7 @@ namespace Splice.Input
         public void Attack()
         {
             ResolveHero();
-            if (hero != null && hero.IsOwner) hero.RequestNormalAttackServerRpc();
+            if (hero != null && hero.CanLocalPlayerControl) hero.RequestNormalAttackServerRpc();
         }
 
         public void EnsureBinding()
@@ -59,7 +66,7 @@ namespace Splice.Input
         private void UseAbility(HeroAbilitySlot slot)
         {
             ResolveHero();
-            if (hero == null || !hero.IsOwner) return;
+            if (hero == null || !hero.CanLocalPlayerControl) return;
 
             var ability = hero.GetAbility(slot);
             if (ability == null)
@@ -120,6 +127,8 @@ namespace Splice.Input
             skill1Button?.onClick.AddListener(Skill1);
             skill2Button?.onClick.AddListener(Skill2);
             skill3Button?.onClick.AddListener(Skill3);
+            lastControlAvailability = null;
+            RefreshControlAvailability();
         }
 
         private void UnbindButtons()
@@ -130,6 +139,25 @@ namespace Splice.Input
             skill1Button?.onClick.RemoveListener(Skill1);
             skill2Button?.onClick.RemoveListener(Skill2);
             skill3Button?.onClick.RemoveListener(Skill3);
+        }
+
+        private void RefreshControlAvailability()
+        {
+            var available = hero != null && hero.CanLocalPlayerControl;
+            if (lastControlAvailability == available) return;
+            lastControlAvailability = available;
+            SetInteractable(blinkButton, available);
+            SetInteractable(healButton, available);
+            SetInteractable(attackButton, available);
+            SetInteractable(skill1Button, available);
+            SetInteractable(skill2Button, available);
+            SetInteractable(skill3Button, available);
+            if (movementJoystick != null) movementJoystick.enabled = available;
+        }
+
+        private static void SetInteractable(Selectable selectable, bool interactable)
+        {
+            if (selectable != null) selectable.interactable = interactable;
         }
     }
 }

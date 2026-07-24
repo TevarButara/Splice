@@ -22,7 +22,7 @@ namespace Splice.Input
         private void Update()
         {
             if (hero == null) hero = RaidHeroCharacter.Instance;
-            if (hero == null || !hero.IsOwner) return;
+            if (hero == null || !hero.CanLocalPlayerControl) return;
             if (movementCamera == null) movementCamera = Camera.main;
 
             if (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) Interact();
@@ -50,7 +50,7 @@ namespace Splice.Input
         public void ToggleControlMode()
         {
             if (hero == null) hero = RaidHeroCharacter.Instance;
-            if (hero == null || !hero.IsOwner) return;
+            if (hero == null || !hero.CanLocalPlayerControl) return;
             var next = hero.ControlMode == HeroControlMode.Auto ? HeroControlMode.Manual : HeroControlMode.Auto;
             hero.RequestSetControlModeServerRpc(next);
         }
@@ -58,19 +58,21 @@ namespace Splice.Input
         public void SetAuto()
         {
             if (hero == null) hero = RaidHeroCharacter.Instance;
-            if (hero != null && hero.IsOwner) hero.RequestSetControlModeServerRpc(HeroControlMode.Auto);
+            if (hero != null && hero.CanLocalPlayerControl)
+                hero.RequestSetControlModeServerRpc(HeroControlMode.Auto);
         }
 
         public void SetManual()
         {
             if (hero == null) hero = RaidHeroCharacter.Instance;
-            if (hero != null && hero.IsOwner) hero.RequestSetControlModeServerRpc(HeroControlMode.Manual);
+            if (hero != null && hero.CanLocalPlayerControl)
+                hero.RequestSetControlModeServerRpc(HeroControlMode.Manual);
         }
 
         public void Interact()
         {
             if (hero == null) hero = RaidHeroCharacter.Instance;
-            if (hero != null && hero.IsOwner) hero.RequestInteractServerRpc();
+            if (hero != null && hero.CanLocalPlayerControl) hero.RequestInteractServerRpc();
         }
 
         private Vector2 ReadMove()

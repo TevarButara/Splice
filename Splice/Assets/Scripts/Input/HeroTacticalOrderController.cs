@@ -53,7 +53,7 @@ namespace Splice.Input
         private void Update()
         {
             ResolveReferences();
-            if (hero == null || !hero.IsOwner) return;
+            if (hero == null || !hero.CanLocalPlayerControl) return;
 
             var keyboard = Keyboard.current;
             if (keyboard != null && keyboard.rKey.wasPressedThisFrame)
@@ -82,7 +82,7 @@ namespace Splice.Input
         private void LateUpdate()
         {
             ResolveReferences();
-            if (hero == null || !hero.IsOwner || !hero.IsSpawned)
+            if (hero == null || !hero.CanLocalPlayerControl || !hero.IsSpawned)
             {
                 HideAllIndicators();
                 return;
@@ -139,7 +139,7 @@ namespace Splice.Input
         public void BeginFocusTargeting()
         {
             ResolveReferences();
-            if (hero == null || !hero.IsOwner) return;
+            if (hero == null || !hero.CanLocalPlayerControl) return;
 
             var abilityTargeting = GetComponent<HeroAbilityTargetingController>();
             if (abilityTargeting == null) abilityTargeting = FindAnyObjectByType<HeroAbilityTargetingController>();
@@ -160,7 +160,7 @@ namespace Splice.Input
         {
             ResolveReferences();
             CancelTargeting();
-            if (hero != null && hero.IsOwner) hero.RequestClearFocusTargetServerRpc();
+            if (hero != null && hero.CanLocalPlayerControl) hero.RequestClearFocusTargetServerRpc();
         }
 
         public void CancelTargeting()

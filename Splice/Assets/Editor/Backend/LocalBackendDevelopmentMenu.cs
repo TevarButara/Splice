@@ -30,6 +30,18 @@ namespace Splice.Editor.Backend
 
         [MenuItem("Splice/Backend/Disable Local Remote Meta", true)]
         private static bool ValidateDisable() => LocalBackendDevelopmentBootstrap.Enabled;
+
+        [MenuItem("Splice/Testing/Grant 1,000 War Gems", priority = 1900)]
+        public static void GrantWarGems()
+        {
+            var balance = LocalWarGemEconomy.GrantEditorTestGems(1000);
+            Debug.Log($"[WarGem] Editor test grant +1,000 complete. Balance={balance:N0}. " +
+                      "This command is not compiled into player builds.");
+        }
+
+        [MenuItem("Splice/Testing/Grant 1,000 War Gems", true)]
+        private static bool ValidateGrantWarGems() =>
+            !LocalBackendDevelopmentBootstrap.Enabled && !EditorApplication.isCompiling;
     }
 }
 #endif

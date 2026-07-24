@@ -1,3 +1,4 @@
+using Splice.Base;
 using Splice.Combat;
 using Splice.Core;
 using Splice.Data;
@@ -146,6 +147,15 @@ namespace Splice.Characters
         public bool CanAct => lifeState.Value == HeroLifeState.Active && !IsDead;
         public float SquadCommandRadius => squadCommandRadius;
         public HeroAbilitySlot LastAbilitySlot => lastAbilitySlot.Value;
+        public static bool IsLocalControlSuppressed =>
+            RaidContext.Target?.isIncomingDefense == true ||
+            RaidSessionContext.Current?.isIncomingDefense == true;
+        public bool CanLocalPlayerControl => CanAcceptControlIntent(IsOwner);
+
+        // Network ownership is not gameplay-role authority. In the local incoming-defense simulation the
+        // host owns the synthetic attacker for replication, but the local player is only the defender viewer.
+        public static bool CanAcceptControlIntent(bool senderHasAuthority) =>
+            senderHasAuthority && !IsLocalControlSuppressed;
 
         public HeroAbilityDefinitionSO GetAbility(HeroAbilitySlot slot) =>
             definition != null ? definition.GetAbility(slot) : null;
@@ -689,7 +699,8 @@ namespace Splice.Characters
         }
 
         private bool CanControl(ulong senderClientId) =>
-            senderClientId == OwnerClientId || senderClientId == NetworkManager.ServerClientId;
+            CanAcceptControlIntent(
+                senderClientId == OwnerClientId || senderClientId == NetworkManager.ServerClientId);
 
         // Replicated presentation query. Server AI uses the same resolution plus target validation below.
         public bool TryGetFocusTarget(out CharacterBase target)

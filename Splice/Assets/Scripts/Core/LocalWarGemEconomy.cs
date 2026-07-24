@@ -88,6 +88,25 @@ namespace Splice.Core
             }
         }
 
+#if UNITY_EDITOR
+        // Editor-only funding faucet for repeated raid acceptance. This method is compiled out of players,
+        // so release clients can never mint War Gems; production funding remains server-authoritative.
+        public static int GrantEditorTestGems(int requestedAmount)
+        {
+            var current = Balance;
+            var amount = Math.Min(Math.Max(0, requestedAmount), int.MaxValue - current);
+            if (amount <= 0) return current;
+            TryApply(
+                "editor.grant." + Guid.NewGuid().ToString("N"),
+                string.Empty,
+                amount,
+                "EDITOR_GRANT",
+                "Unity Editor raid-test funding",
+                out var balanceAfter);
+            return balanceAfter;
+        }
+#endif
+
         public static bool TryBeginRaid(RaidStakeOffer rawOffer, out RaidStakeTransaction transaction, out string error)
         {
             transaction = null;

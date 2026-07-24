@@ -3,6 +3,7 @@ using System;
 using System.Reflection;
 using NUnit.Framework;
 using Splice.Base;
+using Splice.Characters;
 using Splice.Combat;
 using Splice.Core;
 using Splice.Scenes;
@@ -101,6 +102,26 @@ namespace Splice.Tests.EditMode
             {
                 UnityEngine.Object.DestroyImmediate(host);
             }
+        }
+
+        [Test]
+        public void IncomingDefense_BlocksHostOwnershipFromBecomingAttackerControlAuthority()
+        {
+            RaidContext.Target = new RaidTarget
+            {
+                isIncomingDefense = true,
+                layout = new BaseLayout(),
+            };
+
+            Assert.That(RaidHeroCharacter.IsLocalControlSuppressed, Is.True);
+            Assert.That(RaidHeroCharacter.CanAcceptControlIntent(true), Is.False,
+                "The local host owns the synthetic attacker for replication, not for gameplay control.");
+            Assert.That(RaidHeroCharacter.CanAcceptControlIntent(false), Is.False);
+
+            RaidContext.Target.isIncomingDefense = false;
+            Assert.That(RaidHeroCharacter.IsLocalControlSuppressed, Is.False);
+            Assert.That(RaidHeroCharacter.CanAcceptControlIntent(true), Is.True);
+            Assert.That(RaidHeroCharacter.CanAcceptControlIntent(false), Is.False);
         }
 
         [Test]
