@@ -12,6 +12,12 @@ namespace Splice.Data
         public Sprite icon;
         public GameObject prefab;
 
+        [Header("Presentation")]
+        public HeroAnimSetSO animSet;
+        [Tooltip("One-shot effect attached to the Hero whenever a normal attack is performed.")]
+        public GameObject normalAttackEffectPrefab;
+        [Min(0.05f)] public float normalAttackEffectLifetime = 2f;
+
         [Header("Combat")]
         [Min(1)] public int maxHealth = 300;
         [Min(0)] public int armor = 10;

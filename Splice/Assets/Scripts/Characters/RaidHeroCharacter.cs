@@ -57,6 +57,14 @@ namespace Splice.Characters
     [RequireComponent(typeof(NetworkObject))]
     public class RaidHeroCharacter : CharacterBase
     {
+        private enum HeroAnimationState
+        {
+            Idle,
+            Walk,
+            Downed,
+            Defeated
+        }
+
         public static RaidHeroCharacter Instance { get; private set; }
 
         [SerializeField] private HeroDefinitionSO definition;
@@ -113,6 +121,13 @@ namespace Splice.Characters
         private Vector2 manualInput;
         private float lastManualInputTime;
         private float attackTimer;
+        private Vector3 lastPresentationPosition;
+        private float lastPresentationMovementTime;
+        private float actionAnimationUntil;
+        private string currentPresentationState;
+        private bool presentationInitialized;
+        private const float MovementSampleThreshold = 0.001f;
+        private const float MovementHoldSeconds = 0.18f;
         private static readonly System.Collections.Generic.List<CharacterBase> abilityTargets = new();
 
         public event System.Action<HeroFeedback, int> FeedbackReceived;
@@ -178,7 +193,8 @@ namespace Splice.Characters
         {
             base.OnNetworkSpawn();
             Instance = this;
-            if (animator == null) animator = GetComponentInChildren<Animator>();
+            ResolveAnimator();
+            InitializePresentation();
             feedbackSequence.OnValueChanged += HandleFeedbackSequenceChanged;
             if (IsServer && definition != null && CurrentHealth <= 0) InitializeFromDefinition();
         }
@@ -209,6 +225,7 @@ namespace Splice.Characters
             lastFeedback.Value = HeroFeedback.None;
             lastFeedbackValue.Value = 0;
             manualInput = Vector2.zero;
+            attackTimer = definition.attackCooldown;
         }
 
         private void Update()
@@ -242,6 +259,44 @@ namespace Splice.Characters
             else TickAutoMovement();
         }
 
+        // Presentation is sampled on every peer from replicated transform movement. This keeps the dedicated
+        // client and host visually identical without turning Animator state into authoritative gameplay data.
+        private void LateUpdate()
+        {
+            if (!IsSpawned || definition == null) return;
+            UpdatePresentationFromReplicatedTransform();
+        }
+
+        private void UpdatePresentationFromReplicatedTransform()
+        {
+            ResolveAnimator();
+            if (animator == null) return;
+            if (!presentationInitialized) InitializePresentation();
+
+            var position = transform.position;
+            var delta = position - lastPresentationPosition;
+            delta.y = 0f;
+            lastPresentationPosition = position;
+            if (delta.sqrMagnitude > MovementSampleThreshold * MovementSampleThreshold)
+                lastPresentationMovementTime = Time.unscaledTime;
+
+            if (Time.unscaledTime < actionAnimationUntil) return;
+            if (lifeState.Value == HeroLifeState.Defeated)
+            {
+                SetPresentationState(AnimationStateName(HeroAnimationState.Defeated));
+                return;
+            }
+
+            if (lifeState.Value == HeroLifeState.Downed)
+            {
+                SetPresentationState(AnimationStateName(HeroAnimationState.Downed));
+                return;
+            }
+
+            var moving = Time.unscaledTime - lastPresentationMovementTime <= MovementHoldSeconds;
+            SetPresentationState(AnimationStateName(moving ? HeroAnimationState.Walk : HeroAnimationState.Idle));
+        }
+
         private void TickCombat()
         {
             if (attackTimer < definition.attackCooldown) return;
@@ -254,6 +309,7 @@ namespace Splice.Characters
             Face(target.transform.position - transform.position);
             target.ApplyDamage(definition.attackDamage, this);
             attackTimer = 0f;
+            PlayNormalAttackPresentationClientRpc();
         }
 
         private void TickManualMovement()
@@ -426,17 +482,18 @@ namespace Splice.Characters
             }
 
             var target = FindNearestEnemy(definition.attackRange);
-            if (target == null)
+            if (target != null)
+            {
+                Face(target.transform.position - transform.position);
+                target.ApplyDamage(definition.attackDamage, this);
+                PublishFeedback(HeroFeedback.NormalAttackHit, definition.attackDamage);
+            }
+            else
             {
                 PublishFeedback(HeroFeedback.NormalAttackNoTarget);
-                return;
             }
-
-            Face(target.transform.position - transform.position);
-            target.ApplyDamage(definition.attackDamage, this);
             attackTimer = 0f;
-            PublishFeedback(HeroFeedback.NormalAttackHit, definition.attackDamage);
-            PlayActionAnimationClientRpc("Attack");
+            PlayNormalAttackPresentationClientRpc();
         }
 
         private void TryCastAbility(HeroAbilitySlot slot, Vector3 requestedTargetPoint)
@@ -477,12 +534,6 @@ namespace Splice.Characters
             targetPoint.y = Mathf.Clamp(targetPoint.y, transform.position.y - 3f, transform.position.y + 3f);
 
             var hitCount = CollectBreachChargeTargets(targetPoint, ability.effectRadius);
-            if (hitCount <= 0)
-            {
-                PublishFeedback(HeroFeedback.AbilityNoTargets);
-                return;
-            }
-
             for (var i = 0; i < abilityTargets.Count; i++)
             {
                 var target = abilityTargets[i];
@@ -490,7 +541,9 @@ namespace Splice.Characters
             }
 
             SetAbilityCooldown(slot, ability.cooldownSeconds);
-            PublishFeedback(HeroFeedback.AbilityCast, hitCount);
+            PublishFeedback(
+                hitCount > 0 ? HeroFeedback.AbilityCast : HeroFeedback.AbilityNoTargets,
+                hitCount);
             PlayAbilityPresentationClientRpc(slot, targetPoint);
         }
 
@@ -753,22 +806,98 @@ namespace Splice.Characters
         [ClientRpc]
         private void PlayAbilityPresentationClientRpc(HeroAbilitySlot slot, Vector3 targetPoint)
         {
+            PlayAbilityPresentation(slot, targetPoint);
+        }
+
+        private void PlayAbilityPresentation(HeroAbilitySlot slot, Vector3 targetPoint)
+        {
             var ability = GetAbility(slot);
             if (ability == null) return;
-            if (animator == null) animator = GetComponentInChildren<Animator>();
-            AnimatorUtil.SafeCrossFade(animator, ability.animationState, 0.05f);
+            PlayActionState(ability.animationState);
             if (ability.castEffectPrefab != null)
-            {
-                var effect = Instantiate(ability.castEffectPrefab, targetPoint, Quaternion.identity);
-                if (ability.castEffectLifetime > 0f) Destroy(effect, ability.castEffectLifetime);
-            }
+                OneShotEffect.Spawn(
+                    ability.castEffectPrefab,
+                    targetPoint,
+                    Quaternion.identity,
+                    ability.castEffectLifetime);
         }
 
         [ClientRpc]
-        private void PlayActionAnimationClientRpc(string stateName)
+        private void PlayNormalAttackPresentationClientRpc()
         {
-            if (animator == null) animator = GetComponentInChildren<Animator>();
-            AnimatorUtil.SafeCrossFade(animator, stateName, 0.05f);
+            PlayNormalAttackPresentation();
+        }
+
+        private void PlayNormalAttackPresentation()
+        {
+            var stateName = definition != null && definition.animSet != null
+                ? definition.animSet.attack
+                : "Attack";
+            PlayActionState(stateName);
+            if (definition != null && definition.normalAttackEffectPrefab != null)
+                OneShotEffect.SpawnAttached(
+                    definition.normalAttackEffectPrefab,
+                    transform,
+                    definition.normalAttackEffectLifetime);
+        }
+
+        private void InitializePresentation()
+        {
+            ResolveAnimator();
+            lastPresentationPosition = transform.position;
+            lastPresentationMovementTime = float.NegativeInfinity;
+            actionAnimationUntil = 0f;
+            currentPresentationState = null;
+            presentationInitialized = true;
+            if (definition != null)
+                SetPresentationState(AnimationStateName(HeroAnimationState.Idle), true);
+        }
+
+        private void ResolveAnimator()
+        {
+            if (animator == null) animator = GetComponentInChildren<Animator>(true);
+        }
+
+        private void PlayActionState(string stateName)
+        {
+            ResolveAnimator();
+            if (!SetPresentationState(stateName, true)) return;
+            actionAnimationUntil = Time.unscaledTime + GetAnimationDuration(stateName);
+        }
+
+        private bool SetPresentationState(string stateName, bool force = false)
+        {
+            if (!force && currentPresentationState == stateName) return true;
+            if (!AnimatorUtil.SafeCrossFade(animator, stateName, 0.05f)) return false;
+            currentPresentationState = stateName;
+            return true;
+        }
+
+        private string AnimationStateName(HeroAnimationState state)
+        {
+            var set = definition != null ? definition.animSet : null;
+            return state switch
+            {
+                HeroAnimationState.Walk => set != null ? set.walk : "Walk",
+                HeroAnimationState.Downed => set != null ? set.downed : "Idle",
+                HeroAnimationState.Defeated => set != null ? set.defeated : "Death",
+                _ => set != null ? set.idle : "Idle"
+            };
+        }
+
+        private float GetAnimationDuration(string stateName)
+        {
+            if (animator != null && animator.runtimeAnimatorController != null)
+            {
+                var clips = animator.runtimeAnimatorController.animationClips;
+                for (var i = 0; i < clips.Length; i++)
+                {
+                    var clip = clips[i];
+                    if (clip != null && clip.name == stateName)
+                        return Mathf.Max(0.1f, clip.length);
+                }
+            }
+            return 0.45f;
         }
 
         private void TryInteractNearby()

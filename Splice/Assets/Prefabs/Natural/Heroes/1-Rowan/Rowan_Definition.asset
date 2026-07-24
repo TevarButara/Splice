@@ -17,6 +17,9 @@ MonoBehaviour:
   description: 
   icon: {fileID: 0}
   prefab: {fileID: 8436551786088965365, guid: ff63cd6fed862224d9a807c0683ffc3d, type: 3}
+  animSet: {fileID: 11400000, guid: ba5e5db468e204b36a2d4bca70b8599f, type: 2}
+  normalAttackEffectPrefab: {fileID: 5372881538107080964, guid: ff08d391b24070a44810873f4afa92ff, type: 3}
+  normalAttackEffectLifetime: 2
   maxHealth: 2500
   armor: 10
   attackDamage: 200
