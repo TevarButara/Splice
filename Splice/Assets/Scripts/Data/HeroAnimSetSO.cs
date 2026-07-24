@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Splice.Data
 {
@@ -8,12 +9,23 @@ namespace Splice.Data
         [Header("Locomotion")]
         public string idle = "Idle";
         public string walk = "Walk";
+        public string sprint = "Sprint";
+        public string landing = "Landing";
 
-        [Header("Combat & Life")]
-        public string attack = "Attack";
-        public string downed = "Idle";
-        public string defeated = "Death";
-        public string victory = "Win";
-        public string defeat = "Lose";
+        [Header("Normal Attack")]
+        [FormerlySerializedAs("attack")] public string attack1 = "Attack";
+        [Tooltip("A second normal attack state. It may temporarily match Attack 1 until a second clip is authored.")]
+        public string attack2 = "Attack";
+
+        [Header("Hero Skills")]
+        public string skill1 = "Skill1";
+        public string skill2 = "Skill2";
+        public string skill3 = "Skill3";
+
+        [Header("Life & Results")]
+        [FormerlySerializedAs("defeated")] public string death = "Death";
+        [FormerlySerializedAs("victory")] public string win = "Win";
+        [FormerlySerializedAs("defeat")] public string lose = "Lose";
+        public string dance = "Dance";
     }
 }

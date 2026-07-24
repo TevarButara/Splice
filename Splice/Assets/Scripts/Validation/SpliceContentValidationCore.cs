@@ -250,8 +250,26 @@ namespace Splice.Validation
             RejectSeparator(hero.heroId, "HERO_ID_SEPARATOR", "Hero id", hero, report);
             RequireDisplayName(hero.displayName, "hero", hero, report);
             Positive(hero.maxHealth, "HERO_HEALTH_INVALID", $"Hero '{hero.heroId}' max health", hero, report);
+            Positive(hero.maxMana, "HERO_MANA_INVALID", $"Hero '{hero.heroId}' max mana", hero, report);
+            if (hero.startingMana < 0f || hero.startingMana > hero.maxMana)
+                report.Error(
+                    "HERO_STARTING_MANA_INVALID",
+                    $"Hero '{hero.heroId}' starting mana must be within [0, max mana].",
+                    hero);
+            NonNegative(
+                hero.manaGenerationPercentPerSecond,
+                "HERO_MANA_REGEN_INVALID",
+                $"Hero '{hero.heroId}' mana generation",
+                hero,
+                report);
             Positive(hero.attackDamage, "HERO_DAMAGE_INVALID", $"Hero '{hero.heroId}' attack damage", hero, report);
             Positive(hero.attackCooldown, "HERO_COOLDOWN_INVALID", $"Hero '{hero.heroId}' attack cooldown", hero, report);
+            Positive(
+                hero.normalAttackImpactDelay,
+                "HERO_ATTACK_IMPACT_DELAY_INVALID",
+                $"Hero '{hero.heroId}' normal attack impact delay",
+                hero,
+                report);
             Positive(hero.moveSpeed, "HERO_SPEED_INVALID", $"Hero '{hero.heroId}' move speed", hero, report);
             if (hero.blinkAbility == null)
                 report.Error("HERO_BLINK_MISSING", $"Hero '{hero.heroId}' has no universal Blink ability.", hero);
@@ -268,6 +286,12 @@ namespace Splice.Validation
             RejectSeparator(ability.abilityId, "ABILITY_ID_SEPARATOR", "Ability id", ability, report);
             RequireDisplayName(ability.displayName, "ability", ability, report);
             Positive(ability.cooldownSeconds, "ABILITY_COOLDOWN_INVALID", $"Ability '{ability.abilityId}' cooldown", ability, report);
+            NonNegative(
+                ability.manaCost,
+                "ABILITY_MANA_COST_INVALID",
+                $"Ability '{ability.abilityId}' mana cost",
+                ability,
+                report);
             switch (ability.effect)
             {
                 case HeroAbilityEffect.AreaDamage:

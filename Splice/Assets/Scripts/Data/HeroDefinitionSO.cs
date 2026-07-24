@@ -21,14 +21,22 @@ namespace Splice.Data
         [Header("Combat")]
         [Min(1)] public int maxHealth = 300;
         [Min(0)] public int armor = 10;
+        [Min(1f)] public float maxMana = 100f;
+        [Min(0f)] public float startingMana = 100f;
+        [Tooltip("Mana restored each second as a percentage of Max Mana.")]
+        [Min(0f)] public float manaGenerationPercentPerSecond = 5f;
         [Min(1)] public int attackDamage = 25;
         [Min(0.05f)] public float attackCooldown = 0.8f;
         [Min(0.1f)] public float attackRange = 1.8f;
+        [Tooltip("Server-authoritative delay before a normal attack lands. Tune this to the end of the attack clip.")]
+        [Min(0.01f)] public float normalAttackImpactDelay = 0.55f;
 
         [Header("Movement & Auto")]
         [Min(0.1f)] public float moveSpeed = 4f;
         [Min(0.1f)] public float autoAggroRange = 8f;
         [Min(1f)] public float turnSpeedDegPerSec = 720f;
+        [Tooltip("Vertical offset added after snapping the Hero's feet to a ground collider.")]
+        [Min(0f)] public float groundOffset = 0.04f;
         public bool startsInAutoMode = true;
 
         [Header("Interaction")]

@@ -23,7 +23,11 @@ MonoBehaviour:
   damage: 1
   healing: 0
   movementDistance: 10
+  manaCost: 15
   cooldownSeconds: 4
   animationState: Sprint
   castEffectPrefab: {fileID: 0}
-  castEffectLifetime: 0
+  castEffectLifetime: 1.25
+  effectPlacement: 2
+  effectLocalOffset: {x: 0, y: 0, z: 0}
+  groundEffectOffset: 0.05

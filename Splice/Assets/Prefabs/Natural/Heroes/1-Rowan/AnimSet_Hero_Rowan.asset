@@ -14,8 +14,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.HeroAnimSetSO
   idle: Idle
   walk: Walk
-  attack: Attack
-  downed: Idle
-  defeated: Death
-  victory: Win
-  defeat: Lose
+  sprint: Sprint
+  landing: Landing
+  attack1: Attack
+  attack2: Attack
+  skill1: Skill1
+  skill2: Skill2
+  skill3: Skill3
+  death: Death
+  win: Win
+  lose: Lose
+  dance: Dance

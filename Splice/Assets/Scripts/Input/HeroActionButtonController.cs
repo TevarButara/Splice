@@ -1,6 +1,7 @@
 using PinePie.SimpleJoystick;
 using Splice.Characters;
 using Splice.Data;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -21,12 +22,20 @@ namespace Splice.Input
         private Button skill1Button;
         private Button skill2Button;
         private Button skill3Button;
+        private Button autoButton;
+        private Button targetMonsterButton;
+        private Button targetTowerButton;
+        private GameObject attackPanel;
         private bool? lastControlAvailability;
+        private HeroControlMode? lastControlMode;
+        private JoystickController subscribedJoystick;
 
         public JoystickController MovementJoystick => movementJoystick;
         public bool HasCompleteBinding =>
             movementJoystick != null && blinkButton != null && healButton != null && attackButton != null &&
-            skill1Button != null && skill2Button != null && skill3Button != null;
+            skill1Button != null && skill2Button != null && skill3Button != null &&
+            autoButton != null && targetMonsterButton != null && targetTowerButton != null &&
+            attackPanel != null;
 
         private void Awake()
         {
@@ -56,11 +65,43 @@ namespace Splice.Input
             if (hero != null && hero.CanLocalPlayerControl) hero.RequestNormalAttackServerRpc();
         }
 
+        public void Auto()
+        {
+            ResolveHero();
+            if (hero != null && hero.CanLocalPlayerControl)
+                hero.RequestSetControlModeServerRpc(HeroControlMode.Auto);
+        }
+
+        public void TargetMonster()
+        {
+            ResolveHero();
+            if (hero == null || !hero.CanLocalPlayerControl) return;
+            hero.RequestSetTargetPreferenceServerRpc(
+                HeroTargetPreference.Monster,
+                FindVisibleEnemyHero());
+        }
+
+        public void TargetTower()
+        {
+            ResolveHero();
+            if (hero != null && hero.CanLocalPlayerControl)
+                hero.RequestSetTargetPreferenceServerRpc(HeroTargetPreference.Tower);
+        }
+
+        public void EnterHeroMode()
+        {
+            ResolveHero();
+            if (hero != null && hero.CanLocalPlayerControl &&
+                hero.ControlMode != HeroControlMode.Manual)
+                hero.RequestSetControlModeServerRpc(HeroControlMode.Manual);
+        }
+
         public void EnsureBinding()
         {
             UnbindButtons();
             ResolveReferences();
             BindButtons();
+            SubscribeJoystick();
         }
 
         private void UseAbility(HeroAbilitySlot slot)
@@ -97,6 +138,16 @@ namespace Splice.Input
                 targetingController = FindAnyObjectByType<HeroAbilityTargetingController>();
             if (movementJoystick == null)
                 movementJoystick = GetComponentInChildren<JoystickController>(true);
+            var transforms = GetComponentsInChildren<Transform>(true);
+            for (var i = 0; i < transforms.Length; i++)
+                if (string.Equals(
+                        transforms[i].name,
+                        "Panel_Attack_Button",
+                        System.StringComparison.OrdinalIgnoreCase))
+                {
+                    attackPanel = transforms[i].gameObject;
+                    break;
+                }
         }
 
         private void ResolveHero()
@@ -118,6 +169,9 @@ namespace Splice.Input
                     case "bt-skill1": skill1Button = button; break;
                     case "bt-skill2": skill2Button = button; break;
                     case "bt-skill3": skill3Button = button; break;
+                    case "bt-auto": autoButton = button; break;
+                    case "bt-target-mon": targetMonsterButton = button; break;
+                    case "bt-target-tower": targetTowerButton = button; break;
                 }
             }
 
@@ -127,7 +181,11 @@ namespace Splice.Input
             skill1Button?.onClick.AddListener(Skill1);
             skill2Button?.onClick.AddListener(Skill2);
             skill3Button?.onClick.AddListener(Skill3);
+            autoButton?.onClick.AddListener(Auto);
+            targetMonsterButton?.onClick.AddListener(TargetMonster);
+            targetTowerButton?.onClick.AddListener(TargetTower);
             lastControlAvailability = null;
+            lastControlMode = null;
             RefreshControlAvailability();
         }
 
@@ -139,20 +197,71 @@ namespace Splice.Input
             skill1Button?.onClick.RemoveListener(Skill1);
             skill2Button?.onClick.RemoveListener(Skill2);
             skill3Button?.onClick.RemoveListener(Skill3);
+            autoButton?.onClick.RemoveListener(Auto);
+            targetMonsterButton?.onClick.RemoveListener(TargetMonster);
+            targetTowerButton?.onClick.RemoveListener(TargetTower);
+            if (subscribedJoystick != null)
+            {
+                subscribedJoystick.OnTouchPressed -= EnterHeroMode;
+                subscribedJoystick = null;
+            }
         }
 
         private void RefreshControlAvailability()
         {
             var available = hero != null && hero.CanLocalPlayerControl;
-            if (lastControlAvailability == available) return;
+            var mode = hero != null ? hero.ControlMode : HeroControlMode.Auto;
+            if (lastControlAvailability == available && lastControlMode == mode) return;
             lastControlAvailability = available;
+            lastControlMode = mode;
             SetInteractable(blinkButton, available);
             SetInteractable(healButton, available);
             SetInteractable(attackButton, available);
             SetInteractable(skill1Button, available);
             SetInteractable(skill2Button, available);
             SetInteractable(skill3Button, available);
+            SetInteractable(autoButton, available);
+            SetInteractable(targetMonsterButton, available);
+            SetInteractable(targetTowerButton, available);
             if (movementJoystick != null) movementJoystick.enabled = available;
+            var showAttackPanel = available && hero.ControlMode == HeroControlMode.Manual;
+            if (attackPanel != null && attackPanel.activeSelf != showAttackPanel)
+                attackPanel.SetActive(showAttackPanel);
+        }
+
+        private void SubscribeJoystick()
+        {
+            if (subscribedJoystick == movementJoystick) return;
+            if (subscribedJoystick != null) subscribedJoystick.OnTouchPressed -= EnterHeroMode;
+            subscribedJoystick = movementJoystick;
+            if (subscribedJoystick != null) subscribedJoystick.OnTouchPressed += EnterHeroMode;
+        }
+
+        private NetworkObjectReference FindVisibleEnemyHero()
+        {
+            if (hero == null) return default;
+            var camera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
+            if (camera == null) return default;
+
+            RaidHeroCharacter best = null;
+            var bestSqr = float.PositiveInfinity;
+            var candidates = RaidHeroCharacter.Instances;
+            for (var i = 0; i < candidates.Count; i++)
+            {
+                var candidate = candidates[i];
+                if (candidate == null || candidate == hero || candidate.IsDead ||
+                    candidate.Side == hero.Side || !candidate.IsSpawned)
+                    continue;
+                var viewport = camera.WorldToViewportPoint(candidate.transform.position);
+                if (viewport.z <= 0f || viewport.x < 0f || viewport.x > 1f ||
+                    viewport.y < 0f || viewport.y > 1f)
+                    continue;
+                var sqr = (candidate.transform.position - hero.transform.position).sqrMagnitude;
+                if (sqr >= bestSqr) continue;
+                bestSqr = sqr;
+                best = candidate;
+            }
+            return best != null ? new NetworkObjectReference(best.NetworkObject) : default;
         }
 
         private static void SetInteractable(Selectable selectable, bool interactable)

@@ -22,12 +22,17 @@ MonoBehaviour:
   normalAttackEffectLifetime: 2
   maxHealth: 2500
   armor: 10
+  maxMana: 100
+  startingMana: 100
+  manaGenerationPercentPerSecond: 5
   attackDamage: 200
   attackCooldown: 1
   attackRange: 1.8
+  normalAttackImpactDelay: 1.2666668
   moveSpeed: 9
   autoAggroRange: 8
   turnSpeedDegPerSec: 720
+  groundOffset: 0.04
   startsInAutoMode: 1
   interactionRange: 2.5
   tacticalAbility: {fileID: 11400000, guid: 20dd078678da31c498e4c5073fc16555, type: 2}

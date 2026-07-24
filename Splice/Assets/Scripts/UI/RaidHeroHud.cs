@@ -18,8 +18,10 @@ namespace Splice.UI
         [Header("Vitals")]
         [SerializeField] private Slider healthSlider;
         [SerializeField] private Slider shieldSlider;
+        [SerializeField] private Slider manaSlider;
         [SerializeField] private TMP_Text heroNameText;
         [SerializeField] private TMP_Text healthText;
+        [SerializeField] private TMP_Text manaText;
 
         [Header("State")]
         [SerializeField] private TMP_Text modeText;
@@ -136,6 +138,13 @@ namespace Splice.UI
                 shieldSlider.gameObject.SetActive(boundHero.Shield > 0);
             }
 
+            if (manaSlider != null)
+            {
+                manaSlider.minValue = 0f;
+                manaSlider.maxValue = boundHero.ManaMaxValue;
+                manaSlider.value = boundHero.Mana;
+            }
+
             if (heroNameText != null)
                 heroNameText.text = boundHero.Definition != null && !string.IsNullOrWhiteSpace(boundHero.Definition.displayName)
                     ? boundHero.Definition.displayName
@@ -145,6 +154,8 @@ namespace Splice.UI
                 healthText.text = boundHero.Shield > 0
                     ? $"HP {boundHero.CurrentHealth}/{boundHero.MaxHealth}  SHIELD {boundHero.Shield}"
                     : $"HP {boundHero.CurrentHealth}/{boundHero.MaxHealth}";
+            if (manaText != null)
+                manaText.text = $"MANA {Mathf.FloorToInt(boundHero.Mana)}/{Mathf.FloorToInt(boundHero.ManaMaxValue)}";
         }
 
         private void RefreshState()
@@ -275,6 +286,7 @@ namespace Splice.UI
                 HeroFeedback.ReviveRejected => "REVIVE UNAVAILABLE",
                 HeroFeedback.AbilityCast => $"{abilityName} HIT {value} TARGET(S)",
                 HeroFeedback.AbilityCooldown => $"{abilityName} COOLDOWN {value}s",
+                HeroFeedback.AbilityNoMana => $"NEED {value} MORE MANA",
                 HeroFeedback.AbilityOutOfRange => "TARGET OUT OF RANGE",
                 HeroFeedback.AbilityNoTargets => $"{abilityName} HAS NO VALID TARGET",
                 HeroFeedback.AbilityUnavailable => $"{abilityName} UNAVAILABLE",

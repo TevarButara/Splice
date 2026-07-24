@@ -25,6 +25,14 @@ namespace Splice.Data
         Forward
     }
 
+    public enum HeroAbilityEffectPlacement
+    {
+        GroundSurface,
+        HeroRoot,
+        HeroEffectAnchor,
+        WorldPoint
+    }
+
     // Server-authoritative data contract shared by universal actions and hero-specific skills.
     [CreateAssetMenu(fileName = "NewHeroAbility", menuName = "Splice/Hero Ability Definition")]
     public class HeroAbilityDefinitionSO : ScriptableObject
@@ -45,6 +53,7 @@ namespace Splice.Data
         [Min(1)] public int damage = 80;
         [Min(0)] public int healing;
         [Min(0f)] public float movementDistance;
+        [Min(0f)] public float manaCost;
         [Min(0.1f)] public float cooldownSeconds = 8f;
 
         [Header("Presentation Hook")]
@@ -53,5 +62,9 @@ namespace Splice.Data
         [Tooltip("Local cosmetic spawned on every client after the server accepts the cast — NetworkObject not required")]
         public GameObject castEffectPrefab;
         [Min(0f)] public float castEffectLifetime = 2f;
+        [Tooltip("Ground skills snap to the terrain. Self effects follow the Hero. Hero Effect Anchor uses the optional socket on RaidHeroCharacter.")]
+        public HeroAbilityEffectPlacement effectPlacement = HeroAbilityEffectPlacement.GroundSurface;
+        public Vector3 effectLocalOffset;
+        [Min(0f)] public float groundEffectOffset = 0.05f;
     }
 }

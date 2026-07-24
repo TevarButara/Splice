@@ -2,6 +2,7 @@ using Splice.Base;
 using Splice.Combat;
 using Splice.Core;
 using Splice.Data;
+using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -18,6 +19,13 @@ namespace Splice.Characters
         Active,
         Downed,
         Defeated
+    }
+
+    public enum HeroTargetPreference
+    {
+        Default,
+        Monster,
+        Tower
     }
 
     public enum HeroInteractionKind
@@ -39,6 +47,7 @@ namespace Splice.Characters
         ReviveRejected,
         AbilityCast,
         AbilityCooldown,
+        AbilityNoMana,
         AbilityOutOfRange,
         AbilityNoTargets,
         AbilityUnavailable,
@@ -62,11 +71,12 @@ namespace Splice.Characters
         {
             Idle,
             Walk,
-            Downed,
-            Defeated
+            Death
         }
 
         public static RaidHeroCharacter Instance { get; private set; }
+        private static readonly List<RaidHeroCharacter> instances = new();
+        public static IReadOnlyList<RaidHeroCharacter> Instances => instances;
 
         [SerializeField] private HeroDefinitionSO definition;
         [SerializeField] private RaidSide side = RaidSide.Attacker;
@@ -74,6 +84,8 @@ namespace Splice.Characters
         [SerializeField] private Animator animator;
         [Tooltip("ขอบเขตตำแหน่ง Hero — เว้นว่าง = ไม่ clamp")]
         [SerializeField] private BoxCollider movementBounds;
+        [Tooltip("Optional socket for Heal/Blink/Skill FX. Falls back to the Hero root.")]
+        [SerializeField] private Transform abilityEffectAnchor;
 
         [Header("Squad Focus Order")]
         [Tooltip("ยูนิตฝ่ายบุกที่อยู่ไม่เกินรัศมีนี้จาก Hero ตอนยืนยันเป้าหมายจะรับคำสั่งช่วยโจมตี")]
@@ -89,6 +101,12 @@ namespace Splice.Characters
             HeroControlMode.Auto, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
         private readonly NetworkVariable<HeroLifeState> lifeState = new(
             HeroLifeState.Active, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<float> mana = new(
+            0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<HeroTargetPreference> targetPreference = new(
+            HeroTargetPreference.Default,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
         private readonly NetworkVariable<float> downedRemaining = new(
             0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
         private readonly NetworkVariable<int> revivesRemaining = new(
@@ -122,6 +140,10 @@ namespace Splice.Characters
         private Vector2 manualInput;
         private float lastManualInputTime;
         private float attackTimer;
+        private CharacterBase pendingNormalAttackTarget;
+        private float pendingNormalAttackImpactAt;
+        private int pendingNormalAttackDamage;
+        private bool normalAttackPending;
         private Vector3 lastPresentationPosition;
         private float lastPresentationMovementTime;
         private float actionAnimationUntil;
@@ -137,6 +159,12 @@ namespace Splice.Characters
         public RaidSide Side => side;
         public HeroControlMode ControlMode => controlMode.Value;
         public HeroLifeState LifeState => lifeState.Value;
+        public float Mana => mana.Value;
+        public float ManaMaxValue => definition != null ? Mathf.Max(1f, definition.maxMana) : 1f;
+        public float Mana01 => Mathf.Clamp01(Mana / ManaMaxValue);
+        public float ManaGenerationPercentPerSecond =>
+            definition != null ? Mathf.Max(0f, definition.manaGenerationPercentPerSecond) : 0f;
+        public HeroTargetPreference TargetPreference => targetPreference.Value;
         public float DownedRemaining => downedRemaining.Value;
         public int RevivesRemaining => revivesRemaining.Value;
         public HeroAbilityDefinitionSO TacticalAbility =>
@@ -202,17 +230,31 @@ namespace Splice.Characters
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
-            Instance = this;
+            if (!instances.Contains(this)) instances.Add(this);
+            if (Instance == null || IsOwner) Instance = this;
             ResolveAnimator();
             InitializePresentation();
             feedbackSequence.OnValueChanged += HandleFeedbackSequenceChanged;
             if (IsServer && definition != null && CurrentHealth <= 0) InitializeFromDefinition();
+            if (definition != null && definition.animSet != null)
+                PlayActionState(definition.animSet.landing);
         }
 
         public override void OnNetworkDespawn()
         {
             feedbackSequence.OnValueChanged -= HandleFeedbackSequenceChanged;
-            if (Instance == this) Instance = null;
+            instances.Remove(this);
+            if (Instance == this)
+            {
+                Instance = null;
+                for (var i = 0; i < instances.Count; i++)
+                    if (instances[i] != null && instances[i].IsOwner)
+                    {
+                        Instance = instances[i];
+                        break;
+                    }
+                if (Instance == null && instances.Count > 0) Instance = instances[0];
+            }
             base.OnNetworkDespawn();
         }
 
@@ -220,7 +262,9 @@ namespace Splice.Characters
         {
             InitializeHealth(definition.maxHealth);
             SetArmor(definition.armor);
+            mana.Value = Mathf.Clamp(definition.startingMana, 0f, Mathf.Max(1f, definition.maxMana));
             controlMode.Value = definition.startsInAutoMode ? HeroControlMode.Auto : HeroControlMode.Manual;
+            targetPreference.Value = HeroTargetPreference.Default;
             lifeState.Value = HeroLifeState.Active;
             downedRemaining.Value = 0f;
             revivesRemaining.Value = Mathf.Max(0, definition.maxRevivesPerRaid);
@@ -236,6 +280,8 @@ namespace Splice.Characters
             lastFeedbackValue.Value = 0;
             manualInput = Vector2.zero;
             attackTimer = definition.attackCooldown;
+            normalAttackPending = false;
+            pendingNormalAttackTarget = null;
         }
 
         private void Update()
@@ -249,9 +295,14 @@ namespace Splice.Characters
             TickAbilityCooldown(healCooldownRemaining);
             TickAbilityCooldown(skill2CooldownRemaining);
             TickAbilityCooldown(skill3CooldownRemaining);
+            TickManaRegeneration();
+            TickPendingNormalAttack();
 
             if (hasFocusTarget.Value && !TryResolveFocusTarget(out _))
+            {
                 ClearFocusTarget(HeroFeedback.FocusTargetCompleted);
+                AcquirePreferredFocusTarget();
+            }
 
             if (lifeState.Value == HeroLifeState.Downed)
             {
@@ -291,15 +342,10 @@ namespace Splice.Characters
                 lastPresentationMovementTime = Time.unscaledTime;
 
             if (Time.unscaledTime < actionAnimationUntil) return;
-            if (lifeState.Value == HeroLifeState.Defeated)
+            if (lifeState.Value == HeroLifeState.Defeated ||
+                lifeState.Value == HeroLifeState.Downed)
             {
-                SetPresentationState(AnimationStateName(HeroAnimationState.Defeated));
-                return;
-            }
-
-            if (lifeState.Value == HeroLifeState.Downed)
-            {
-                SetPresentationState(AnimationStateName(HeroAnimationState.Downed));
+                SetPresentationState(AnimationStateName(HeroAnimationState.Death));
                 return;
             }
 
@@ -309,17 +355,14 @@ namespace Splice.Characters
 
         private void TickCombat()
         {
-            if (attackTimer < definition.attackCooldown) return;
+            if (attackTimer < definition.attackCooldown || normalAttackPending) return;
             var hasOrder = TryResolveFocusTarget(out var orderedTarget);
             var target = hasOrder
                 ? IsWithinHorizontalRange(orderedTarget, definition.attackRange) ? orderedTarget : null
                 : FindNearestEnemy(definition.attackRange);
             if (target == null) return;
 
-            Face(target.transform.position - transform.position);
-            target.ApplyDamage(definition.attackDamage, this);
-            attackTimer = 0f;
-            PlayNormalAttackPresentationClientRpc();
+            BeginNormalAttack(target);
         }
 
         private void TickManualMovement()
@@ -356,6 +399,12 @@ namespace Splice.Characters
                 position.z = Mathf.Clamp(position.z, bounds.min.z, bounds.max.z);
             }
 
+            if (GroundSurfaceResolver.TrySnap(
+                    position,
+                    transform,
+                    out var snappedPosition,
+                    definition.groundOffset))
+                position = snappedPosition;
             transform.position = position;
             Face(direction);
         }
@@ -375,6 +424,14 @@ namespace Splice.Characters
             var bestSqr = range * range;
             var position = transform.position;
 
+            var heroes = instances;
+            for (var i = 0; i < heroes.Count; i++)
+            {
+                var hero = heroes[i];
+                if (hero == null || hero == this || hero.side == side) continue;
+                Consider(hero, position, ref nearest, ref bestSqr);
+            }
+
             var towers = TowerCharacter.Active;
             for (var i = 0; i < towers.Count; i++)
                 Consider(towers[i], position, ref nearest, ref bestSqr);
@@ -387,6 +444,70 @@ namespace Splice.Characters
                 Consider(monster, position, ref nearest, ref bestSqr);
             }
             return nearest;
+        }
+
+        private CharacterBase FindNearestMonsterTarget()
+        {
+            CharacterBase nearest = null;
+            var bestSqr = float.PositiveInfinity;
+            var monsters = MonsterCharacter.Active;
+            for (var i = 0; i < monsters.Count; i++)
+            {
+                var monster = monsters[i];
+                if (monster == null || monster.Side == side) continue;
+                Consider(monster, transform.position, ref nearest, ref bestSqr);
+            }
+            return nearest;
+        }
+
+        private CharacterBase FindNearestTowerTarget()
+        {
+            CharacterBase nearest = null;
+            var bestSqr = float.PositiveInfinity;
+            var towers = TowerCharacter.Active;
+            for (var i = 0; i < towers.Count; i++)
+            {
+                var tower = towers[i];
+                if (tower == null || tower is FortCore) continue;
+                Consider(tower, transform.position, ref nearest, ref bestSqr);
+            }
+            return nearest;
+        }
+
+        private void TickManaRegeneration()
+        {
+            if (!CanAct || definition.maxMana <= 0f || definition.manaGenerationPercentPerSecond <= 0f) return;
+            var perSecond = definition.maxMana * definition.manaGenerationPercentPerSecond * 0.01f;
+            mana.Value = Mathf.Min(definition.maxMana, mana.Value + perSecond * Time.deltaTime);
+        }
+
+        private void BeginNormalAttack(CharacterBase target)
+        {
+            if (definition == null || normalAttackPending) return;
+            if (target != null) Face(target.transform.position - transform.position);
+
+            var useAttack2 = Random.value >= 0.5f;
+            attackTimer = 0f;
+            if (target != null)
+            {
+                pendingNormalAttackTarget = target;
+                pendingNormalAttackDamage = definition.attackDamage;
+                pendingNormalAttackImpactAt = Time.time + Mathf.Max(0.01f, definition.normalAttackImpactDelay);
+                normalAttackPending = true;
+            }
+            PlayNormalAttackPresentationClientRpc(useAttack2);
+        }
+
+        private void TickPendingNormalAttack()
+        {
+            if (!normalAttackPending || Time.time < pendingNormalAttackImpactAt) return;
+            normalAttackPending = false;
+            var target = pendingNormalAttackTarget;
+            pendingNormalAttackTarget = null;
+            if (!CanAct || target == null || target.IsDead) return;
+
+            target.ApplyDamage(pendingNormalAttackDamage, this);
+            PublishFeedback(HeroFeedback.NormalAttackHit, pendingNormalAttackDamage);
         }
 
         private static void Consider(CharacterBase candidate, Vector3 position, ref CharacterBase nearest, ref float bestSqr)
@@ -404,6 +525,28 @@ namespace Splice.Characters
             if (!CanControl(rpcParams.Receive.SenderClientId) || lifeState.Value != HeroLifeState.Active) return;
             controlMode.Value = requested;
             manualInput = Vector2.zero;
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestSetTargetPreferenceServerRpc(
+            HeroTargetPreference requested,
+            NetworkObjectReference visibleEnemyHero = default,
+            ServerRpcParams rpcParams = default)
+        {
+            if (!CanControl(rpcParams.Receive.SenderClientId) || !CanAct) return;
+            targetPreference.Value = requested;
+            controlMode.Value = HeroControlMode.Auto;
+            manualInput = Vector2.zero;
+            ClearFocusTarget(HeroFeedback.FocusTargetCleared);
+
+            if (requested == HeroTargetPreference.Monster &&
+                TryResolveRequestedFocusTarget(visibleEnemyHero, out var visibleHero) &&
+                visibleHero is RaidHeroCharacter)
+            {
+                SetFocusTarget(visibleHero);
+                return;
+            }
+            AcquirePreferredFocusTarget();
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -429,16 +572,15 @@ namespace Splice.Characters
             }
 
             // Write the reference before the flag so clients never observe "has target" with an old ref.
-            focusTarget.Value = requestedTarget;
-            hasFocusTarget.Value = true;
-            var assignedUnitCount = IssueSquadFocusOrder(target);
-            PublishFeedback(HeroFeedback.FocusTargetSet, assignedUnitCount);
+            targetPreference.Value = HeroTargetPreference.Default;
+            SetFocusTarget(target);
         }
 
         [ServerRpc(RequireOwnership = false)]
         public void RequestClearFocusTargetServerRpc(ServerRpcParams rpcParams = default)
         {
             if (!CanControl(rpcParams.Receive.SenderClientId)) return;
+            targetPreference.Value = HeroTargetPreference.Default;
             ClearFocusTarget(HeroFeedback.FocusTargetCleared);
         }
 
@@ -483,27 +625,27 @@ namespace Splice.Characters
                 return;
             }
 
-            if (attackTimer < definition.attackCooldown)
+            if (attackTimer < definition.attackCooldown || normalAttackPending)
             {
                 PublishFeedback(
                     HeroFeedback.NormalAttackCooldown,
-                    Mathf.CeilToInt(definition.attackCooldown - attackTimer));
+                    Mathf.Max(1, Mathf.CeilToInt(definition.attackCooldown - attackTimer)));
                 return;
             }
 
-            var target = FindNearestEnemy(definition.attackRange);
+            var target = TryResolveFocusTarget(out var lockedTarget) &&
+                         IsWithinHorizontalRange(lockedTarget, definition.attackRange)
+                ? lockedTarget
+                : FindNearestEnemy(definition.attackRange);
             if (target != null)
             {
-                Face(target.transform.position - transform.position);
-                target.ApplyDamage(definition.attackDamage, this);
-                PublishFeedback(HeroFeedback.NormalAttackHit, definition.attackDamage);
+                BeginNormalAttack(target);
             }
             else
             {
                 PublishFeedback(HeroFeedback.NormalAttackNoTarget);
+                BeginNormalAttack(null);
             }
-            attackTimer = 0f;
-            PlayNormalAttackPresentationClientRpc();
         }
 
         private void TryCastAbility(HeroAbilitySlot slot, Vector3 requestedTargetPoint)
@@ -523,6 +665,19 @@ namespace Splice.Characters
                     HeroFeedback.AbilityCooldown,
                     Mathf.CeilToInt(remaining));
                 return;
+            }
+
+            if (mana.Value + 0.001f < ability.manaCost)
+            {
+                PublishFeedback(HeroFeedback.AbilityNoMana, Mathf.CeilToInt(ability.manaCost - mana.Value));
+                return;
+            }
+
+            if (TryResolveFocusTarget(out var lockedTarget))
+            {
+                Face(lockedTarget.transform.position - transform.position);
+                if (ability.targeting == HeroAbilityTargeting.TargetPoint)
+                    requestedTargetPoint = lockedTarget.transform.position;
             }
 
             if (ability.effect == HeroAbilityEffect.ForwardBlink)
@@ -550,11 +705,12 @@ namespace Splice.Characters
                 if (target != null && !target.IsDead) target.ApplyDamage(ability.damage, this);
             }
 
+            ConsumeMana(ability.manaCost);
             SetAbilityCooldown(slot, ability.cooldownSeconds);
             PublishFeedback(
                 hitCount > 0 ? HeroFeedback.AbilityCast : HeroFeedback.AbilityNoTargets,
                 hitCount);
-            PlayAbilityPresentationClientRpc(slot, targetPoint);
+            PlayAbilityPresentationClientRpc(slot, targetPoint, transform.position);
         }
 
         // Lets the target-mode button produce server-confirmed feedback without entering targeting while the
@@ -589,6 +745,14 @@ namespace Splice.Characters
                 PublishFeedback(
                     HeroFeedback.AbilityCooldown,
                     Mathf.CeilToInt(remaining));
+            else
+            {
+                var ability = GetAbility(slot);
+                if (ability != null && mana.Value + 0.001f < ability.manaCost)
+                    PublishFeedback(
+                        HeroFeedback.AbilityNoMana,
+                        Mathf.CeilToInt(ability.manaCost - mana.Value));
+            }
         }
 
         private void CastBlink(HeroAbilitySlot slot, HeroAbilityDefinitionSO ability)
@@ -603,8 +767,15 @@ namespace Splice.Characters
             var forward = transform.forward;
             forward.y = 0f;
             if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
-            var destination = transform.position + forward.normalized * distance;
+            var origin = transform.position;
+            var destination = origin + forward.normalized * distance;
             destination = ClampToMovementBounds(destination);
+            if (GroundSurfaceResolver.TrySnap(
+                    destination,
+                    transform,
+                    out var snappedDestination,
+                    definition.groundOffset))
+                destination = snappedDestination;
             var movedDistance = Vector3.Distance(transform.position, destination);
             if (movedDistance < 0.01f)
             {
@@ -614,9 +785,10 @@ namespace Splice.Characters
 
             transform.position = destination;
             manualInput = Vector2.zero;
+            ConsumeMana(ability.manaCost);
             SetAbilityCooldown(slot, ability.cooldownSeconds);
             PublishFeedback(HeroFeedback.AbilityBlinked, Mathf.RoundToInt(movedDistance * 10f));
-            PlayAbilityPresentationClientRpc(slot, destination);
+            PlayAbilityPresentationClientRpc(slot, destination, origin);
         }
 
         private void CastHeal(HeroAbilitySlot slot, HeroAbilityDefinitionSO ability)
@@ -636,9 +808,10 @@ namespace Splice.Characters
                 return;
             }
 
+            ConsumeMana(ability.manaCost);
             SetAbilityCooldown(slot, ability.cooldownSeconds);
             PublishFeedback(HeroFeedback.AbilityHealed, restored);
-            PlayAbilityPresentationClientRpc(slot, transform.position);
+            PlayAbilityPresentationClientRpc(slot, transform.position, transform.position);
         }
 
         private bool TryResolveAbilityTargetPoint(
@@ -688,13 +861,20 @@ namespace Splice.Characters
                 cooldown.Value = Mathf.Max(0f, cooldown.Value - Time.deltaTime);
         }
 
+        private void ConsumeMana(float amount)
+        {
+            if (!IsServer || amount <= 0f) return;
+            mana.Value = Mathf.Max(0f, mana.Value - amount);
+        }
+
         private Vector3 ClampToMovementBounds(Vector3 position)
         {
-            if (movementBounds == null) return position;
-            var bounds = movementBounds.bounds;
-            position.x = Mathf.Clamp(position.x, bounds.min.x, bounds.max.x);
-            position.y = transform.position.y;
-            position.z = Mathf.Clamp(position.z, bounds.min.z, bounds.max.z);
+            if (movementBounds != null)
+            {
+                var bounds = movementBounds.bounds;
+                position.x = Mathf.Clamp(position.x, bounds.min.x, bounds.max.x);
+                position.z = Mathf.Clamp(position.z, bounds.min.z, bounds.max.z);
+            }
             return position;
         }
 
@@ -730,7 +910,29 @@ namespace Splice.Characters
         {
             if (target == null || target.IsDead) return false;
             if (target is TowerCharacter tower) return tower is not FortCore;
-            return target is MonsterCharacter monster && monster.Side != side;
+            if (target is MonsterCharacter monster) return monster.Side != side;
+            return target is RaidHeroCharacter hero && hero != this && hero.side != side;
+        }
+
+        private void SetFocusTarget(CharacterBase target)
+        {
+            if (!IsServer || target == null || target.IsDead || target.NetworkObject == null) return;
+            focusTarget.Value = new NetworkObjectReference(target.NetworkObject);
+            hasFocusTarget.Value = true;
+            var assignedUnitCount = target is RaidHeroCharacter ? 0 : IssueSquadFocusOrder(target);
+            PublishFeedback(HeroFeedback.FocusTargetSet, assignedUnitCount);
+        }
+
+        private void AcquirePreferredFocusTarget()
+        {
+            if (!IsServer || !CanAct || hasFocusTarget.Value) return;
+            CharacterBase target = targetPreference.Value switch
+            {
+                HeroTargetPreference.Monster => FindNearestMonsterTarget(),
+                HeroTargetPreference.Tower => FindNearestTowerTarget(),
+                _ => null
+            };
+            if (target != null) SetFocusTarget(target);
         }
 
         private void ClearFocusTarget(HeroFeedback feedback)
@@ -799,6 +1001,15 @@ namespace Splice.Characters
                 if (HorizontalSqrDistance(monster.transform.position, targetPoint) <= radiusSqr)
                     abilityTargets.Add(monster);
             }
+
+            var heroes = instances;
+            for (var i = 0; i < heroes.Count; i++)
+            {
+                var hero = heroes[i];
+                if (hero == null || hero == this || hero.IsDead || hero.side == side) continue;
+                if (HorizontalSqrDistance(hero.transform.position, targetPoint) <= radiusSqr)
+                    abilityTargets.Add(hero);
+            }
             return abilityTargets.Count;
         }
 
@@ -815,34 +1026,82 @@ namespace Splice.Characters
             !float.IsNaN(value.z) && !float.IsInfinity(value.z);
 
         [ClientRpc]
-        private void PlayAbilityPresentationClientRpc(HeroAbilitySlot slot, Vector3 targetPoint)
+        private void PlayAbilityPresentationClientRpc(
+            HeroAbilitySlot slot,
+            Vector3 targetPoint,
+            Vector3 originPoint)
         {
-            PlayAbilityPresentation(slot, targetPoint);
+            PlayAbilityPresentation(slot, targetPoint, originPoint);
         }
 
-        private void PlayAbilityPresentation(HeroAbilitySlot slot, Vector3 targetPoint)
+        private void PlayAbilityPresentation(
+            HeroAbilitySlot slot,
+            Vector3 targetPoint,
+            Vector3 originPoint)
         {
             var ability = GetAbility(slot);
             if (ability == null) return;
-            PlayActionState(ability.animationState);
-            if (ability.castEffectPrefab != null)
-                OneShotEffect.Spawn(
-                    ability.castEffectPrefab,
-                    targetPoint,
-                    Quaternion.identity,
-                    ability.castEffectLifetime);
+            PlayActionState(ResolveAbilityAnimationState(slot, ability));
+            if (ability.castEffectPrefab == null) return;
+
+            switch (ability.effectPlacement)
+            {
+                case HeroAbilityEffectPlacement.HeroRoot:
+                    OneShotEffect.SpawnAttached(
+                        ability.castEffectPrefab,
+                        transform,
+                        ability.castEffectLifetime,
+                        ability.effectLocalOffset);
+                    break;
+                case HeroAbilityEffectPlacement.HeroEffectAnchor:
+                    if (slot == HeroAbilitySlot.Blink)
+                        OneShotEffect.SpawnAttachedTrail(
+                            ability.castEffectPrefab,
+                            abilityEffectAnchor != null ? abilityEffectAnchor : transform,
+                            originPoint,
+                            targetPoint,
+                            ability.castEffectLifetime,
+                            ability.effectLocalOffset);
+                    else
+                        OneShotEffect.SpawnAttached(
+                            ability.castEffectPrefab,
+                            abilityEffectAnchor != null ? abilityEffectAnchor : transform,
+                            ability.castEffectLifetime,
+                            ability.effectLocalOffset);
+                    break;
+                case HeroAbilityEffectPlacement.WorldPoint:
+                    OneShotEffect.Spawn(
+                        ability.castEffectPrefab,
+                        targetPoint + ability.effectLocalOffset,
+                        Quaternion.identity,
+                        ability.castEffectLifetime);
+                    break;
+                default:
+                    GroundSurfaceResolver.TrySnap(
+                        targetPoint,
+                        transform,
+                        out targetPoint,
+                        ability.groundEffectOffset);
+                    OneShotEffect.Spawn(
+                        ability.castEffectPrefab,
+                        targetPoint + ability.effectLocalOffset,
+                        Quaternion.identity,
+                        ability.castEffectLifetime);
+                    break;
+            }
         }
 
         [ClientRpc]
-        private void PlayNormalAttackPresentationClientRpc()
+        private void PlayNormalAttackPresentationClientRpc(bool useAttack2)
         {
-            PlayNormalAttackPresentation();
+            PlayNormalAttackPresentation(useAttack2);
         }
 
-        private void PlayNormalAttackPresentation()
+        private void PlayNormalAttackPresentation(bool useAttack2 = false)
         {
-            var stateName = definition != null && definition.animSet != null
-                ? definition.animSet.attack
+            var set = definition != null ? definition.animSet : null;
+            var stateName = set != null
+                ? (useAttack2 && !string.IsNullOrWhiteSpace(set.attack2) ? set.attack2 : set.attack1)
                 : "Attack";
             PlayActionState(stateName);
             if (definition != null && definition.normalAttackEffectPrefab != null)
@@ -850,6 +1109,23 @@ namespace Splice.Characters
                     definition.normalAttackEffectPrefab,
                     transform,
                     definition.normalAttackEffectLifetime);
+        }
+
+        private string ResolveAbilityAnimationState(
+            HeroAbilitySlot slot,
+            HeroAbilityDefinitionSO ability)
+        {
+            if (!string.IsNullOrWhiteSpace(ability.animationState)) return ability.animationState;
+            var set = definition != null ? definition.animSet : null;
+            if (set == null) return string.Empty;
+            return slot switch
+            {
+                HeroAbilitySlot.Blink => set.sprint,
+                HeroAbilitySlot.Skill1 => set.skill1,
+                HeroAbilitySlot.Skill2 => set.skill2,
+                HeroAbilitySlot.Skill3 => set.skill3,
+                _ => string.Empty
+            };
         }
 
         private void InitializePresentation()
@@ -890,8 +1166,7 @@ namespace Splice.Characters
             return state switch
             {
                 HeroAnimationState.Walk => set != null ? set.walk : "Walk",
-                HeroAnimationState.Downed => set != null ? set.downed : "Idle",
-                HeroAnimationState.Defeated => set != null ? set.defeated : "Death",
+                HeroAnimationState.Death => set != null ? set.death : "Death",
                 _ => set != null ? set.idle : "Idle"
             };
         }
@@ -979,6 +1254,8 @@ namespace Splice.Characters
         {
             if (!IsServer || definition == null) return;
             manualInput = Vector2.zero;
+            normalAttackPending = false;
+            pendingNormalAttackTarget = null;
             lifeState.Value = HeroLifeState.Downed;
             downedRemaining.Value = definition.downedWindowSeconds;
         }

@@ -23,7 +23,11 @@ MonoBehaviour:
   damage: 500
   healing: 0
   movementDistance: 0
+  manaCost: 30
   cooldownSeconds: 8
   animationState: Skill2
   castEffectPrefab: {fileID: 2206962618483470306, guid: 5585510101a816940bd00605d4cfcbd9, type: 3}
   castEffectLifetime: 2
+  effectPlacement: 2
+  effectLocalOffset: {x: 0, y: 0, z: 0}
+  groundEffectOffset: 0.05

@@ -4,6 +4,7 @@ using System.Linq;
 using NUnit.Framework;
 using PinePie.SimpleJoystick;
 using Splice.Characters;
+using Splice.Combat;
 using Splice.Data;
 using Splice.Input;
 using UnityEditor;
@@ -44,8 +45,16 @@ namespace Splice.Tests.EditMode
                     .Select(button => button.name)
                     .ToArray();
                 CollectionAssert.IsSubsetOf(
-                    new[] { "bt-blink", "bt-heal", "bt-attack", "bt-skill1", "bt-skill2", "bt-skill3" },
+                    new[]
+                    {
+                        "bt-blink", "bt-heal", "bt-attack", "bt-skill1", "bt-skill2", "bt-skill3",
+                        "bt-auto", "bt-target-mon", "bt-target-tower"
+                    },
                     buttonNames);
+                Assert.That(
+                    canvas.GetComponentsInChildren<Transform>(true)
+                        .Any(item => item.name == "Panel_Attack_Button"),
+                    Is.True);
             }
             finally
             {
@@ -72,7 +81,15 @@ namespace Splice.Tests.EditMode
             Assert.That(rowan.animSet, Is.Not.Null);
             Assert.That(rowan.animSet.idle, Is.EqualTo("Idle"));
             Assert.That(rowan.animSet.walk, Is.EqualTo("Walk"));
-            Assert.That(rowan.animSet.attack, Is.EqualTo("Attack"));
+            Assert.That(rowan.animSet.attack1, Is.EqualTo("Attack"));
+            Assert.That(rowan.animSet.attack2, Is.Not.Empty);
+            Assert.That(rowan.animSet.death, Is.EqualTo("Death"));
+            Assert.That(rowan.animSet.landing, Is.Not.Empty);
+            Assert.That(rowan.maxMana, Is.GreaterThan(0f));
+            Assert.That(rowan.manaGenerationPercentPerSecond, Is.GreaterThanOrEqualTo(0f));
+            Assert.That(rowan.normalAttackImpactDelay, Is.GreaterThan(0f));
+            Assert.That(rowan.blinkAbility.effectPlacement, Is.EqualTo(HeroAbilityEffectPlacement.HeroEffectAnchor));
+            Assert.That(rowan.healAbility.effectPlacement, Is.EqualTo(HeroAbilityEffectPlacement.HeroEffectAnchor));
             Assert.That(rowan.normalAttackEffectPrefab, Is.Not.Null);
         }
 
@@ -109,7 +126,7 @@ namespace Splice.Tests.EditMode
                     animator.GetCurrentAnimatorStateInfo(0).shortNameHash,
                     Is.EqualTo(Animator.StringToHash("Walk")));
 
-                Assert.That(AnimatorUtil.SafeCrossFade(animator, rowan.animSet.attack, 0f), Is.True);
+                Assert.That(AnimatorUtil.SafeCrossFade(animator, rowan.animSet.attack1, 0f), Is.True);
                 animator.Update(0.01f);
                 Assert.That(
                     animator.GetCurrentAnimatorStateInfo(0).shortNameHash,
@@ -118,6 +135,28 @@ namespace Splice.Tests.EditMode
             finally
             {
                 Object.DestroyImmediate(instance);
+            }
+        }
+
+        [Test]
+        public void GroundSurfaceResolver_SnapsUnitsAndFxToGroundLayer()
+        {
+            var surface = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            surface.name = "RegressionGroundSurface";
+            surface.layer = LayerMask.NameToLayer("Ground");
+            surface.transform.position = new Vector3(10000f, 7f, 10000f);
+            try
+            {
+                Physics.SyncTransforms();
+                var desired = new Vector3(10000f, -20f, 10000f);
+                Assert.That(
+                    GroundSurfaceResolver.TrySnap(desired, null, out var snapped, 0.15f),
+                    Is.True);
+                Assert.That(snapped.y, Is.EqualTo(7.15f).Within(0.02f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(surface);
             }
         }
 
@@ -146,7 +185,7 @@ namespace Splice.Tests.EditMode
                     GetPrivateField<string>(hero, "currentPresentationState"),
                     Is.EqualTo("Idle"));
 
-                InvokePrivate(hero, "PlayNormalAttackPresentation");
+                InvokePrivate(hero, "PlayNormalAttackPresentation", false);
                 Assert.That(
                     GetPrivateField<string>(hero, "currentPresentationState"),
                     Is.EqualTo("Attack"));

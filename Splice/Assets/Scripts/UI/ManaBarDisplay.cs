@@ -10,6 +10,8 @@ namespace Splice.UI
     public class ManaBarDisplay : MonoBehaviour
     {
         [SerializeField] private MonsterCharacter monster;
+        [Tooltip("Hero mana source. When assigned, the bar is always shown for that Hero.")]
+        [SerializeField] private RaidHeroCharacter hero;
         [SerializeField] private Image fillImage;
         [Tooltip("ราก UI ของหลอด (จะปิดถ้าไม่ใช่ supporter). เว้น = ใช้ gameObject นี้")]
         [SerializeField] private GameObject root;
@@ -20,19 +22,22 @@ namespace Splice.UI
         private void Awake()
         {
             if (monster == null) monster = GetComponentInParent<MonsterCharacter>();
+            if (hero == null) hero = GetComponentInParent<RaidHeroCharacter>();
             if (root == null) root = gameObject;
             if (billboardCamera == null) billboardCamera = Camera.main;
         }
 
         private void LateUpdate()
         {
-            if (monster == null || fillImage == null) return;
+            if ((monster == null && hero == null) || fillImage == null) return;
 
-            var show = monster.IsSupporter;
+            var show = hero != null || monster != null && monster.IsSupporter;
             if (root.activeSelf != show) root.SetActive(show);
             if (!show) return;
 
-            var f = monster.ManaMaxValue > 0f ? monster.Mana / monster.ManaMaxValue : 0f;
+            var current = hero != null ? hero.Mana : monster.Mana;
+            var maximum = hero != null ? hero.ManaMaxValue : monster.ManaMaxValue;
+            var f = maximum > 0f ? current / maximum : 0f;
             fillImage.fillAmount = f;
             if (manaColor != null) fillImage.color = manaColor.Evaluate(f);   // สีตามสัดส่วนมานา
 

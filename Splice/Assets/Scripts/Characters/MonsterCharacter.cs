@@ -615,8 +615,10 @@ namespace Splice.Characters
             if (heading.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(heading);
 
             var groundY = targetPos.y;
+            if (GroundSurfaceResolver.TrySnap(moved, transform, out var snappedSurface))
+                groundY = snappedSurface.y;
             var desiredY = definition.movement == MonsterMovement.Flying ? groundY + definition.flightHeight : groundY;
-            moved.y = Mathf.MoveTowards(pos.y, desiredY, step);
+            moved.y = desiredY;
 
             transform.position = moved;
         }
@@ -939,8 +941,10 @@ namespace Splice.Characters
             if (heading.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(heading);
 
             var groundY = GroundReferenceY(fort, holding);
+            if (GroundSurfaceResolver.TrySnap(moved, transform, out var snappedSurface))
+                groundY = snappedSurface.y;
             var desiredY = definition.movement == MonsterMovement.Flying ? groundY + definition.flightHeight : groundY;
-            moved.y = Mathf.MoveTowards(pos.y, desiredY, step);
+            moved.y = desiredY;
 
             transform.position = moved;
         }

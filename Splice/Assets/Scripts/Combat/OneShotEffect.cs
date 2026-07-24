@@ -14,10 +14,40 @@ namespace Splice.Combat
         }
 
         // เกาะติดตัวละคร (เป็นลูกของ parent) — effect ขยับตามตัว. parent หายก่อน = effect หายตามอัตโนมัติ
-        public static void SpawnAttached(GameObject prefab, Transform parent, float fallbackLifetime = 3f)
+        public static void SpawnAttached(
+            GameObject prefab,
+            Transform parent,
+            float fallbackLifetime = 3f,
+            Vector3 localOffset = default)
         {
             if (prefab == null || parent == null) return;
-            var go = Object.Instantiate(prefab, parent.position, parent.rotation, parent);
+            var go = Object.Instantiate(prefab, parent);
+            go.transform.localPosition = localOffset;
+            go.transform.localRotation = Quaternion.identity;
+            Object.Destroy(go, Mathf.Max(0.05f, LifetimeOf(go, fallbackLifetime)));
+        }
+
+        // Blink-specialized attached FX. TrailRenderer points are explicitly seeded from origin to
+        // destination, so an instantaneous server teleport still leaves a visible trail segment.
+        public static void SpawnAttachedTrail(
+            GameObject prefab,
+            Transform parent,
+            Vector3 origin,
+            Vector3 destination,
+            float fallbackLifetime = 3f,
+            Vector3 localOffset = default)
+        {
+            if (prefab == null || parent == null) return;
+            var go = Object.Instantiate(prefab, parent);
+            go.transform.localPosition = localOffset;
+            go.transform.localRotation = Quaternion.identity;
+
+            foreach (var trail in go.GetComponentsInChildren<TrailRenderer>(true))
+            {
+                trail.Clear();
+                trail.AddPosition(origin);
+                trail.AddPosition(destination);
+            }
             Object.Destroy(go, Mathf.Max(0.05f, LifetimeOf(go, fallbackLifetime)));
         }
 

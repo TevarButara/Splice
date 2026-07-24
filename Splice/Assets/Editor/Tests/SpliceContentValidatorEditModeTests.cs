@@ -124,6 +124,7 @@ namespace Splice.Tests.EditMode
             hero.attackCooldown = 1f;
             hero.moveSpeed = 1f;
             hero.reviveHealthPercent = 0.5f;
+            hero.startingMana = 200f;
 
             var blink = Make<HeroAbilityDefinitionSO>();
             blink.abilityId = "bad_blink";
@@ -132,6 +133,7 @@ namespace Splice.Tests.EditMode
             blink.targeting = HeroAbilityTargeting.Self;
             blink.movementDistance = 0f;
             blink.cooldownSeconds = 1f;
+            blink.manaCost = -1f;
             hero.blinkAbility = blink;
 
             var heal = Make<HeroAbilityDefinitionSO>();
@@ -150,8 +152,10 @@ namespace Splice.Tests.EditMode
 
             AssertCode(report, "ABILITY_BLINK_DISTANCE_INVALID");
             AssertCode(report, "ABILITY_BLINK_TARGETING_INVALID");
+            AssertCode(report, "ABILITY_MANA_COST_INVALID");
             AssertCode(report, "ABILITY_HEAL_AMOUNT_INVALID");
             AssertCode(report, "ABILITY_HEAL_TARGETING_INVALID");
+            AssertCode(report, "HERO_STARTING_MANA_INVALID");
         }
 
         private T Make<T>() where T : ScriptableObject
