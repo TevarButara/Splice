@@ -7,6 +7,7 @@ using Splice.Characters;
 using Splice.Combat;
 using Splice.Data;
 using Splice.Input;
+using TMPro;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
@@ -51,15 +52,76 @@ namespace Splice.Tests.EditMode
                         "bt-auto", "bt-target-mon", "bt-target-tower"
                     },
                     buttonNames);
+                var buttons = canvas.GetComponentsInChildren<Button>(true);
+                var reborn = scene.GetRootGameObjects()
+                    .SelectMany(root => root.GetComponentsInChildren<Button>(true))
+                    .Single(button => button.name == "bt-reborn");
+                Assert.That(
+                    reborn.GetComponentsInChildren<TMP_Text>(true)
+                        .Any(label => label.name == "reborn_count"),
+                    Is.True);
+                foreach (var abilityButtonName in new[]
+                         {
+                             "bt-blink", "bt-heal", "bt-skill1", "bt-skill2", "bt-skill3"
+                         })
+                {
+                    var abilityButton = buttons.Single(button => button.name == abilityButtonName);
+                    var overlay = abilityButton.GetComponentsInChildren<Image>(true)
+                        .Single(image => image.name == "cool-overlay");
+                    Assert.That(overlay.type, Is.EqualTo(Image.Type.Filled), abilityButtonName);
+                    Assert.That(
+                        overlay.fillMethod,
+                        Is.EqualTo(Image.FillMethod.Radial360),
+                        abilityButtonName);
+                    Assert.That(
+                        abilityButton.GetComponentsInChildren<TMP_Text>(true)
+                            .Any(label => label.name == "cooldown"),
+                        Is.True,
+                        abilityButtonName);
+                }
                 Assert.That(
                     canvas.GetComponentsInChildren<Transform>(true)
                         .Any(item => item.name == "Panel_Attack_Button"),
                     Is.True);
+                controller.EnsureBinding();
+                Assert.That(
+                    controller.HasCompleteBinding,
+                    Is.True,
+                    "The action controller must bind the bottom-HUD reborn button across Canvas roots.");
             }
             finally
             {
                 if (openedForTest) EditorSceneManager.CloseScene(scene, true);
             }
+        }
+
+        [Test]
+        public void AbilityCooldownFill_CountsDownFromFullToEmpty()
+        {
+            Assert.That(HeroActionButtonController.CalculateCooldownFill(8f, 8f), Is.EqualTo(1f));
+            Assert.That(HeroActionButtonController.CalculateCooldownFill(4f, 8f), Is.EqualTo(0.5f));
+            Assert.That(HeroActionButtonController.CalculateCooldownFill(0f, 8f), Is.EqualTo(0f));
+            Assert.That(HeroActionButtonController.CalculateCooldownFill(1f, 0f), Is.EqualTo(0f));
+        }
+
+        [Test]
+        public void ManualReborn_IsExposedAsServerValidatedHeroIntent()
+        {
+            Assert.That(
+                typeof(RaidHeroCharacter).GetProperty(
+                    "CanReborn",
+                    BindingFlags.Instance | BindingFlags.Public),
+                Is.Not.Null);
+            Assert.That(
+                typeof(RaidHeroCharacter).GetMethod(
+                    "RequestRebornServerRpc",
+                    BindingFlags.Instance | BindingFlags.Public),
+                Is.Not.Null);
+            Assert.That(
+                typeof(HeroActionButtonController).GetMethod(
+                    "Reborn",
+                    BindingFlags.Instance | BindingFlags.Public),
+                Is.Not.Null);
         }
 
         [Test]

@@ -1,6 +1,7 @@
 using PinePie.SimpleJoystick;
 using Splice.Characters;
 using Splice.Data;
+using TMPro;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
@@ -12,6 +13,14 @@ namespace Splice.Input
     [DisallowMultipleComponent]
     public sealed class HeroActionButtonController : MonoBehaviour
     {
+        private sealed class AbilityCooldownBinding
+        {
+            public HeroAbilitySlot Slot;
+            public Button Button;
+            public Image Overlay;
+            public TMP_Text Label;
+        }
+
         [SerializeField] private RaidHeroCharacter hero;
         [SerializeField] private HeroAbilityTargetingController targetingController;
         [SerializeField] private JoystickController movementJoystick;
@@ -25,6 +34,9 @@ namespace Splice.Input
         private Button autoButton;
         private Button targetMonsterButton;
         private Button targetTowerButton;
+        private Button rebornButton;
+        private TMP_Text rebornCountLabel;
+        private readonly AbilityCooldownBinding[] cooldownBindings = new AbilityCooldownBinding[5];
         private GameObject attackPanel;
         private bool? lastControlAvailability;
         private HeroControlMode? lastControlMode;
@@ -38,10 +50,17 @@ namespace Splice.Input
             movementJoystick != null && blinkButton != null && healButton != null && attackButton != null &&
             skill1Button != null && skill2Button != null && skill3Button != null &&
             autoButton != null && targetMonsterButton != null && targetTowerButton != null &&
-            attackPanel != null;
+            rebornButton != null && rebornCountLabel != null && attackPanel != null &&
+            HasCompleteCooldownBinding();
 
         private void Awake()
         {
+            EnsureBinding();
+        }
+
+        private void Start()
+        {
+            // Cross-Canvas HUD objects may finish their scene activation after this component's Awake.
             EnsureBinding();
         }
 
@@ -55,6 +74,8 @@ namespace Splice.Input
             ResolveHero();
             RefreshVisibleTargetLock();
             RefreshControlAvailability();
+            RefreshReborn();
+            RefreshAbilityCooldowns();
         }
 
         public void Blink() => UseAbility(HeroAbilitySlot.Blink);
@@ -62,6 +83,12 @@ namespace Splice.Input
         public void Skill1() => UseAbility(HeroAbilitySlot.Skill1);
         public void Skill2() => UseAbility(HeroAbilitySlot.Skill2);
         public void Skill3() => UseAbility(HeroAbilitySlot.Skill3);
+
+        public void Reborn()
+        {
+            ResolveHero();
+            if (hero != null && hero.CanLocalPlayerControl) hero.RequestRebornServerRpc();
+        }
 
         public void Attack()
         {
@@ -102,6 +129,8 @@ namespace Splice.Input
             ResolveReferences();
             BindButtons();
             SubscribeJoystick();
+            RefreshReborn();
+            RefreshAbilityCooldowns();
         }
 
         private void UseAbility(HeroAbilitySlot slot)
@@ -176,8 +205,19 @@ namespace Splice.Input
                     case "bt-auto": autoButton = button; break;
                     case "bt-target-mon": targetMonsterButton = button; break;
                     case "bt-target-tower": targetTowerButton = button; break;
+                    case "bt-reborn": rebornButton = button; break;
                 }
             }
+
+            // Reborn belongs to the user's bottom HUD rather than CanvasJoyControl. Keep that Editor
+            // hierarchy intact and resolve the exact button name from this controller's scene.
+            if (rebornButton == null) rebornButton = FindSceneButton("bt-reborn");
+            rebornCountLabel = FindNamedChild<TMP_Text>(rebornButton, "reborn_count");
+            BindCooldown(0, blinkButton, HeroAbilitySlot.Blink);
+            BindCooldown(1, healButton, HeroAbilitySlot.Heal);
+            BindCooldown(2, skill1Button, HeroAbilitySlot.Skill1);
+            BindCooldown(3, skill2Button, HeroAbilitySlot.Skill2);
+            BindCooldown(4, skill3Button, HeroAbilitySlot.Skill3);
 
             blinkButton?.onClick.AddListener(Blink);
             healButton?.onClick.AddListener(Heal);
@@ -188,6 +228,7 @@ namespace Splice.Input
             autoButton?.onClick.AddListener(Auto);
             targetMonsterButton?.onClick.AddListener(TargetMonster);
             targetTowerButton?.onClick.AddListener(TargetTower);
+            rebornButton?.onClick.AddListener(Reborn);
             EnsureSkillDragHandler(skill1Button, HeroAbilitySlot.Skill1);
             EnsureSkillDragHandler(skill2Button, HeroAbilitySlot.Skill2);
             EnsureSkillDragHandler(skill3Button, HeroAbilitySlot.Skill3);
@@ -207,6 +248,7 @@ namespace Splice.Input
             autoButton?.onClick.RemoveListener(Auto);
             targetMonsterButton?.onClick.RemoveListener(TargetMonster);
             targetTowerButton?.onClick.RemoveListener(TargetTower);
+            rebornButton?.onClick.RemoveListener(Reborn);
             if (subscribedJoystick != null)
             {
                 subscribedJoystick.OnTouchPressed -= EnterHeroMode;
@@ -234,6 +276,63 @@ namespace Splice.Input
             var showAttackPanel = available && hero.ControlMode == HeroControlMode.Manual;
             if (attackPanel != null && attackPanel.activeSelf != showAttackPanel)
                 attackPanel.SetActive(showAttackPanel);
+        }
+
+        private void RefreshReborn()
+        {
+            if (rebornButton == null) return;
+            var remaining = hero != null ? hero.RevivesRemaining : 0;
+            if (rebornCountLabel != null) rebornCountLabel.text = remaining.ToString();
+
+            var show = hero != null &&
+                       hero.CanLocalPlayerControl &&
+                       remaining > 0 &&
+                       hero.LifeState != HeroLifeState.Active;
+            if (rebornButton.gameObject.activeSelf != show)
+                rebornButton.gameObject.SetActive(show);
+            rebornButton.interactable = show && hero.CanReborn;
+        }
+
+        private void RefreshAbilityCooldowns()
+        {
+            for (var i = 0; i < cooldownBindings.Length; i++)
+            {
+                var binding = cooldownBindings[i];
+                if (binding == null || binding.Button == null) continue;
+
+                var ability = hero != null ? hero.GetAbility(binding.Slot) : null;
+                var remaining = hero != null
+                    ? Mathf.Max(0f, hero.GetAbilityCooldownRemaining(binding.Slot))
+                    : 0f;
+                var total = ability != null ? Mathf.Max(0f, ability.cooldownSeconds) : 0f;
+                var coolingDown = remaining > 0.001f;
+
+                if (binding.Overlay != null)
+                {
+                    binding.Overlay.fillAmount = CalculateCooldownFill(remaining, total);
+                    if (binding.Overlay.gameObject.activeSelf != coolingDown)
+                        binding.Overlay.gameObject.SetActive(coolingDown);
+                }
+
+                if (binding.Label != null)
+                {
+                    binding.Label.text = coolingDown ? Mathf.CeilToInt(remaining).ToString() : string.Empty;
+                    if (binding.Label.gameObject.activeSelf != coolingDown)
+                        binding.Label.gameObject.SetActive(coolingDown);
+                }
+
+                binding.Button.interactable =
+                    hero != null &&
+                    hero.CanLocalPlayerControl &&
+                    hero.CanAct &&
+                    ability != null &&
+                    !coolingDown;
+            }
+        }
+
+        public static float CalculateCooldownFill(float remaining, float total)
+        {
+            return total > 0.001f ? Mathf.Clamp01(remaining / total) : 0f;
         }
 
         private void SubscribeJoystick()
@@ -283,6 +382,71 @@ namespace Splice.Input
             var handler = button.GetComponent<HeroSkillDragButton>();
             if (handler == null) handler = button.gameObject.AddComponent<HeroSkillDragButton>();
             handler.Configure(this, slot);
+        }
+
+        private void BindCooldown(int index, Button button, HeroAbilitySlot slot)
+        {
+            if (index < 0 || index >= cooldownBindings.Length) return;
+            var overlay = FindNamedChild<Image>(button, "cool-overlay");
+            var label = FindNamedChild<TMP_Text>(button, "cooldown");
+            if (overlay != null)
+            {
+                overlay.type = Image.Type.Filled;
+                overlay.fillMethod = Image.FillMethod.Radial360;
+                overlay.fillClockwise = true;
+                overlay.raycastTarget = false;
+            }
+            if (label != null) label.raycastTarget = false;
+            cooldownBindings[index] = new AbilityCooldownBinding
+            {
+                Slot = slot,
+                Button = button,
+                Overlay = overlay,
+                Label = label
+            };
+        }
+
+        private bool HasCompleteCooldownBinding()
+        {
+            for (var i = 0; i < cooldownBindings.Length; i++)
+            {
+                var binding = cooldownBindings[i];
+                if (binding == null || binding.Button == null ||
+                    binding.Overlay == null || binding.Label == null)
+                    return false;
+            }
+            return true;
+        }
+
+        private static T FindNamedChild<T>(Button button, string childName) where T : Component
+        {
+            if (button == null) return null;
+            var components = button.GetComponentsInChildren<T>(true);
+            for (var i = 0; i < components.Length; i++)
+                if (string.Equals(
+                        components[i].name,
+                        childName,
+                        System.StringComparison.OrdinalIgnoreCase))
+                    return components[i];
+            return null;
+        }
+
+        private Button FindSceneButton(string buttonName)
+        {
+            var scene = gameObject.scene;
+            if (!scene.IsValid() || !scene.isLoaded) return null;
+            var roots = scene.GetRootGameObjects();
+            for (var rootIndex = 0; rootIndex < roots.Length; rootIndex++)
+            {
+                var buttons = roots[rootIndex].GetComponentsInChildren<Button>(true);
+                for (var buttonIndex = 0; buttonIndex < buttons.Length; buttonIndex++)
+                    if (string.Equals(
+                            buttons[buttonIndex].name,
+                            buttonName,
+                            System.StringComparison.OrdinalIgnoreCase))
+                        return buttons[buttonIndex];
+            }
+            return null;
         }
 
         private void RefreshVisibleTargetLock()

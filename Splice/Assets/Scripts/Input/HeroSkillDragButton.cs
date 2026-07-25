@@ -1,6 +1,7 @@
 using Splice.Data;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 namespace Splice.Input
 {
@@ -24,6 +25,12 @@ namespace Splice.Input
 
         public void OnPointerDown(PointerEventData eventData)
         {
+            var button = GetComponent<Button>();
+            if (button != null && !button.interactable)
+            {
+                draggingAbility = false;
+                return;
+            }
             draggingAbility = owner != null &&
                               owner.TryBeginAbilityDrag(slot, eventData.position);
         }

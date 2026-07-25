@@ -185,6 +185,12 @@ namespace Splice.Characters
         public bool IsTacticalAbilityReady => TacticalAbility != null && tacticalAbilityCooldownRemaining.Value <= 0f;
         public bool HasFocusTarget => hasFocusTarget.Value;
         public bool CanAct => lifeState.Value == HeroLifeState.Active && !IsDead;
+        public bool CanReborn =>
+            definition != null &&
+            revivesRemaining.Value > 0 &&
+            lifeState.Value != HeroLifeState.Active &&
+            IsDead &&
+            (RaidManager.Instance == null || !RaidManager.Instance.IsOver);
         public float SquadCommandRadius => squadCommandRadius;
         public HeroAbilitySlot LastAbilitySlot => lastAbilitySlot.Value;
         public static bool IsLocalControlSuppressed =>
@@ -590,6 +596,17 @@ namespace Splice.Characters
             if (!CanControl(rpcParams.Receive.SenderClientId)) return;
             targetPreference.Value = HeroTargetPreference.Default;
             ClearFocusTarget(HeroFeedback.FocusTargetCleared);
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestRebornServerRpc(ServerRpcParams rpcParams = default)
+        {
+            if (!CanControl(rpcParams.Receive.SenderClientId))
+            {
+                PublishFeedback(HeroFeedback.ReviveRejected);
+                return;
+            }
+            TryRevive();
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -1376,12 +1393,12 @@ namespace Splice.Characters
             downedRemaining.Value = definition.downedWindowSeconds;
         }
 
-        // Server-side ally/revive-point API. The owner cannot call this through input in step 3;
-        // ContextMenu is provided only for Editor acceptance.
+        // Server-authoritative manual reborn. RaidHeroCharacter is never despawned on death, so restoring
+        // health here naturally revives at the exact position where the Hero fell.
         public bool TryRevive()
         {
             if (!IsServer) return false;
-            if (lifeState.Value != HeroLifeState.Downed || definition == null || revivesRemaining.Value <= 0)
+            if (!CanReborn)
             {
                 PublishFeedback(HeroFeedback.ReviveRejected);
                 return false;
