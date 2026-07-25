@@ -31,6 +31,7 @@ namespace Splice.Input
         private JoystickController subscribedJoystick;
         private HeroAbilitySlot suppressedClickSlot;
         private int suppressClickThroughFrame = -1;
+        private bool? lastResolvedFocusTarget;
 
         public JoystickController MovementJoystick => movementJoystick;
         public bool HasCompleteBinding =>
@@ -52,6 +53,7 @@ namespace Splice.Input
         private void Update()
         {
             ResolveHero();
+            RefreshVisibleTargetLock();
             RefreshControlAvailability();
         }
 
@@ -77,17 +79,13 @@ namespace Splice.Input
         public void TargetMonster()
         {
             ResolveHero();
-            if (hero == null || !hero.CanLocalPlayerControl) return;
-            hero.RequestSetTargetPreferenceServerRpc(
-                HeroTargetPreference.Monster,
-                FindVisibleEnemyHero());
+            RequestVisibleTarget(HeroTargetPreference.Monster);
         }
 
         public void TargetTower()
         {
             ResolveHero();
-            if (hero != null && hero.CanLocalPlayerControl)
-                hero.RequestSetTargetPreferenceServerRpc(HeroTargetPreference.Tower);
+            RequestVisibleTarget(HeroTargetPreference.Tower);
         }
 
         public void EnterHeroMode()
@@ -287,12 +285,92 @@ namespace Splice.Input
             handler.Configure(this, slot);
         }
 
-        private NetworkObjectReference FindVisibleEnemyHero()
+        private void RefreshVisibleTargetLock()
         {
-            if (hero == null) return default;
-            var camera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
-            if (camera == null) return default;
+            if (hero == null || !hero.CanLocalPlayerControl)
+            {
+                lastResolvedFocusTarget = null;
+                return;
+            }
 
+            var hasResolvedTarget = hero.TryGetFocusTarget(out _);
+            if (lastResolvedFocusTarget == true &&
+                !hasResolvedTarget &&
+                hero.TargetPreference != HeroTargetPreference.Default)
+            {
+                // The locked target died/despawned. Retarget only from what the player can see now;
+                // RequestVisibleTarget sends an empty reference to cancel when the screen has no candidate.
+                RequestVisibleTarget(hero.TargetPreference);
+                hasResolvedTarget = hero.TryGetFocusTarget(out _);
+            }
+            lastResolvedFocusTarget = hasResolvedTarget;
+        }
+
+        private void RequestVisibleTarget(HeroTargetPreference preference)
+        {
+            if (hero == null || !hero.CanLocalPlayerControl) return;
+            var visibleTarget = FindVisibleTarget(preference);
+            var targetReference = visibleTarget != null &&
+                                  visibleTarget.NetworkObject != null &&
+                                  visibleTarget.IsSpawned
+                ? new NetworkObjectReference(visibleTarget.NetworkObject)
+                : default;
+            hero.RequestSetTargetPreferenceServerRpc(preference, targetReference);
+        }
+
+        private CharacterBase FindVisibleTarget(HeroTargetPreference preference)
+        {
+            var camera = ResolveGameplayCamera();
+            if (hero == null || camera == null) return null;
+            var planes = GeometryUtility.CalculateFrustumPlanes(camera);
+
+            // Preserve the combat rule: target-mon gives an on-screen enemy Hero priority,
+            // then falls back to an on-screen monster. Distance never expands the camera scope.
+            if (preference == HeroTargetPreference.Monster)
+            {
+                var visibleHero = FindNearestVisibleEnemyHero(camera, planes);
+                if (visibleHero != null) return visibleHero;
+
+                MonsterCharacter nearestMonster = null;
+                var bestMonsterSqr = float.PositiveInfinity;
+                var monsters = MonsterCharacter.Instances;
+                for (var i = 0; i < monsters.Count; i++)
+                {
+                    var candidate = monsters[i];
+                    if (candidate == null || candidate.IsDead || candidate.Side == hero.Side ||
+                        !candidate.IsSpawned || !IsCandidateVisible(camera, planes, candidate))
+                        continue;
+                    var sqr = (candidate.transform.position - hero.transform.position).sqrMagnitude;
+                    if (sqr >= bestMonsterSqr) continue;
+                    bestMonsterSqr = sqr;
+                    nearestMonster = candidate;
+                }
+                return nearestMonster;
+            }
+
+            if (preference == HeroTargetPreference.Tower)
+            {
+                TowerCharacter nearestTower = null;
+                var bestTowerSqr = float.PositiveInfinity;
+                var towers = TowerCharacter.Instances;
+                for (var i = 0; i < towers.Count; i++)
+                {
+                    var candidate = towers[i];
+                    if (candidate == null || candidate.IsDead || candidate is FortCore ||
+                        !candidate.IsSpawned || !IsCandidateVisible(camera, planes, candidate))
+                        continue;
+                    var sqr = (candidate.transform.position - hero.transform.position).sqrMagnitude;
+                    if (sqr >= bestTowerSqr) continue;
+                    bestTowerSqr = sqr;
+                    nearestTower = candidate;
+                }
+                return nearestTower;
+            }
+            return null;
+        }
+
+        private RaidHeroCharacter FindNearestVisibleEnemyHero(Camera camera, Plane[] planes)
+        {
             RaidHeroCharacter best = null;
             var bestSqr = float.PositiveInfinity;
             var candidates = RaidHeroCharacter.Instances;
@@ -300,18 +378,69 @@ namespace Splice.Input
             {
                 var candidate = candidates[i];
                 if (candidate == null || candidate == hero || candidate.IsDead ||
-                    candidate.Side == hero.Side || !candidate.IsSpawned)
-                    continue;
-                var viewport = camera.WorldToViewportPoint(candidate.transform.position);
-                if (viewport.z <= 0f || viewport.x < 0f || viewport.x > 1f ||
-                    viewport.y < 0f || viewport.y > 1f)
+                    candidate.Side == hero.Side || !candidate.IsSpawned ||
+                    !IsCandidateVisible(camera, planes, candidate))
                     continue;
                 var sqr = (candidate.transform.position - hero.transform.position).sqrMagnitude;
                 if (sqr >= bestSqr) continue;
                 bestSqr = sqr;
                 best = candidate;
             }
-            return best != null ? new NetworkObjectReference(best.NetworkObject) : default;
+            return best;
+        }
+
+        private static Camera ResolveGameplayCamera()
+        {
+            var panControllers = FindObjectsByType<CameraPanController>(FindObjectsSortMode.None);
+            for (var i = 0; i < panControllers.Length; i++)
+            {
+                var gameplayCamera = panControllers[i].GetComponent<Camera>();
+                if (gameplayCamera != null && gameplayCamera.isActiveAndEnabled &&
+                    gameplayCamera.gameObject.activeInHierarchy)
+                    return gameplayCamera;
+            }
+
+            var main = Camera.main;
+            if (main != null && main.isActiveAndEnabled && main.gameObject.activeInHierarchy)
+                return main;
+
+            var cameras = FindObjectsByType<Camera>(FindObjectsSortMode.None);
+            for (var i = 0; i < cameras.Length; i++)
+                if (cameras[i].isActiveAndEnabled && cameras[i].gameObject.activeInHierarchy)
+                    return cameras[i];
+            return null;
+        }
+
+        private static bool IsCandidateVisible(Camera camera, Plane[] planes, CharacterBase candidate)
+        {
+            var renderers = candidate.GetComponentsInChildren<Renderer>(false);
+            var hasRenderer = false;
+            for (var i = 0; i < renderers.Length; i++)
+            {
+                var renderer = renderers[i];
+                if (renderer == null || !renderer.enabled || !renderer.gameObject.activeInHierarchy) continue;
+                hasRenderer = true;
+                if (IsBoundsVisible(camera, planes, renderer.bounds)) return true;
+            }
+
+            if (hasRenderer) return false;
+            var viewport = camera.WorldToViewportPoint(candidate.transform.position);
+            return viewport.z > camera.nearClipPlane &&
+                   viewport.x >= 0f && viewport.x <= 1f &&
+                   viewport.y >= 0f && viewport.y <= 1f;
+        }
+
+        public static bool IsBoundsVisible(Camera camera, Bounds bounds)
+        {
+            if (camera == null || !camera.isActiveAndEnabled) return false;
+            return IsBoundsVisible(camera, GeometryUtility.CalculateFrustumPlanes(camera), bounds);
+        }
+
+        private static bool IsBoundsVisible(Camera camera, Plane[] planes, Bounds bounds)
+        {
+            if (!GeometryUtility.TestPlanesAABB(planes, bounds)) return false;
+            var viewport = camera.WorldToViewportPoint(bounds.ClosestPoint(camera.transform.position));
+            return viewport.z > camera.nearClipPlane;
         }
 
         private static void SetInteractable(Selectable selectable, bool interactable)

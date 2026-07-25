@@ -176,6 +176,51 @@ namespace Splice.Tests.EditMode
         }
 
         [Test]
+        public void TargetAssist_UsesOnlyScreenVisibleExplicitCandidates()
+        {
+            var cameraObject = new GameObject("TargetVisibilityRegressionCamera");
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.nearClipPlane = 0.1f;
+            camera.fieldOfView = 60f;
+            camera.aspect = 16f / 9f;
+            try
+            {
+                Assert.That(
+                    HeroActionButtonController.IsBoundsVisible(
+                        camera,
+                        new Bounds(new Vector3(0f, 0f, 10f), Vector3.one)),
+                    Is.True);
+                Assert.That(
+                    HeroActionButtonController.IsBoundsVisible(
+                        camera,
+                        new Bounds(new Vector3(100f, 0f, 10f), Vector3.one)),
+                    Is.False);
+                Assert.That(
+                    HeroActionButtonController.IsBoundsVisible(
+                        camera,
+                        new Bounds(new Vector3(0f, 0f, -10f), Vector3.one)),
+                    Is.False);
+
+                Assert.That(
+                    typeof(TowerCharacter).GetProperty(
+                        "Instances",
+                        BindingFlags.Public | BindingFlags.Static),
+                    Is.Not.Null,
+                    "Remote clients need a presentation-safe tower list for screen target selection.");
+                Assert.That(
+                    typeof(RaidHeroCharacter).GetMethod(
+                        "AcquirePreferredFocusTarget",
+                        BindingFlags.Instance | BindingFlags.NonPublic),
+                    Is.Null,
+                    "The server must never replace a dead target with an off-screen nearest target.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(cameraObject);
+            }
+        }
+
+        [Test]
         public void DotDamage_DistributesConfiguredTotalExactlyAcrossDuration()
         {
             var ability = ScriptableObject.CreateInstance<HeroAbilityDefinitionSO>();

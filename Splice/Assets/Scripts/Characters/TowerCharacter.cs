@@ -59,7 +59,11 @@ namespace Splice.Characters
     public class TowerCharacter : CharacterBase
     {
         private static readonly List<TowerCharacter> active = new();
+        private static readonly List<TowerCharacter> instances = new();
         public static IReadOnlyList<TowerCharacter> Active => active;
+        // Presentation-safe list populated on server and remote clients. Screen-scoped target selection
+        // reads this list; authoritative tower combat continues to use Active.
+        public static IReadOnlyList<TowerCharacter> Instances => instances;
 
         // Reused per fire (server is single-threaded, so sharing is safe).
         private static readonly List<CharacterBase> fireBuffer = new();
@@ -153,6 +157,7 @@ namespace Splice.Characters
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
+            if (!instances.Contains(this)) instances.Add(this);
             if (!IsServer) return;
 
             active.Add(this);
@@ -167,6 +172,7 @@ namespace Splice.Characters
 
         public override void OnNetworkDespawn()
         {
+            instances.Remove(this);
             active.Remove(this);
             base.OnNetworkDespawn();
         }

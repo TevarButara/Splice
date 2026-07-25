@@ -319,7 +319,6 @@ namespace Splice.Characters
             if (hasFocusTarget.Value && !TryResolveFocusTarget(out _))
             {
                 ClearFocusTarget(HeroFeedback.FocusTargetCompleted);
-                AcquirePreferredFocusTarget();
             }
 
             if (lifeState.Value == HeroLifeState.Downed)
@@ -480,34 +479,6 @@ namespace Splice.Characters
             return nearest;
         }
 
-        private CharacterBase FindNearestMonsterTarget()
-        {
-            CharacterBase nearest = null;
-            var bestSqr = float.PositiveInfinity;
-            var monsters = MonsterCharacter.Active;
-            for (var i = 0; i < monsters.Count; i++)
-            {
-                var monster = monsters[i];
-                if (monster == null || monster.Side == side) continue;
-                Consider(monster, transform.position, ref nearest, ref bestSqr);
-            }
-            return nearest;
-        }
-
-        private CharacterBase FindNearestTowerTarget()
-        {
-            CharacterBase nearest = null;
-            var bestSqr = float.PositiveInfinity;
-            var towers = TowerCharacter.Active;
-            for (var i = 0; i < towers.Count; i++)
-            {
-                var tower = towers[i];
-                if (tower == null || tower is FortCore) continue;
-                Consider(tower, transform.position, ref nearest, ref bestSqr);
-            }
-            return nearest;
-        }
-
         private void TickManaRegeneration()
         {
             if (!CanAct || definition.maxMana <= 0f || definition.manaGenerationPercentPerSecond <= 0f) return;
@@ -564,22 +535,26 @@ namespace Splice.Characters
         [ServerRpc(RequireOwnership = false)]
         public void RequestSetTargetPreferenceServerRpc(
             HeroTargetPreference requested,
-            NetworkObjectReference visibleEnemyHero = default,
+            NetworkObjectReference requestedVisibleTarget = default,
             ServerRpcParams rpcParams = default)
         {
             if (!CanControl(rpcParams.Receive.SenderClientId) || !CanAct) return;
-            targetPreference.Value = requested;
             controlMode.Value = TargetAssistControlMode;
             ClearFocusTarget(HeroFeedback.FocusTargetCleared);
 
-            if (requested == HeroTargetPreference.Monster &&
-                TryResolveRequestedFocusTarget(visibleEnemyHero, out var visibleHero) &&
-                visibleHero is RaidHeroCharacter)
+            // Visibility is chosen from the active gameplay camera on the owning client. The server never
+            // falls back to a nearest world target: it only validates and accepts that explicit candidate.
+            if (!TryResolveRequestedPreferenceTarget(
+                    requested,
+                    requestedVisibleTarget,
+                    out var visibleTarget))
             {
-                SetFocusTarget(visibleHero, false);
+                targetPreference.Value = HeroTargetPreference.Default;
                 return;
             }
-            AcquirePreferredFocusTarget();
+
+            targetPreference.Value = requested;
+            SetFocusTarget(visibleTarget, false);
         }
 
         [ServerRpc(RequireOwnership = false)]
@@ -953,6 +928,29 @@ namespace Splice.Characters
             return IsValidFocusTarget(target);
         }
 
+        private bool TryResolveRequestedPreferenceTarget(
+            HeroTargetPreference requested,
+            NetworkObjectReference requestedTarget,
+            out CharacterBase target)
+        {
+            target = null;
+            if (requested == HeroTargetPreference.Default ||
+                !TryResolveRequestedFocusTarget(requestedTarget, out var resolved))
+                return false;
+
+            var matchesPreference = requested switch
+            {
+                HeroTargetPreference.Monster =>
+                    resolved is MonsterCharacter || resolved is RaidHeroCharacter,
+                HeroTargetPreference.Tower =>
+                    resolved is TowerCharacter && resolved is not FortCore,
+                _ => false
+            };
+            if (!matchesPreference) return false;
+            target = resolved;
+            return true;
+        }
+
         private bool IsValidFocusTarget(CharacterBase target)
         {
             if (target == null || target.IsDead) return false;
@@ -970,18 +968,6 @@ namespace Splice.Characters
                 ? IssueSquadFocusOrder(target)
                 : 0;
             PublishFeedback(HeroFeedback.FocusTargetSet, assignedUnitCount);
-        }
-
-        private void AcquirePreferredFocusTarget()
-        {
-            if (!IsServer || !CanAct || hasFocusTarget.Value) return;
-            CharacterBase target = targetPreference.Value switch
-            {
-                HeroTargetPreference.Monster => FindNearestMonsterTarget(),
-                HeroTargetPreference.Tower => FindNearestTowerTarget(),
-                _ => null
-            };
-            if (target != null) SetFocusTarget(target, false);
         }
 
         private void ClearFocusTarget(HeroFeedback feedback)
