@@ -283,6 +283,38 @@ namespace Splice.Tests.EditMode
         }
 
         [Test]
+        public void TargetAssist_ReleasesCharacterAfterItLeavesCamera()
+        {
+            var cameraObject = new GameObject("OffscreenUnlockRegressionCamera");
+            var camera = cameraObject.AddComponent<Camera>();
+            camera.nearClipPlane = 0.1f;
+            camera.fieldOfView = 60f;
+            camera.aspect = 16f / 9f;
+            var targetObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            targetObject.name = "OffscreenUnlockRegressionTarget";
+            var target = targetObject.AddComponent<MonsterCharacter>();
+            try
+            {
+                targetObject.transform.position = new Vector3(0f, 0f, 10f);
+                Assert.That(
+                    HeroActionButtonController.IsCharacterVisible(camera, target),
+                    Is.True,
+                    "A locked target may remain locked while visible.");
+
+                targetObject.transform.position = new Vector3(100f, 0f, 10f);
+                Assert.That(
+                    HeroActionButtonController.IsCharacterVisible(camera, target),
+                    Is.False,
+                    "Walking or panning away must make the target eligible for immediate unlock.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(targetObject);
+                Object.DestroyImmediate(cameraObject);
+            }
+        }
+
+        [Test]
         public void DotDamage_DistributesConfiguredTotalExactlyAcrossDuration()
         {
             var ability = ScriptableObject.CreateInstance<HeroAbilityDefinitionSO>();

@@ -44,6 +44,7 @@ namespace Splice.Input
         private HeroAbilitySlot suppressedClickSlot;
         private int suppressClickThroughFrame = -1;
         private bool? lastResolvedFocusTarget;
+        private bool offscreenFocusClearPending;
 
         public JoystickController MovementJoystick => movementJoystick;
         public bool HasCompleteBinding =>
@@ -454,10 +455,32 @@ namespace Splice.Input
             if (hero == null || !hero.CanLocalPlayerControl)
             {
                 lastResolvedFocusTarget = null;
+                offscreenFocusClearPending = false;
                 return;
             }
 
-            var hasResolvedTarget = hero.TryGetFocusTarget(out _);
+            var hasResolvedTarget = hero.TryGetFocusTarget(out var resolvedTarget);
+            if (hasResolvedTarget)
+            {
+                var gameplayCamera = ResolveGameplayCamera();
+                if (gameplayCamera != null &&
+                    !IsCharacterVisible(gameplayCamera, resolvedTarget))
+                {
+                    // Leaving the player's current screen is an explicit disengage signal. Clear this
+                    // exact lock and never search for a replacement, even if another candidate is visible.
+                    if (!offscreenFocusClearPending)
+                        hero.RequestClearFocusTargetServerRpc();
+                    offscreenFocusClearPending = true;
+                    lastResolvedFocusTarget = false;
+                    return;
+                }
+                offscreenFocusClearPending = false;
+            }
+            else
+            {
+                offscreenFocusClearPending = false;
+            }
+
             if (lastResolvedFocusTarget == true &&
                 !hasResolvedTarget &&
                 hero.TargetPreference != HeroTargetPreference.Default)
@@ -473,6 +496,7 @@ namespace Splice.Input
         private void RequestVisibleTarget(HeroTargetPreference preference)
         {
             if (hero == null || !hero.CanLocalPlayerControl) return;
+            offscreenFocusClearPending = false;
             var visibleTarget = FindVisibleTarget(preference);
             var targetReference = visibleTarget != null &&
                                   visibleTarget.NetworkObject != null &&
@@ -592,6 +616,15 @@ namespace Splice.Input
             return viewport.z > camera.nearClipPlane &&
                    viewport.x >= 0f && viewport.x <= 1f &&
                    viewport.y >= 0f && viewport.y <= 1f;
+        }
+
+        public static bool IsCharacterVisible(Camera camera, CharacterBase candidate)
+        {
+            if (camera == null || candidate == null || !camera.isActiveAndEnabled) return false;
+            return IsCandidateVisible(
+                camera,
+                GeometryUtility.CalculateFrustumPlanes(camera),
+                candidate);
         }
 
         public static bool IsBoundsVisible(Camera camera, Bounds bounds)
