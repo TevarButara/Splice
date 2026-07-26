@@ -19,7 +19,7 @@ MonoBehaviour:
   attackRange: 15.5
   attackCooldown: 0.5
   armor: 50
-  maxTargets: 3
+  maxTargets: 1
   buildTimeSeconds: 10
   goldCost: 10
   footprint: 3

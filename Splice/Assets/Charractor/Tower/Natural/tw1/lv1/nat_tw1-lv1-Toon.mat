@@ -108,7 +108,7 @@ Material:
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
-    - _Glow_Size: 0.538
+    - _Glow_Size: 0.11
     - _Highlight_Intensity: 0.16
     - _Highlight_Size: -0.01
     - _Metallic: 0

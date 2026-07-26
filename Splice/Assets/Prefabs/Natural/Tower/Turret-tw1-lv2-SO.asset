@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb07a03cd6144444988e392d76096643, type: 3}
+  m_Name: Turret-tw1-lv2-SO
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.TurretDefinitionSO
+  fireMode: 0
+  spinAxis: 2
+  forwardAxis: 1
+  invertSpin: 0
+  turnSpeedDegPerSec: 360
+  aimToleranceDeg: 7
+  returnToRestWhenIdle: 0
+  projectilePrefab: {fileID: 5723795506110481255, guid: b2b226236749c85448b0a75b5b7cb770, type: 3}
+  startSpeed: 7
+  endSpeed: 16
+  minFlightSeconds: 0.1
+  minHeight: 0.5
+  maxHeight: 4
+  maxLifetime: 12
+  launchEffect: {fileID: 0}
+  impactEffect: {fileID: 5586783540032275536, guid: 6e57a3cf9435eb14fb9928fa4ee60c63, type: 3}
+  beamFlashSeconds: 0.05
+  directImpactEffect: {fileID: 0}
