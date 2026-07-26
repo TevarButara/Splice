@@ -105,6 +105,44 @@ namespace Splice.Tests.EditMode
         }
 
         [Test]
+        public void HeroAbilityAvailability_RequiresEnoughMana()
+        {
+            Assert.That(RaidHeroCharacter.HasSufficientMana(20f, 20f), Is.True);
+            Assert.That(RaidHeroCharacter.HasSufficientMana(19.9f, 20f), Is.False);
+            Assert.That(RaidHeroCharacter.HasSufficientMana(0f, 0f), Is.True);
+        }
+
+        [Test]
+        public void HeroAutoCombat_UsesPlanarRangeAndSensibleHealThreshold()
+        {
+            Assert.That(
+                RaidHeroCharacter.HorizontalSqrDistance(
+                    new Vector3(0f, 100f, 0f),
+                    new Vector3(1f, -100f, 0f)),
+                Is.EqualTo(1f),
+                "Tower/Hero pivot height must not prevent an in-range normal attack.");
+            Assert.That(RaidHeroCharacter.ShouldAutoHeal(900, 1000, 500), Is.False);
+            Assert.That(RaidHeroCharacter.ShouldAutoHeal(700, 1000, 500), Is.True);
+            Assert.That(RaidHeroCharacter.ShouldAutoHeal(500, 1000, 100), Is.True);
+            Assert.That(RaidHeroCharacter.ShouldAutoHeal(1000, 1000, 500), Is.False);
+        }
+
+        [Test]
+        public void HeroAutoCombat_HasSkillAndHealDecisionPaths()
+        {
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            Assert.That(
+                typeof(RaidHeroCharacter).GetMethod("TryUseAutoHeal", flags),
+                Is.Not.Null);
+            Assert.That(
+                typeof(RaidHeroCharacter).GetMethod("TryUseAutoSkill", flags),
+                Is.Not.Null);
+            Assert.That(
+                typeof(RaidHeroCharacter).GetMethod("ResolveAutoTarget", flags),
+                Is.Not.Null);
+        }
+
+        [Test]
         public void ManualReborn_IsExposedAsServerValidatedHeroIntent()
         {
             Assert.That(

@@ -144,6 +144,8 @@ namespace Splice.Characters
         private float pendingNormalAttackImpactAt;
         private int pendingNormalAttackDamage;
         private bool normalAttackPending;
+        private float nextAutoCombatActionAt;
+        private int nextAutoSkillIndex;
         private Vector3 lastPresentationPosition;
         private float lastPresentationMovementTime;
         private float actionAnimationUntil;
@@ -163,6 +165,12 @@ namespace Splice.Characters
             public float nextTickAt;
         }
         private readonly List<PendingAbilityDot> pendingAbilityDots = new();
+        private static readonly HeroAbilitySlot[] AutoSkillSlots =
+        {
+            HeroAbilitySlot.Skill1,
+            HeroAbilitySlot.Skill2,
+            HeroAbilitySlot.Skill3
+        };
 
         public event System.Action<HeroFeedback, int> FeedbackReceived;
 
@@ -205,6 +213,25 @@ namespace Splice.Characters
 
         public HeroAbilityDefinitionSO GetAbility(HeroAbilitySlot slot) =>
             definition != null ? definition.GetAbility(slot) : null;
+
+        public bool HasManaForAbility(HeroAbilitySlot slot)
+        {
+            var ability = GetAbility(slot);
+            return ability != null && HasSufficientMana(mana.Value, ability.manaCost);
+        }
+
+        public static bool HasSufficientMana(float currentMana, float manaCost) =>
+            currentMana + 0.001f >= Mathf.Max(0f, manaCost);
+
+        public static bool ShouldAutoHeal(int currentHealth, int maxHealth, int healing)
+        {
+            if (currentHealth <= 0 || maxHealth <= 0 || healing <= 0 || currentHealth >= maxHealth)
+                return false;
+            var missingHealth = maxHealth - currentHealth;
+            var usefulHealThreshold = Mathf.Max(1, Mathf.CeilToInt(
+                Mathf.Min(maxHealth, healing) * 0.5f));
+            return missingHealth >= usefulHealThreshold || currentHealth * 2 <= maxHealth;
+        }
 
         public float GetAbilityCooldownRemaining(HeroAbilitySlot slot)
         {
@@ -304,6 +331,8 @@ namespace Splice.Characters
             attackTimer = definition.attackCooldown;
             normalAttackPending = false;
             pendingNormalAttackTarget = null;
+            nextAutoCombatActionAt = 0f;
+            nextAutoSkillIndex = 0;
             pendingAbilityDots.Clear();
         }
 
@@ -378,14 +407,95 @@ namespace Splice.Characters
 
         private void TickCombat()
         {
-            if (attackTimer < definition.attackCooldown || normalAttackPending) return;
-            var hasOrder = TryResolveFocusTarget(out var orderedTarget);
-            var target = hasOrder
-                ? IsWithinHorizontalRange(orderedTarget, definition.attackRange) ? orderedTarget : null
-                : FindNearestEnemy(definition.attackRange);
-            if (target == null) return;
+            if (Time.time < nextAutoCombatActionAt) return;
+            var target = ResolveAutoTarget();
+
+            if (TryUseAutoHeal()) return;
+            if (target != null && TryUseAutoSkill(target)) return;
+            if (attackTimer < definition.attackCooldown || normalAttackPending ||
+                target == null || !IsWithinHorizontalRange(target, definition.attackRange))
+                return;
 
             BeginNormalAttack(target);
+        }
+
+        private CharacterBase ResolveAutoTarget()
+        {
+            if (TryResolveFocusTarget(out var orderedTarget)) return orderedTarget;
+            var target = FindNearestEnemy(definition.autoAggroRange);
+            if (target == null && side == RaidSide.Attacker) target = FortCore.Instance;
+            return target != null && !target.IsDead ? target : null;
+        }
+
+        private bool TryUseAutoHeal()
+        {
+            var ability = GetAbility(HeroAbilitySlot.Heal);
+            if (!IsAutoAbilityResourceReady(HeroAbilitySlot.Heal, ability) ||
+                !ShouldAutoHeal(CurrentHealth, MaxHealth, ability.healing))
+                return false;
+
+            ScheduleNextAutoAction(HeroAbilitySlot.Heal, ability);
+            TryCastAbility(HeroAbilitySlot.Heal, transform.position);
+            return true;
+        }
+
+        private bool TryUseAutoSkill(CharacterBase target)
+        {
+            if (target == null || target.IsDead || target is FortCore) return false;
+            for (var offset = 0; offset < AutoSkillSlots.Length; offset++)
+            {
+                var index = (nextAutoSkillIndex + offset) % AutoSkillSlots.Length;
+                var slot = AutoSkillSlots[index];
+                var ability = GetAbility(slot);
+                if (!IsAutoAbilityResourceReady(slot, ability) ||
+                    !TryGetAutoAbilityTargetPoint(ability, target, out var targetPoint))
+                    continue;
+
+                Face(target.transform.position - transform.position);
+                ScheduleNextAutoAction(slot, ability);
+                nextAutoSkillIndex = (index + 1) % AutoSkillSlots.Length;
+                TryCastAbility(slot, targetPoint, target);
+                return true;
+            }
+            return false;
+        }
+
+        private bool IsAutoAbilityResourceReady(
+            HeroAbilitySlot slot,
+            HeroAbilityDefinitionSO ability)
+        {
+            return ability != null &&
+                   ability.effect != HeroAbilityEffect.ForwardBlink &&
+                   GetAbilityCooldownRemaining(slot) <= 0.001f &&
+                   HasSufficientMana(mana.Value, ability.manaCost);
+        }
+
+        private bool TryGetAutoAbilityTargetPoint(
+            HeroAbilityDefinitionSO ability,
+            CharacterBase target,
+            out Vector3 targetPoint)
+        {
+            targetPoint = transform.position;
+            if (ability == null) return false;
+            if (ability.effect == HeroAbilityEffect.SelfHeal)
+                return ShouldAutoHeal(CurrentHealth, MaxHealth, ability.healing);
+            if (target == null || target.IsDead) return false;
+
+            targetPoint = target.transform.position;
+            var requiredRange = ability.castType == HeroAbilityCastType.SelfCast
+                ? ability.effectRadius
+                : ability.castRange;
+            return IsWithinHorizontalRange(target, Mathf.Max(0.1f, requiredRange));
+        }
+
+        private void ScheduleNextAutoAction(
+            HeroAbilitySlot slot,
+            HeroAbilityDefinitionSO ability)
+        {
+            var animationState = ResolveAbilityAnimationState(slot, ability);
+            nextAutoCombatActionAt = Time.time + Mathf.Max(
+                0.25f,
+                GetAnimationDuration(animationState));
         }
 
         private void TickManualMovement()
@@ -412,11 +522,9 @@ namespace Splice.Characters
 
         private void TickAutoMovement()
         {
-            var target = TryResolveFocusTarget(out var orderedTarget)
-                ? orderedTarget
-                : FindNearestEnemy(definition.autoAggroRange);
-            if (target == null) target = FortCore.Instance;
-            if (target == null || target.IsDead) return;
+            if (Time.time < nextAutoCombatActionAt) return;
+            var target = ResolveAutoTarget();
+            if (target == null) return;
 
             var delta = target.transform.position - transform.position;
             delta.y = 0f;
@@ -499,6 +607,10 @@ namespace Splice.Characters
 
             var useAttack2 = Random.value >= 0.5f;
             attackTimer = 0f;
+            if (controlMode.Value == HeroControlMode.Auto)
+                nextAutoCombatActionAt = Time.time + Mathf.Max(
+                    0.25f,
+                    definition.normalAttackImpactDelay);
             if (target != null)
             {
                 pendingNormalAttackTarget = target;
@@ -524,7 +636,7 @@ namespace Splice.Characters
         private static void Consider(CharacterBase candidate, Vector3 position, ref CharacterBase nearest, ref float bestSqr)
         {
             if (candidate == null || candidate.IsDead) return;
-            var sqr = (candidate.transform.position - position).sqrMagnitude;
+            var sqr = HorizontalSqrDistance(candidate.transform.position, position);
             if (sqr > bestSqr) return;
             bestSqr = sqr;
             nearest = candidate;
@@ -673,7 +785,10 @@ namespace Splice.Characters
             }
         }
 
-        private void TryCastAbility(HeroAbilitySlot slot, Vector3 requestedTargetPoint)
+        private void TryCastAbility(
+            HeroAbilitySlot slot,
+            Vector3 requestedTargetPoint,
+            CharacterBase autoTarget = null)
         {
             lastAbilitySlot.Value = slot;
             var ability = GetAbility(slot);
@@ -692,13 +807,15 @@ namespace Splice.Characters
                 return;
             }
 
-            if (mana.Value + 0.001f < ability.manaCost)
+            if (!HasSufficientMana(mana.Value, ability.manaCost))
             {
                 PublishFeedback(HeroFeedback.AbilityNoMana, Mathf.CeilToInt(ability.manaCost - mana.Value));
                 return;
             }
 
-            var hasLockedTarget = TryResolveFocusTarget(out var lockedTarget);
+            var hasLockedTarget = autoTarget != null && IsValidFocusTarget(autoTarget);
+            var lockedTarget = hasLockedTarget ? autoTarget : null;
+            if (!hasLockedTarget) hasLockedTarget = TryResolveFocusTarget(out lockedTarget);
             if (ability.castType == HeroAbilityCastType.LockedTarget && hasLockedTarget)
                 requestedTargetPoint = lockedTarget.transform.position;
 
@@ -714,7 +831,12 @@ namespace Splice.Characters
                 return;
             }
 
-            if (!TryResolveAbilityTargetPoint(ability, requestedTargetPoint, out var targetPoint)) return;
+            if (!TryResolveAbilityTargetPoint(
+                    ability,
+                    requestedTargetPoint,
+                    out var targetPoint,
+                    hasLockedTarget ? lockedTarget : null))
+                return;
 
             // Preserve the ground hit height for presentation, but cap vertical input so a client cannot
             // spawn the cosmetic effect at an arbitrary altitude. Damage/range always use XZ distance.
@@ -777,7 +899,7 @@ namespace Splice.Characters
             else
             {
                 var ability = GetAbility(slot);
-                if (ability != null && mana.Value + 0.001f < ability.manaCost)
+                if (ability != null && !HasSufficientMana(mana.Value, ability.manaCost))
                     PublishFeedback(
                         HeroFeedback.AbilityNoMana,
                         Mathf.CeilToInt(ability.manaCost - mana.Value));
@@ -846,13 +968,18 @@ namespace Splice.Characters
         private bool TryResolveAbilityTargetPoint(
             HeroAbilityDefinitionSO ability,
             Vector3 requestedTargetPoint,
-            out Vector3 targetPoint)
+            out Vector3 targetPoint,
+            CharacterBase lockedTargetOverride = null)
         {
             targetPoint = transform.position;
             if (ability.castType == HeroAbilityCastType.SelfCast) return true;
             if (ability.castType == HeroAbilityCastType.LockedTarget)
             {
-                if (TryResolveFocusTarget(out var lockedTarget))
+                var hasTarget = lockedTargetOverride != null &&
+                                IsValidFocusTarget(lockedTargetOverride);
+                var lockedTarget = hasTarget ? lockedTargetOverride : null;
+                if (!hasTarget) hasTarget = TryResolveFocusTarget(out lockedTarget);
+                if (hasTarget)
                 {
                     targetPoint = lockedTarget.transform.position;
                     if (HorizontalSqrDistance(transform.position, targetPoint) <=
@@ -1143,7 +1270,7 @@ namespace Splice.Characters
             return abilityTargets.Count;
         }
 
-        private static float HorizontalSqrDistance(Vector3 a, Vector3 b)
+        public static float HorizontalSqrDistance(Vector3 a, Vector3 b)
         {
             var delta = a - b;
             delta.y = 0f;

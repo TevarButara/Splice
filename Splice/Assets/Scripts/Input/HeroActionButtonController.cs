@@ -327,6 +327,7 @@ namespace Splice.Input
                     hero.CanLocalPlayerControl &&
                     hero.CanAct &&
                     ability != null &&
+                    hero.HasManaForAbility(binding.Slot) &&
                     !coolingDown;
             }
         }
