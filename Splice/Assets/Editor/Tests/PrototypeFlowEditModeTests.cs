@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Splice.Base;
 using Splice.Core;
 using Splice.Editor.Placement;
+using Splice.Editor.UI;
 using Splice.Input;
 using Splice.Data;
 using Splice.Placement;
@@ -190,6 +191,71 @@ namespace Splice.Tests.EditMode
                 if (level != null && level.level == 1) levelOneCount++;
             Assert.That(levelOneCount, Is.EqualTo(1),
                 "A repeated editor bake or manual wrapper selection must not duplicate base level 1.");
+        }
+
+        [Test]
+        public void CheckoutBakeEnsure_PreservesDesignerOwnedRectTransform()
+        {
+            const string scenePath = "Assets/=======SCENES/BuildZone.unity";
+            var scene = SceneManager.GetSceneByPath(scenePath);
+            var openedForTest = !scene.IsValid() || !scene.isLoaded;
+            if (openedForTest) scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+            try
+            {
+                BaseBuildCheckoutController checkout = null;
+                foreach (var root in scene.GetRootGameObjects())
+                {
+                    checkout = root.GetComponentInChildren<BaseBuildCheckoutController>(true);
+                    if (checkout != null) break;
+                }
+                Assert.That(checkout, Is.Not.Null);
+                Assert.That(checkout.HasEditorAuthoredUi, Is.True);
+                var rect = checkout.EditorUiRoot.GetComponent<RectTransform>();
+                Assert.That(rect, Is.Not.Null);
+                var originalPosition = rect.anchoredPosition;
+                var originalSize = rect.sizeDelta;
+                var customPosition = new Vector2(137f, -83f);
+                var customSize = new Vector2(713f, 419f);
+                rect.anchoredPosition = customPosition;
+                rect.sizeDelta = customSize;
+
+                SpliceSceneUiAuthoringEditor.EnsureCheckoutUiWithoutOverwritingDesign(checkout);
+
+                Assert.That(rect.anchoredPosition, Is.EqualTo(customPosition));
+                Assert.That(rect.sizeDelta, Is.EqualTo(customSize));
+                rect.anchoredPosition = originalPosition;
+                rect.sizeDelta = originalSize;
+            }
+            finally
+            {
+                if (openedForTest) EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+
+        [Test]
+        public void GroundedWrapperFit_UsesWorldFootprintAndKeepsCanonicalRoot()
+        {
+            const string source =
+                "Assets/Prefabs/Natural/Constructor/NaturalBase_Lv1_Placeable.prefab";
+            const string temporary = "Assets/__SpliceGroundFitTest.prefab";
+            AssetDatabase.DeleteAsset(temporary);
+            Assert.That(AssetDatabase.CopyAsset(source, temporary), Is.True);
+            try
+            {
+                var fitted = GroundedPrefabAuthoringEditor
+                    .FitGroundedWrapperToWorldFootprint(temporary, 45f);
+                Assert.That(fitted, Is.Not.Null);
+                Assert.That(fitted.transform.localScale, Is.EqualTo(Vector3.one));
+                var profile = fitted.GetComponent<GroundPlacementProfile>();
+                Assert.That(profile, Is.Not.Null);
+                Assert.That(profile.TryGetRendererBounds(out var bounds), Is.True);
+                Assert.That(Mathf.Max(bounds.size.x, bounds.size.z), Is.EqualTo(45f).Within(.05f));
+                Assert.That(bounds.min.y, Is.EqualTo(0f).Within(.05f));
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(temporary);
+            }
         }
 
         [Test]

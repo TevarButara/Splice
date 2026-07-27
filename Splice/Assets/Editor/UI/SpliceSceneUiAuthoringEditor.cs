@@ -66,7 +66,7 @@ namespace Splice.Editor.UI
 
             var checkout = FindInScene<BaseBuildCheckoutController>(scene);
             if (checkout == null) throw new MissingReferenceException("BuildZone has no BaseBuildCheckoutController.");
-            checkout.RebuildEditorUi();
+            EnsureCheckoutUiWithoutOverwritingDesign(checkout);
             if (!checkout.HasEditorAuthoredUi)
                 throw new MissingReferenceException("BuildZone checkout UI could not be serialized.");
             EditorUtility.SetDirty(checkout);
@@ -115,7 +115,7 @@ namespace Splice.Editor.UI
 
             var incoming = FindInScene<IncomingRaidScenarioController>(scene);
             if (incoming == null) throw new MissingReferenceException("RaidArena has no IncomingRaidScenarioController.");
-            incoming.RebuildEditorStatusUi();
+            if (!incoming.HasEditorAuthoredStatusUi) incoming.RebuildEditorStatusUi();
             if (!incoming.HasEditorAuthoredStatusUi)
                 throw new MissingReferenceException("Incoming raid status UI could not be serialized.");
             EditorUtility.SetDirty(incoming);
@@ -123,7 +123,7 @@ namespace Splice.Editor.UI
             var replay = FindInScene<RaidCommandStreamPresentationController>(scene);
             if (replay == null) throw new MissingReferenceException(
                 "RaidArena has no RaidCommandStreamPresentationController.");
-            replay.RebuildEditorReplayUi();
+            if (!replay.HasEditorAuthoredReplayUi) replay.RebuildEditorReplayUi();
             if (!replay.HasEditorAuthoredReplayUi)
                 throw new MissingReferenceException("Replay HUD could not be serialized.");
             EditorUtility.SetDirty(replay);
@@ -132,10 +132,20 @@ namespace Splice.Editor.UI
             foreach (var candidate in FindAllInScene<RaidResultUI>(scene))
                 if (candidate.CanAuthorEditorUi && candidate.enabled) { resultUi = candidate; break; }
             if (resultUi == null) throw new MissingReferenceException("RaidArena has no configured RaidResultUI.");
-            resultUi.RebuildEditorReturnButton();
+            if (!resultUi.HasEditorAuthoredReturnButton) resultUi.RebuildEditorReturnButton();
             if (!resultUi.HasEditorAuthoredReturnButton)
                 throw new MissingReferenceException("Return-to-Town button could not be serialized.");
             EditorUtility.SetDirty(resultUi);
+        }
+
+        public static void EnsureCheckoutUiWithoutOverwritingDesign(
+            BaseBuildCheckoutController checkout)
+        {
+            if (checkout == null) throw new System.ArgumentNullException(nameof(checkout));
+            // Bake is a migration/validation command. Once the complete hierarchy exists,
+            // the scene is designer-owned and its transforms, sprites, colors and fonts
+            // must never be restyled by a subsequent bake.
+            if (!checkout.HasEditorAuthoredUi) checkout.RebuildEditorUi();
         }
 
         private static void ConfigureRootScreenCanvases(Scene scene)

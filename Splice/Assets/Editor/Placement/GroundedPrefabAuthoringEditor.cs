@@ -79,7 +79,8 @@ namespace Splice.Editor.Placement
         }
 
         public static GameObject EnsureGroundedWrapper(GameObject source, string assetPath,
-            string wrapperName, Vector3 visualScale, Quaternion visualRotation)
+            string wrapperName, Vector3 visualScale, Quaternion visualRotation,
+            bool normalizeExisting = false)
         {
             var existing = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
             if (existing != null)
@@ -88,10 +89,121 @@ namespace Splice.Editor.Placement
                 if (profile == null || !profile.IsComplete)
                     throw new MissingReferenceException(
                         $"Grounded wrapper '{assetPath}' exists but its placement anchors are incomplete.");
-                NormalizeExistingWrapper(assetPath, visualScale, visualRotation);
+                if (normalizeExisting)
+                    NormalizeExistingWrapper(assetPath, visualScale, visualRotation);
+                // Existing wrappers are designer-owned. Bake/Ensure must not overwrite the
+                // VisualRoot scale, rotation or pivot that was tuned in Prefab Mode.
                 return AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
             }
             return CreateGroundedWrapper(source, assetPath, wrapperName, visualScale, visualRotation);
+        }
+
+        public static GameObject FitGroundedWrapperToWorldFootprint(string assetPath,
+            float targetWorldFootprint)
+        {
+            if (string.IsNullOrWhiteSpace(assetPath))
+                throw new System.ArgumentException("Prefab asset path is required.", nameof(assetPath));
+            if (targetWorldFootprint <= .01f)
+                throw new System.ArgumentOutOfRangeException(nameof(targetWorldFootprint),
+                    "Target footprint must be greater than 0.01 world units.");
+
+            var wrapper = PrefabUtility.LoadPrefabContents(assetPath);
+            try
+            {
+                var profile = wrapper.GetComponent<GroundPlacementProfile>();
+                if (profile == null || !profile.IsComplete)
+                    throw new MissingReferenceException(
+                        $"'{assetPath}' is not a complete grounded wrapper.");
+                if (!TryRendererBounds(profile.VisualRoot, out var before))
+                    throw new MissingReferenceException(
+                        $"'{assetPath}' has no Renderer under VisualRoot.");
+                FitProfileToWorldFootprint(profile, targetWorldFootprint, before);
+                EditorUtility.SetDirty(profile);
+                var saved = PrefabUtility.SaveAsPrefabAsset(wrapper, assetPath);
+                if (saved == null)
+                    throw new System.InvalidOperationException(
+                        $"Unity could not save resized wrapper '{assetPath}'.");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(wrapper);
+            }
+            AssetDatabase.SaveAssets();
+            return AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+        }
+
+        public static GameObject RebuildGroundedGameplayPrefab(GameObject source,
+            string assetPath, float targetWorldFootprint)
+        {
+            if (source == null) throw new System.ArgumentNullException(nameof(source));
+            var sourcePath = AssetDatabase.GetAssetPath(source);
+            if (string.IsNullOrWhiteSpace(sourcePath))
+                throw new System.ArgumentException("Source must be a prefab asset.", nameof(source));
+            if (source.GetComponent<Unity.Netcode.NetworkObject>() == null)
+                throw new MissingComponentException(
+                    $"Gameplay prefab '{source.name}' needs NetworkObject on its source root.");
+
+            var root = PrefabUtility.LoadPrefabContents(sourcePath);
+            try
+            {
+                var rootTransform = root.transform;
+                var oldPosition = rootTransform.localPosition;
+                var oldRotation = rootTransform.localRotation;
+                var oldScale = rootTransform.localScale;
+                var children = new Transform[rootTransform.childCount];
+                for (var index = 0; index < children.Length; index++)
+                    children[index] = rootTransform.GetChild(index);
+
+                var rootFilter = root.GetComponent<MeshFilter>();
+                var rootRenderer = root.GetComponent<MeshRenderer>();
+                if (rootFilter == null || rootRenderer == null)
+                    throw new MissingComponentException(
+                        $"Gameplay prefab '{source.name}' currently requires MeshFilter and " +
+                        "MeshRenderer on its root for canonical conversion.");
+
+                rootTransform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                rootTransform.localScale = Vector3.one;
+                root.name = Path.GetFileNameWithoutExtension(assetPath);
+
+                var visualRoot = new GameObject("VisualRoot").transform;
+                visualRoot.SetParent(rootTransform, false);
+                visualRoot.localPosition = oldPosition;
+                visualRoot.localRotation = oldRotation;
+                visualRoot.localScale = oldScale;
+                var visualFilter = visualRoot.gameObject.AddComponent<MeshFilter>();
+                EditorUtility.CopySerialized(rootFilter, visualFilter);
+                var visualRenderer = visualRoot.gameObject.AddComponent<MeshRenderer>();
+                EditorUtility.CopySerialized(rootRenderer, visualRenderer);
+                Object.DestroyImmediate(rootRenderer);
+                Object.DestroyImmediate(rootFilter);
+                foreach (var child in children) child.SetParent(visualRoot, false);
+
+                var groundAnchor = CreateAnchor("GroundAnchor", rootTransform, Vector3.zero);
+                var cameraFocus = CreateAnchor("CameraFocus", rootTransform, Vector3.zero);
+                var effectAnchor = CreateAnchor("EffectAnchor", rootTransform, Vector3.zero);
+                var profile = root.GetComponent<GroundPlacementProfile>() ??
+                              root.AddComponent<GroundPlacementProfile>();
+                profile.ConfigureEditorReferences(
+                    visualRoot, groundAnchor, cameraFocus, effectAnchor);
+                if (!TryRendererBounds(visualRoot, out var bounds))
+                    throw new MissingReferenceException(
+                        $"Gameplay prefab '{source.name}' has no Renderer bounds.");
+                FitProfileToWorldFootprint(profile, targetWorldFootprint, bounds);
+
+                var saved = PrefabUtility.SaveAsPrefabAsset(root, assetPath);
+                if (saved == null)
+                    throw new System.InvalidOperationException(
+                        $"Unity could not save gameplay wrapper '{assetPath}'.");
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
+
+            AssetDatabase.SaveAssets();
+            var result = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+            ReplaceNetworkPrefabReferences(sourcePath, assetPath, result);
+            return result;
         }
 
         public static int EnsureGroundLayer()
@@ -187,25 +299,71 @@ namespace Splice.Editor.Placement
                 profile.VisualRoot.localPosition = Vector3.zero;
                 profile.VisualRoot.localRotation = visualRotation;
                 profile.VisualRoot.localScale = visualScale;
-                if (!TryRendererBounds(profile.VisualRoot, out var bounds))
-                    throw new MissingReferenceException(
-                        $"Grounded wrapper '{assetPath}' has no Renderer under VisualRoot.");
-                profile.VisualRoot.position += new Vector3(
-                    -bounds.center.x, -bounds.min.y, -bounds.center.z);
-                if (!TryRendererBounds(profile.VisualRoot, out var normalizedBounds))
-                    throw new MissingReferenceException(
-                        $"Could not normalize grounded wrapper '{assetPath}'.");
-                profile.GroundAnchor.localPosition = Vector3.zero;
-                profile.CameraFocus.localPosition =
-                    new Vector3(0f, normalizedBounds.size.y * .5f, 0f);
-                profile.EffectAnchor.localPosition =
-                    new Vector3(0f, normalizedBounds.size.y * .6f, 0f);
+                NormalizeVisualAndAnchors(profile);
                 PrefabUtility.SaveAsPrefabAsset(wrapper, assetPath);
             }
             finally
             {
                 PrefabUtility.UnloadPrefabContents(wrapper);
             }
+        }
+
+        private static void NormalizeVisualAndAnchors(GroundPlacementProfile profile)
+        {
+            if (!TryRendererBounds(profile.VisualRoot, out var bounds))
+                throw new MissingReferenceException(
+                    $"Grounded wrapper '{profile.name}' has no Renderer under VisualRoot.");
+            profile.VisualRoot.position += new Vector3(
+                -bounds.center.x, -bounds.min.y, -bounds.center.z);
+            if (!TryRendererBounds(profile.VisualRoot, out var normalizedBounds))
+                throw new MissingReferenceException(
+                    $"Could not normalize grounded wrapper '{profile.name}'.");
+            profile.GroundAnchor.localPosition = Vector3.zero;
+            profile.CameraFocus.localPosition =
+                new Vector3(0f, normalizedBounds.size.y * .5f, 0f);
+            profile.EffectAnchor.localPosition =
+                new Vector3(0f, normalizedBounds.size.y * .6f, 0f);
+        }
+
+        private static void FitProfileToWorldFootprint(GroundPlacementProfile profile,
+            float targetWorldFootprint, Bounds before)
+        {
+            var currentFootprint = Mathf.Max(before.size.x, before.size.z);
+            if (currentFootprint <= .0001f)
+                throw new System.InvalidOperationException(
+                    $"'{profile.name}' has a zero-sized renderer footprint.");
+            profile.VisualRoot.localScale *= targetWorldFootprint / currentFootprint;
+            NormalizeVisualAndAnchors(profile);
+        }
+
+        private static void ReplaceNetworkPrefabReferences(string sourcePath,
+            string targetPath, GameObject replacement)
+        {
+            if (replacement == null) return;
+            foreach (var guid in AssetDatabase.FindAssets("t:NetworkPrefabsList"))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var asset = AssetDatabase.LoadMainAssetAtPath(path);
+                if (asset == null) continue;
+                var serialized = new SerializedObject(asset);
+                var property = serialized.GetIterator();
+                var enterChildren = true;
+                var changed = false;
+                while (property.Next(enterChildren))
+                {
+                    enterChildren = false;
+                    if (property.propertyType != SerializedPropertyType.ObjectReference ||
+                        property.objectReferenceValue == null) continue;
+                    var referencedPath = AssetDatabase.GetAssetPath(property.objectReferenceValue);
+                    if (referencedPath != sourcePath && referencedPath != targetPath) continue;
+                    property.objectReferenceValue = replacement;
+                    changed = true;
+                }
+                if (!changed) continue;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(asset);
+            }
+            AssetDatabase.SaveAssets();
         }
 
         private static Transform CreateAnchor(string name, Transform parent, Vector3 localPosition)
