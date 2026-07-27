@@ -50,9 +50,11 @@ namespace Splice.Combat
 
         public bool TrySpend(int amount)
         {
-            if (!IsServer || currentGold.Value < amount) return false;
+            if (!IsServer || !IsValidSpendAmount(amount) || currentGold.Value < amount) return false;
             currentGold.Value -= amount;
             return true;
         }
+
+        public static bool IsValidSpendAmount(int amount) => amount >= 0;
     }
 }

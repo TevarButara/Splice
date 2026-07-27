@@ -49,6 +49,6 @@ MonoBehaviour:
     maxLevel: 0
     baseCost: 0
     costGrowthPerLevel: 0
-  nextTier: {fileID: 0}
+  nextTier: {fileID: 11400000, guid: f007ba072eb8bf54e94ddcc27fc77483, type: 2}
   upgradeCost: 20
   prefab: {fileID: 7398669820804718363, guid: 33754cc5275fb7f43a06a49f039d4a50, type: 3}

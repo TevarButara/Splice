@@ -131,9 +131,13 @@ namespace Splice.Tests.EditMode
             Assert.That(monster.combat.maxHealth, Is.GreaterThan(0));
             Assert.That(monster.combat.attackDamage, Is.GreaterThan(0));
             Assert.That(monster.raidPower, Is.GreaterThan(0));
+            Assert.That(monster.combat.nextTierContentId, Is.EqualTo("1/2"));
+            Assert.That(monster.combat.upgradeGoldCost, Is.GreaterThan(0));
             Assert.That(tower.combat.maxHealth, Is.GreaterThan(0));
             Assert.That(tower.combat.attackCooldownMs, Is.GreaterThanOrEqualTo(100));
             Assert.That(tower.raidPower, Is.GreaterThan(0));
+            Assert.That(tower.combat.nextTierContentId, Is.EqualTo("1/2"));
+            Assert.That(tower.combat.upgradeGoldCost, Is.GreaterThan(0));
         }
 
         [Test]

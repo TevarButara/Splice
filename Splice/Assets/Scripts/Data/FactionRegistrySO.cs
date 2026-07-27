@@ -21,6 +21,8 @@ namespace Splice.Data
 
         private Dictionary<string, CardDefinitionSO> cardById;
         private Dictionary<CardDefinitionSO, string> idByCard;
+        private Dictionary<string, MonsterDefinitionSO> monsterById;
+        private Dictionary<MonsterDefinitionSO, string> idByMonster;
         private Dictionary<string, TowerDefinitionSO> towerById;
         private Dictionary<TowerDefinitionSO, string> idByTower;
 
@@ -28,12 +30,19 @@ namespace Splice.Data
         public static string TowerId(FactionSO faction, TowerDefinitionSO tower) => $"{faction.factionId}/{tower.towerId}";
 
         public CardDefinitionSO ResolveCard(string id) { EnsureBuilt(); return cardById.GetValueOrDefault(id); }
+        public MonsterDefinitionSO ResolveMonster(string id) { EnsureBuilt(); return monsterById.GetValueOrDefault(id); }
         public TowerDefinitionSO ResolveTower(string id) { EnsureBuilt(); return towerById.GetValueOrDefault(id); }
 
         public string IdOf(CardDefinitionSO card)
         {
             EnsureBuilt();
             return card != null && idByCard.TryGetValue(card, out var id) ? id : null;
+        }
+
+        public string IdOf(MonsterDefinitionSO monster)
+        {
+            EnsureBuilt();
+            return monster != null && idByMonster.TryGetValue(monster, out var id) ? id : null;
         }
 
         public string IdOf(TowerDefinitionSO tower)
@@ -60,6 +69,8 @@ namespace Splice.Data
         {
             cardById = null;
             idByCard = null;
+            monsterById = null;
+            idByMonster = null;
             towerById = null;
             idByTower = null;
         }
@@ -72,6 +83,8 @@ namespace Splice.Data
             if (cardById != null) return;
             cardById = new Dictionary<string, CardDefinitionSO>();
             idByCard = new Dictionary<CardDefinitionSO, string>();
+            monsterById = new Dictionary<string, MonsterDefinitionSO>();
+            idByMonster = new Dictionary<MonsterDefinitionSO, string>();
             towerById = new Dictionary<string, TowerDefinitionSO>();
             idByTower = new Dictionary<TowerDefinitionSO, string>();
 
@@ -84,6 +97,7 @@ namespace Splice.Data
                     var id = CardId(faction, card);
                     cardById[id] = card;
                     idByCard[card] = id;
+                    RegisterMonster(card, id);
                 }
                 foreach (var card in faction.minerCards)
                 {
@@ -91,6 +105,7 @@ namespace Splice.Data
                     var id = CardId(faction, card);
                     cardById[id] = card;
                     idByCard[card] = id;
+                    RegisterMonster(card, id);
                 }
                 foreach (var tower in faction.towers)
                 {
@@ -100,6 +115,13 @@ namespace Splice.Data
                     idByTower[tower] = id;
                 }
             }
+        }
+
+        private void RegisterMonster(CardDefinitionSO card, string id)
+        {
+            if (card.linkedMonster == null) return;
+            monsterById[id] = card.linkedMonster;
+            idByMonster[card.linkedMonster] = id;
         }
     }
 }

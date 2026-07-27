@@ -86,6 +86,13 @@ namespace Splice.Data
         [Tooltip("เวลา 'เกิด' (วินาที) หลังกดสั่งสร้างจนโผล่ในเลน — ต่อตัว. คิวในเลนเดียวกันสร้างทีละตัวตามค่านี้")]
         public float buildTimeSeconds = 2f;
         [FormerlySerializedAs("manaCost")] public int goldCost;
+
+        [Header("Upgrade chain")]
+        [Tooltip("Monster tier ถัดไปที่จะเปลี่ยน prefab ไปเป็น — เว้นว่าง = ระดับสูงสุด")]
+        public MonsterDefinitionSO nextTier;
+        [Tooltip("ทองที่ใช้ upgrade จาก tier นี้ไป nextTier")]
+        public int upgradeCost;
+
         public Sprite icon;
         public GameObject prefab;
     }

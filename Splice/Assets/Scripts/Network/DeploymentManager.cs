@@ -48,6 +48,12 @@ namespace Splice.Network
         [Tooltip("กระจายจุดเกิดมอนด้านข้าง (ตั้งฉากแนวเลน, สุ่ม ±ค่านี้) — กันมอนเกิดซ้อนจุดเดียวจน separation ด้านข้างไม่มี 'seed' ให้ดันแยกตอนเดิน (มอนเดินซ้อนเป็นแถวเดียว). 0 = เกิดกลางเลนเป๊ะ")]
         [SerializeField] private float laneSpawnSpread = 0.75f;
 
+        [Header("Monster management")]
+        [Range(0f, 1f)] [SerializeField] private float sellRefundFactor = 0.5f;
+        [SerializeField] private GameObject monsterUpgradeEffectPrefab;
+        [SerializeField] private GameObject monsterSellEffectPrefab;
+        [Min(0.1f)] [SerializeField] private float managementEffectLifetime = 3f;
+
         // FIFO build orders across all lanes; filter by LaneId. Server writes, everyone reads.
         private readonly NetworkList<QueuedUnit> buildQueue = new();
 
@@ -56,6 +62,20 @@ namespace Splice.Network
 
         // Composite id (factionId/cardId) for a card — card UI uses it to send deploy intent + match queue rows.
         public string IdOf(CardDefinitionSO card) => registry != null ? registry.IdOf(card) : null;
+
+        public int SellRefundFor(MonsterCharacter monster) =>
+            monster == null || monster.Definition == null
+                ? 0
+                : UnitEconomyMath.SellRefund(monster.Definition.goldCost, sellRefundFactor);
+
+        public bool CanUpgrade(MonsterCharacter monster)
+        {
+            if (!CanManage(monster) || monster.Definition.nextTier == null ||
+                monster.Definition.nextTier.prefab == null)
+                return false;
+            var bank = GoldController.For(deploySide);
+            return bank != null && bank.CurrentGold >= Mathf.Max(0, monster.Definition.upgradeCost);
+        }
 
         // Server-only scenario hook. IncomingRaidScenarioController uses the same authored lanes, prefab and
         // character initialization as normal deployment, but does not charge the local defender's wallet.
@@ -204,6 +224,84 @@ namespace Splice.Network
             DeployAcceptedClientRpc(cardId, laneId);
         }
 
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestUpgradeMonsterServerRpc(
+            NetworkObjectReference monsterReference,
+            ServerRpcParams rpcParams = default)
+        {
+            var clientId = rpcParams.Receive.SenderClientId;
+            if (!IsManagementAuthorized(clientId))
+            {
+                ManagementRejectedClientRpc("Monster management is not authorized", ToClient(clientId));
+                return;
+            }
+            if (!TryResolveManagedMonster(monsterReference, out var monster))
+            {
+                ManagementRejectedClientRpc("Invalid monster", ToClient(clientId));
+                return;
+            }
+
+            var next = monster.Definition.nextTier;
+            if (next == null || next.prefab == null)
+            {
+                ManagementRejectedClientRpc("Already max level", ToClient(clientId));
+                return;
+            }
+
+            var cost = Mathf.Max(0, monster.Definition.upgradeCost);
+            var bank = GoldController.For(deploySide);
+            if (bank == null || bank.CurrentGold < cost || !bank.TrySpend(cost))
+            {
+                ManagementRejectedClientRpc("Not enough gold", ToClient(clientId));
+                return;
+            }
+
+            var position = monster.transform.position;
+            var rotation = monster.transform.rotation;
+            var upgradedObject = Instantiate(next.prefab, position, rotation);
+            var upgradedNetworkObject = upgradedObject.GetComponent<NetworkObject>();
+            var upgradedMonster = upgradedObject.GetComponent<MonsterCharacter>();
+            if (upgradedNetworkObject == null || upgradedMonster == null)
+            {
+                bank.Add(cost);
+                Destroy(upgradedObject);
+                ManagementRejectedClientRpc("Invalid next-tier prefab", ToClient(clientId));
+                return;
+            }
+
+            upgradedNetworkObject.Spawn();
+            upgradedMonster.InitializeUpgradeFrom(next, monster);
+            PlayMonsterManagementFxClientRpc(MonsterManagementFx.Upgrade, position, rotation);
+            var oldNetworkObject = monster.NetworkObject;
+            oldNetworkObject.Despawn(destroy: oldNetworkObject.IsSceneObject != true);
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        public void RequestSellMonsterServerRpc(
+            NetworkObjectReference monsterReference,
+            ServerRpcParams rpcParams = default)
+        {
+            var clientId = rpcParams.Receive.SenderClientId;
+            if (!IsManagementAuthorized(clientId))
+            {
+                ManagementRejectedClientRpc("Monster management is not authorized", ToClient(clientId));
+                return;
+            }
+            if (!TryResolveManagedMonster(monsterReference, out var monster))
+            {
+                ManagementRejectedClientRpc("Invalid monster", ToClient(clientId));
+                return;
+            }
+
+            var refund = SellRefundFor(monster);
+            if (refund > 0) GoldController.For(deploySide)?.Add(refund);
+            var position = monster.transform.position;
+            var rotation = monster.transform.rotation;
+            PlayMonsterManagementFxClientRpc(MonsterManagementFx.Sell, position, rotation);
+            var networkObject = monster.NetworkObject;
+            networkObject.Despawn(destroy: networkObject.IsSceneObject != true);
+        }
+
         private bool ValidateDeploy(CardDefinitionSO card, int laneId, out string reason)
         {
             if (card == null || card.linkedMonster == null)
@@ -241,6 +339,24 @@ namespace Splice.Network
             return true;
         }
 
+        private bool CanManage(MonsterCharacter monster) =>
+            monster != null && !monster.IsDead && monster.IsSpawned &&
+            monster.Definition != null && monster.Side == deploySide;
+
+        private bool IsManagementAuthorized(ulong clientId) =>
+            NetworkManager != null &&
+            UnitManagementAuthority.IsAuthorized(clientId, NetworkManager.ServerClientId);
+
+        private bool TryResolveManagedMonster(
+            NetworkObjectReference monsterReference,
+            out MonsterCharacter monster)
+        {
+            monster = null;
+            return monsterReference.TryGet(out var networkObject) &&
+                   networkObject.TryGetComponent(out monster) &&
+                   CanManage(monster);
+        }
+
         private void SpawnMonster(MonsterDefinitionSO definition, int laneId)
         {
             var lane = lanePaths[laneId];
@@ -273,6 +389,32 @@ namespace Splice.Network
         private void DeployRejectedClientRpc(string reason, ClientRpcParams rpcParams = default)
         {
             Debug.Log($"Deploy rejected: {reason}");
+        }
+
+        private enum MonsterManagementFx : byte
+        {
+            Upgrade,
+            Sell
+        }
+
+        [ClientRpc]
+        private void PlayMonsterManagementFxClientRpc(
+            MonsterManagementFx action,
+            Vector3 position,
+            Quaternion rotation)
+        {
+            var prefab = action == MonsterManagementFx.Upgrade
+                ? monsterUpgradeEffectPrefab
+                : monsterSellEffectPrefab;
+            if (prefab == null) return;
+            var instance = Instantiate(prefab, position, rotation);
+            Destroy(instance, managementEffectLifetime);
+        }
+
+        [ClientRpc]
+        private void ManagementRejectedClientRpc(string reason, ClientRpcParams rpcParams = default)
+        {
+            Debug.Log($"Monster management rejected: {reason}");
         }
 
         private ClientRpcParams ToClient(ulong clientId)

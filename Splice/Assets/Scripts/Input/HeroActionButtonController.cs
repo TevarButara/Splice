@@ -186,7 +186,17 @@ namespace Splice.Input
 
         private void ResolveHero()
         {
-            if (hero == null) hero = RaidHeroCharacter.Instance;
+            var preferred = RaidHeroCharacter.Instance;
+            if (preferred == null) return;
+
+            // The UI can wake before the owner Hero finishes spawning. In that case Instance initially
+            // points at the first replicated/synthetic Hero and later changes to the locally owned one.
+            // Never keep that stale binding: it hid Reborn and could route buttons to the wrong Hero.
+            if (hero == null ||
+                hero == preferred ||
+                !hero.IsSpawned ||
+                (!hero.IsOwner && preferred.IsOwner))
+                hero = preferred;
         }
 
         private void BindButtons()

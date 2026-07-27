@@ -93,8 +93,11 @@ namespace Splice.Characters
 
         private readonly NetworkVariable<TowerUpgradeLevels> upgradeLevels = new(
             default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<bool> isRepairing = new(
+            false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         public bool IsConstructing => buildRemaining.Value > 0f;
+        public bool IsRepairing => isRepairing.Value;
         public float BuildProgress01 => definition != null && definition.buildTimeSeconds > 0f
             ? 1f - Mathf.Clamp01(buildRemaining.Value / definition.buildTimeSeconds)
             : 1f;
@@ -132,6 +135,11 @@ namespace Splice.Characters
         public void SkipConstruction()
         {
             if (IsServer) buildRemaining.Value = 0f;
+        }
+
+        public void SetRepairing(bool value)
+        {
+            if (IsServer) isRepairing.Value = value;
         }
 
         // Server-only: bump a stat's level and apply the ones that live in CharacterBase (HP, armor).

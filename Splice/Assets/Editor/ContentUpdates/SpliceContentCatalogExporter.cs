@@ -28,6 +28,8 @@ namespace Splice.Editor.ContentUpdates
         public int abilityCastRangeMilli;
         public int abilityRadiusMilli;
         public int maxTargets = 1;
+        public string nextTierContentId;
+        public long upgradeGoldCost;
     }
 
     [Serializable]
@@ -92,7 +94,7 @@ namespace Splice.Editor.ContentUpdates
                 foreach (var tower in faction.towers)
                 {
                     if (tower == null || string.IsNullOrWhiteSpace(tower.towerId)) continue;
-                    var combat = TowerCombat(tower);
+                    var combat = TowerCombat(faction, tower);
                     Add(byId, Item(FactionRegistrySO.TowerId(faction, tower), faction.factionId,
                         "TOWER", tower.defenseCapacityCost, tower.goldCost, combat,
                         CombatPower(combat)));
@@ -102,7 +104,7 @@ namespace Splice.Editor.ContentUpdates
                     if (card == null || string.IsNullOrWhiteSpace(card.cardId)) continue;
                     if (card.cardType == CardType.Monster && card.linkedMonster != null)
                     {
-                        var combat = MonsterCombat(card.linkedMonster);
+                        var combat = MonsterCombat(faction, card.linkedMonster);
                         Add(byId, Item(FactionRegistrySO.CardId(faction, card), faction.factionId,
                             "GARRISON", card.linkedMonster.defenseCapacityCost, card.goldCost,
                             combat, CombatPower(combat)));
@@ -244,7 +246,7 @@ namespace Splice.Editor.ContentUpdates
             };
         }
 
-        private static SpliceCombatCatalog MonsterCombat(MonsterDefinitionSO monster) => new()
+        private static SpliceCombatCatalog MonsterCombat(FactionSO faction, MonsterDefinitionSO monster) => new()
         {
             maxHealth = monster.maxHealth,
             armor = 0,
@@ -254,9 +256,11 @@ namespace Splice.Editor.ContentUpdates
             moveSpeedMilli = Milli(monster.moveSpeed),
             abilityId = string.Empty,
             maxTargets = 1,
+            nextTierContentId = MonsterContentId(faction, monster.nextTier),
+            upgradeGoldCost = Math.Max(0, monster.upgradeCost),
         };
 
-        private static SpliceCombatCatalog TowerCombat(TowerDefinitionSO tower) => new()
+        private static SpliceCombatCatalog TowerCombat(FactionSO faction, TowerDefinitionSO tower) => new()
         {
             maxHealth = tower.maxHealth,
             armor = tower.armor,
@@ -266,7 +270,19 @@ namespace Splice.Editor.ContentUpdates
             moveSpeedMilli = 0,
             abilityId = string.Empty,
             maxTargets = Math.Max(1, tower.maxTargets),
+            nextTierContentId = tower.nextTier != null
+                ? FactionRegistrySO.TowerId(faction, tower.nextTier)
+                : string.Empty,
+            upgradeGoldCost = Math.Max(0, tower.upgradeCost),
         };
+
+        private static string MonsterContentId(FactionSO faction, MonsterDefinitionSO monster)
+        {
+            if (faction == null || monster == null) return string.Empty;
+            var card = faction.cards.Concat(faction.minerCards)
+                .FirstOrDefault(candidate => candidate != null && candidate.linkedMonster == monster);
+            return card != null ? FactionRegistrySO.CardId(faction, card) : string.Empty;
+        }
 
         private static int HeroRaidPower(HeroDefinitionSO hero) => CombatPower(HeroCombat(hero));
 

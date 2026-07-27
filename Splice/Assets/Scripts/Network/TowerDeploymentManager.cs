@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using Splice.Characters;
 using Splice.Combat;
 using Splice.Core;
@@ -26,15 +28,62 @@ namespace Splice.Network
         [Tooltip("คืนเงินตอนทำลาย = floor(goldCost × HPเหลือ/maxHP × ค่านี้). 1 = คืนตามสัดส่วน HP เต็มที่")]
         [SerializeField] private float demolishRefundFactor = 1f;
 
+        [Header("Repair timing")]
+        [Tooltip("เวลาซ่อมจาก 0 → HP เต็ม. ถ้าเสีย 50% จะใช้ครึ่งหนึ่งของเวลานี้")]
+        [Min(0.1f)] [SerializeField] private float fullRepairDurationSeconds = 10f;
+        [Tooltip("ความถี่ที่ server เติม HP ระหว่างซ่อม")]
+        [Min(0.1f)] [SerializeField] private float repairTickSeconds = 1f;
+
+        [Header("Tower action FX (presentation only)")]
+        [SerializeField] private GameObject repairLoopPrefab;
+        [SerializeField] private GameObject repairCompleteEffectPrefab;
+        [SerializeField] private GameObject upgradeEffectPrefab;
+        [SerializeField] private GameObject destroyEffectPrefab;
+        [SerializeField] private Vector3 repairVisualOffset = new(1.5f, 0f, 0f);
+        [Min(0.1f)] [SerializeField] private float oneShotEffectLifetime = 3f;
+
         [Header("Placement grid")]
         [Tooltip("กติกา grid วางป้อม — แชร์โค้ดเดียวกับ Build Mode (BaseBuildManager) ผ่าน BuildGrid")]
         [SerializeField] private BuildGrid grid = new();
 
         public RaidSide DeploySide => deploySide;
+        private readonly Dictionary<ulong, Coroutine> repairJobs = new();
+        private readonly Dictionary<ulong, GameObject> repairVisuals = new();
 
         // Composite id (factionId/towerId) ↔ definition — used by the tower card UI + placement preview.
         public string IdOf(TowerDefinitionSO tower) => registry != null ? registry.IdOf(tower) : null;
         public TowerDefinitionSO Resolve(string id) => registry != null ? registry.ResolveTower(id) : null;
+
+        public int RepairCostFor(TowerCharacter tower) =>
+            tower == null || tower.Definition == null
+                ? 0
+                : UnitEconomyMath.RepairCost(
+                    tower.Definition.goldCost,
+                    tower.CurrentHealth,
+                    tower.MaxHealth,
+                    repairFactor);
+
+        public int SellRefundFor(TowerCharacter tower) =>
+            tower == null || tower.Definition == null
+                ? 0
+                : UnitEconomyMath.SellRefund(tower.Definition.goldCost, demolishRefundFactor);
+
+        public bool CanRepair(TowerCharacter tower)
+        {
+            if (tower == null || tower.IsDead || tower.IsRepairing || tower.CurrentHealth >= tower.MaxHealth)
+                return false;
+            var bank = GoldController.For(deploySide);
+            return bank != null && bank.CurrentGold >= RepairCostFor(tower);
+        }
+
+        public bool CanUpgrade(TowerCharacter tower)
+        {
+            if (tower == null || tower.IsDead || tower is FortCore || tower.Definition == null ||
+                tower.Definition.nextTier == null || tower.Definition.nextTier.prefab == null)
+                return false;
+            var bank = GoldController.For(deploySide);
+            return bank != null && bank.CurrentGold >= Mathf.Max(0, tower.Definition.upgradeCost);
+        }
 
         // Snap a world position to the centre of its grid cell (XZ; y is resolved later by the build-zone probe).
         public Vector3 SnapToCell(Vector3 world) => grid.SnapToCell(world);
@@ -90,6 +139,11 @@ namespace Splice.Network
         public void RequestRepairTowerServerRpc(NetworkObjectReference towerRef, ServerRpcParams rpcParams = default)
         {
             var clientId = rpcParams.Receive.SenderClientId;
+            if (!IsManagementAuthorized(clientId))
+            {
+                TowerActionRejectedClientRpc("Tower management is not authorized", ToClient(clientId));
+                return;
+            }
 
             if (!TryResolveTower(towerRef, out var tower))
             {
@@ -99,8 +153,9 @@ namespace Splice.Network
 
             var missing = tower.MaxHealth - tower.CurrentHealth;
             if (missing <= 0) return; // already full — no-op, no cost
+            if (tower.IsRepairing) return;
 
-            var cost = Mathf.CeilToInt(tower.Definition.goldCost * ((float)missing / tower.MaxHealth) * repairFactor);
+            var cost = RepairCostFor(tower);
             var bank = GoldController.For(deploySide);
             if (bank == null || bank.CurrentGold < cost)
             {
@@ -109,7 +164,13 @@ namespace Splice.Network
             }
 
             bank.TrySpend(cost);
-            tower.Heal(missing);
+            var duration = Mathf.Max(
+                repairTickSeconds,
+                fullRepairDurationSeconds * missing / Mathf.Max(1f, tower.MaxHealth));
+            tower.SetRepairing(true);
+            var networkId = tower.NetworkObjectId;
+            repairJobs[networkId] = StartCoroutine(RepairOverTime(tower, missing, duration));
+            StartRepairFeedbackClientRpc(tower.NetworkObject, duration);
         }
 
         // Demolish a tower to free up space, refunding gold by remaining HP:
@@ -118,6 +179,11 @@ namespace Splice.Network
         public void RequestDemolishTowerServerRpc(NetworkObjectReference towerRef, ServerRpcParams rpcParams = default)
         {
             var clientId = rpcParams.Receive.SenderClientId;
+            if (!IsManagementAuthorized(clientId))
+            {
+                TowerActionRejectedClientRpc("Tower management is not authorized", ToClient(clientId));
+                return;
+            }
 
             if (!TryResolveTower(towerRef, out var tower))
             {
@@ -131,10 +197,12 @@ namespace Splice.Network
                 return;
             }
 
-            var refund = Mathf.FloorToInt(tower.Definition.goldCost * ((float)tower.CurrentHealth / tower.MaxHealth) * demolishRefundFactor);
+            var refund = SellRefundFor(tower);
             if (refund > 0) GoldController.For(deploySide)?.Add(refund);
 
             var netObj = tower.NetworkObject;
+            CancelRepair(tower, false);
+            PlayOneShotFeedbackClientRpc(TowerActionFeedback.Destroy, tower.transform.position, tower.transform.rotation);
             netObj.Despawn(destroy: netObj.IsSceneObject != true);
         }
 
@@ -144,6 +212,11 @@ namespace Splice.Network
         public void RequestUpgradeTowerServerRpc(NetworkObjectReference towerRef, ServerRpcParams rpcParams = default)
         {
             var clientId = rpcParams.Receive.SenderClientId;
+            if (!IsManagementAuthorized(clientId))
+            {
+                TowerActionRejectedClientRpc("Tower management is not authorized", ToClient(clientId));
+                return;
+            }
 
             if (!TryResolveTower(towerRef, out var tower))
             {
@@ -164,7 +237,7 @@ namespace Splice.Network
                 return;
             }
 
-            var cost = tower.Definition.upgradeCost;
+            var cost = Mathf.Max(0, tower.Definition.upgradeCost);
             var bank = GoldController.For(deploySide);
             if (bank == null || bank.CurrentGold < cost)
             {
@@ -177,6 +250,8 @@ namespace Splice.Network
             bank.TrySpend(cost);
 
             var oldNetObj = tower.NetworkObject;
+            CancelRepair(tower, false);
+            PlayOneShotFeedbackClientRpc(TowerActionFeedback.Upgrade, position, rotation);
             oldNetObj.Despawn(destroy: oldNetObj.IsSceneObject != true);
             SpawnTower(next, position, rotation);
         }
@@ -187,6 +262,11 @@ namespace Splice.Network
         public void RequestUpgradeStatServerRpc(NetworkObjectReference towerRef, TowerStat stat, ServerRpcParams rpcParams = default)
         {
             var clientId = rpcParams.Receive.SenderClientId;
+            if (!IsManagementAuthorized(clientId))
+            {
+                TowerActionRejectedClientRpc("Tower management is not authorized", ToClient(clientId));
+                return;
+            }
 
             if (!TryResolveTower(towerRef, out var tower))
             {
@@ -227,6 +307,10 @@ namespace Splice.Network
             return tower.Definition != null;
         }
 
+        private bool IsManagementAuthorized(ulong clientId) =>
+            NetworkManager != null &&
+            UnitManagementAuthority.IsAuthorized(clientId, NetworkManager.ServerClientId);
+
         private bool ValidateDeploy(TowerDefinitionSO tower, out string reason)
         {
             if (tower == null || tower.prefab == null)
@@ -257,6 +341,91 @@ namespace Splice.Network
             var instance = Instantiate(definition.prefab, position, rotation);
             instance.GetComponent<NetworkObject>().Spawn();
             instance.GetComponent<TowerCharacter>().Initialize(definition);
+        }
+
+        private IEnumerator RepairOverTime(TowerCharacter tower, int missingHealth, float duration)
+        {
+            var networkId = tower.NetworkObjectId;
+            var stepCount = Mathf.Max(1, Mathf.CeilToInt(duration / repairTickSeconds));
+            for (var step = 1; step <= stepCount; step++)
+            {
+                yield return new WaitForSeconds(duration / stepCount);
+                if (tower == null || tower.IsDead || !tower.IsSpawned)
+                {
+                    repairJobs.Remove(networkId);
+                    StopRepairFeedbackClientRpc(networkId, false, default);
+                    yield break;
+                }
+
+                tower.Heal(UnitEconomyMath.RepairAmountAtStep(missingHealth, step, stepCount));
+            }
+
+            tower.SetRepairing(false);
+            repairJobs.Remove(networkId);
+            StopRepairFeedbackClientRpc(networkId, true, tower.transform.position);
+        }
+
+        private void CancelRepair(TowerCharacter tower, bool completed)
+        {
+            if (tower == null) return;
+            var networkId = tower.NetworkObjectId;
+            if (repairJobs.Remove(networkId, out var job) && job != null) StopCoroutine(job);
+            tower.SetRepairing(false);
+            StopRepairFeedbackClientRpc(networkId, completed, tower.transform.position);
+        }
+
+        private enum TowerActionFeedback : byte
+        {
+            Upgrade,
+            Destroy
+        }
+
+        [ClientRpc]
+        private void StartRepairFeedbackClientRpc(NetworkObjectReference towerReference, float duration)
+        {
+            if (!towerReference.TryGet(out var networkObject)) return;
+            var networkId = networkObject.NetworkObjectId;
+            RemoveRepairVisual(networkId);
+            if (repairLoopPrefab == null) return;
+            var visual = Instantiate(
+                repairLoopPrefab,
+                networkObject.transform.position + repairVisualOffset,
+                networkObject.transform.rotation);
+            visual.transform.SetParent(networkObject.transform, true);
+            repairVisuals[networkId] = visual;
+            Destroy(visual, duration + 1f);
+        }
+
+        [ClientRpc]
+        private void StopRepairFeedbackClientRpc(ulong networkId, bool completed, Vector3 position)
+        {
+            RemoveRepairVisual(networkId);
+            if (completed) SpawnLocalEffect(repairCompleteEffectPrefab, position, Quaternion.identity);
+        }
+
+        [ClientRpc]
+        private void PlayOneShotFeedbackClientRpc(
+            TowerActionFeedback action,
+            Vector3 position,
+            Quaternion rotation)
+        {
+            SpawnLocalEffect(
+                action == TowerActionFeedback.Upgrade ? upgradeEffectPrefab : destroyEffectPrefab,
+                position,
+                rotation);
+        }
+
+        private void RemoveRepairVisual(ulong networkId)
+        {
+            if (!repairVisuals.Remove(networkId, out var visual) || visual == null) return;
+            Destroy(visual);
+        }
+
+        private void SpawnLocalEffect(GameObject prefab, Vector3 position, Quaternion rotation)
+        {
+            if (prefab == null) return;
+            var instance = Instantiate(prefab, position, rotation);
+            Destroy(instance, oneShotEffectLifetime);
         }
 
         [ClientRpc]

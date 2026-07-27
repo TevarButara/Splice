@@ -43,5 +43,7 @@ MonoBehaviour:
   flightHeight: 2
   buildTimeSeconds: 6
   goldCost: 6
+  nextTier: {fileID: 11400000, guid: b20b967b59646204da5b3ec2b581fd03, type: 2}
+  upgradeCost: 10
   icon: {fileID: 0}
   prefab: {fileID: 7114109506353519949, guid: bc2988788de61844193b61ddcce19003, type: 3}

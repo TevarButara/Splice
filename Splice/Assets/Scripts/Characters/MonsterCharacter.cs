@@ -52,6 +52,9 @@ namespace Splice.Characters
         [Tooltip("จุดยิงกระสุน (ปลายปาก/มือ) — เฉพาะมอนยิงไกลที่ใส่ projectile ใน SO. เว้น = ใช้จุดกลางตัว")]
         [SerializeField] private Transform muzzle;
 
+        public MonsterDefinitionSO Definition => definition;
+        public bool IsGarrisonUnit => IsGarrison;
+
         private readonly NetworkVariable<MonsterAnim> animState = new(
             MonsterAnim.Idle, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -170,6 +173,32 @@ namespace Splice.Characters
             path = null;
             transform.position = homePosition;
             baseGroundY = homePosition.y;
+        }
+
+        // Server-only tier replacement. The prefab changes, while its raid role, lane progress and exact
+        // world position continue from the old unit so Upgrade never teleports it back to the spawn point.
+        public void InitializeUpgradeFrom(MonsterDefinitionSO monsterDefinition, MonsterCharacter previous)
+        {
+            if (!IsServer || monsterDefinition == null || previous == null) return;
+
+            definition = monsterDefinition;
+            side = previous.side;
+            path = previous.path;
+            waypointIndex = previous.waypointIndex;
+            baseGroundY = previous.baseGroundY;
+            laneOffset = previous.laneOffset;
+            speedMult = previous.speedMult;
+            transform.SetPositionAndRotation(previous.transform.position, previous.transform.rotation);
+            InitializeHealth(definition.maxHealth);
+
+            spawnInitialized = true;
+            landingTimer = 0f;
+            attacking = false;
+            dying = false;
+            casting = false;
+            attackTimer = 0f;
+            pendingHits.Clear();
+            ClearTacticalFocusTarget();
         }
 
         public override void OnNetworkSpawn()

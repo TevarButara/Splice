@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Splice.Characters;
 using Splice.Combat;
 using Splice.Data;
@@ -149,6 +150,7 @@ namespace Splice.Validation
             ValidateFactionCardList(faction, faction.cards, "cards", false, cardIds, report);
             ValidateFactionCardList(faction, faction.minerCards, "minerCards", true, cardIds, report);
             var towerIds = new HashSet<string>(StringComparer.Ordinal);
+            var towerDefinitions = new HashSet<TowerDefinitionSO>();
             for (var i = 0; i < faction.towers.Count; i++)
             {
                 var tower = faction.towers[i];
@@ -159,8 +161,24 @@ namespace Splice.Validation
                 }
                 if (!string.IsNullOrWhiteSpace(tower.towerId) && !towerIds.Add(tower.towerId))
                     report.Error("TOWER_ID_DUPLICATE", $"Tower id '{tower.towerId}' is duplicated in faction '{faction.factionId}'.", tower);
+                towerDefinitions.Add(tower);
             }
             if (faction.towers.Count == 0) report.Warning("FACTION_NO_TOWERS", $"Faction '{faction.factionId}' has no towers.", faction);
+
+            foreach (var tower in towerDefinitions)
+                if (tower.nextTier != null && !towerDefinitions.Contains(tower.nextTier))
+                    report.Error("TOWER_NEXT_TIER_UNREGISTERED",
+                        $"Tower '{tower.towerId}' next tier is not registered in faction '{faction.factionId}'.",
+                        tower);
+
+            var monsterDefinitions = new HashSet<MonsterDefinitionSO>(
+                faction.cards.Where(card => card != null && card.linkedMonster != null)
+                    .Select(card => card.linkedMonster));
+            foreach (var monster in monsterDefinitions)
+                if (monster.nextTier != null && !monsterDefinitions.Contains(monster.nextTier))
+                    report.Error("MONSTER_NEXT_TIER_UNREGISTERED",
+                        $"Monster '{monster.monsterId}' next tier has no card in faction '{faction.factionId}'.",
+                        monster);
         }
 
         private static void ValidateFactionCardList(FactionSO faction, IReadOnlyList<CardDefinitionSO> list,
@@ -211,8 +229,15 @@ namespace Splice.Validation
             Positive(tower.attackCooldown, "TOWER_COOLDOWN_INVALID", $"Tower '{tower.towerId}' attack cooldown", tower, report);
             Positive(tower.footprint, "TOWER_FOOTPRINT_INVALID", $"Tower '{tower.towerId}' footprint", tower, report);
             Positive(tower.defenseCapacityCost, "TOWER_CAPACITY_INVALID", $"Tower '{tower.towerId}' defense capacity cost", tower, report);
+            NonNegative(tower.goldCost, "TOWER_COST_INVALID", $"Tower '{tower.towerId}' gold cost", tower, report);
             ValidateNetworkPrefab<TowerCharacter>(tower.prefab, "tower", tower.towerId, tower, report);
             if (tower.nextTier == tower) report.Error("TOWER_TIER_SELF", $"Tower '{tower.towerId}' points to itself as next tier.", tower);
+            if (tower.nextTier != null && tower.upgradeCost <= 0)
+                report.Error("TOWER_UPGRADE_COST_INVALID", $"Tower '{tower.towerId}' has a next tier but upgrade cost is not positive.", tower);
+            if (tower.nextTier != null && tower.nextTier.prefab == null)
+                report.Error("TOWER_NEXT_PREFAB_MISSING", $"Tower '{tower.towerId}' next tier has no prefab.", tower);
+            if (tower.nextTier != null && tower.nextTier.prefab == tower.prefab)
+                report.Warning("TOWER_TIER_PREFAB_SAME", $"Tower '{tower.towerId}' and its next tier use the same prefab, so the visual will not change.", tower);
         }
 
         private static void ValidateMonster(MonsterDefinitionSO monster, ContentValidationReport report)
@@ -227,9 +252,18 @@ namespace Splice.Validation
             Positive(monster.moveSpeed, "MONSTER_SPEED_INVALID", $"Monster '{monster.monsterId}' move speed", monster, report);
             Positive(monster.footprint, "MONSTER_FOOTPRINT_INVALID", $"Monster '{monster.monsterId}' footprint", monster, report);
             Positive(monster.defenseCapacityCost, "MONSTER_CAPACITY_INVALID", $"Monster '{monster.monsterId}' defense capacity cost", monster, report);
+            NonNegative(monster.goldCost, "MONSTER_COST_INVALID", $"Monster '{monster.monsterId}' gold cost", monster, report);
             if (monster.role == MonsterRole.Supporter && monster.spell == null)
                 report.Error("SUPPORTER_SPELL_MISSING", $"Supporter '{monster.monsterId}' has no spell.", monster);
             ValidateNetworkPrefab<MonsterCharacter>(monster.prefab, "monster", monster.monsterId, monster, report);
+            if (monster.nextTier == monster)
+                report.Error("MONSTER_TIER_SELF", $"Monster '{monster.monsterId}' points to itself as next tier.", monster);
+            if (monster.nextTier != null && monster.upgradeCost <= 0)
+                report.Error("MONSTER_UPGRADE_COST_INVALID", $"Monster '{monster.monsterId}' has a next tier but upgrade cost is not positive.", monster);
+            if (monster.nextTier != null && monster.nextTier.prefab == null)
+                report.Error("MONSTER_NEXT_PREFAB_MISSING", $"Monster '{monster.monsterId}' next tier has no prefab.", monster);
+            if (monster.nextTier != null && monster.nextTier.prefab == monster.prefab)
+                report.Warning("MONSTER_TIER_PREFAB_SAME", $"Monster '{monster.monsterId}' and its next tier use the same prefab, so the visual will not change.", monster);
         }
 
         private static void ValidateMiner(MinerDefinitionSO miner, ContentValidationReport report)

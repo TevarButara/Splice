@@ -163,6 +163,45 @@ namespace Splice.Tests.EditMode
         }
 
         [Test]
+        public void RebornBinding_ReplacesHeroResolvedBeforeOwnerSpawn()
+        {
+            var controllerObject = new GameObject("RebornBindingRegressionController");
+            var staleObject = new GameObject("StaleSyntheticHero");
+            var preferredObject = new GameObject("PreferredOwnerHero");
+            var controller = controllerObject.AddComponent<HeroActionButtonController>();
+            var stale = staleObject.AddComponent<RaidHeroCharacter>();
+            var preferred = preferredObject.AddComponent<RaidHeroCharacter>();
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var staticFlags = BindingFlags.Static | BindingFlags.NonPublic;
+            var heroField = typeof(HeroActionButtonController).GetField("hero", flags);
+            var instanceField = typeof(RaidHeroCharacter).GetField("<Instance>k__BackingField", staticFlags);
+            var resolve = typeof(HeroActionButtonController).GetMethod("ResolveHero", flags);
+            var originalInstance = RaidHeroCharacter.Instance;
+            try
+            {
+                Assert.That(heroField, Is.Not.Null);
+                Assert.That(instanceField, Is.Not.Null);
+                Assert.That(resolve, Is.Not.Null);
+                heroField.SetValue(controller, stale);
+                instanceField.SetValue(null, preferred);
+
+                resolve.Invoke(controller, null);
+
+                Assert.That(
+                    heroField.GetValue(controller),
+                    Is.SameAs(preferred),
+                    "A UI controller created before the owner Hero spawns must not stay bound to a stale Hero.");
+            }
+            finally
+            {
+                instanceField?.SetValue(null, originalInstance);
+                Object.DestroyImmediate(preferredObject);
+                Object.DestroyImmediate(staleObject);
+                Object.DestroyImmediate(controllerObject);
+            }
+        }
+
+        [Test]
         public void UniversalActions_AreSharedAndRowanHasThreeSkills()
         {
             var rowan = AssetDatabase.LoadAssetAtPath<HeroDefinitionSO>(RowanPath);
