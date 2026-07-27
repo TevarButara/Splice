@@ -2,6 +2,7 @@
 using NUnit.Framework;
 using Splice.Base;
 using Splice.Core;
+using Splice.Input;
 using Splice.UI;
 using Splice.RaidWorker;
 using Unity.Netcode.Transports.UTP;
@@ -92,11 +93,20 @@ namespace Splice.Tests.EditMode
             try
             {
                 PrototypeMetaHubController controller = null;
+                TownSnapshotCommitController deploymentController = null;
                 var uiRootCount = 0;
+                var deploymentRootCount = 0;
+                var targetCardCount = 0;
                 foreach (var root in scene.GetRootGameObjects())
                 {
                     if (root.name == "Prototype Meta UI") uiRootCount++;
                     controller ??= root.GetComponentInChildren<PrototypeMetaHubController>(true);
+                    deploymentController ??= root.GetComponentInChildren<TownSnapshotCommitController>(true);
+                    foreach (var rect in root.GetComponentsInChildren<RectTransform>(true))
+                    {
+                        if (rect.name == "Town Deployment UI") deploymentRootCount++;
+                        if (rect.GetComponent<PrototypeRaidTargetCardView>() != null) targetCardCount++;
+                    }
                 }
 
                 Assert.That(controller, Is.Not.Null);
@@ -105,10 +115,38 @@ namespace Splice.Tests.EditMode
                 Assert.That(controller.EditorUiRoot, Is.Not.Null);
                 Assert.That(controller.EditorUiRoot.scene, Is.EqualTo(scene));
                 Assert.That(uiRootCount, Is.EqualTo(1));
+                Assert.That(controller.EditorAuthoredTargetCardCount, Is.EqualTo(3));
+                Assert.That(targetCardCount, Is.EqualTo(3),
+                    "All three target cards must exist in the scene before Play Mode.");
+                Assert.That(deploymentController, Is.Not.Null);
+                Assert.That(deploymentController.HasEditorAuthoredUi, Is.True,
+                    "Deployment status and review cards must be serialized instead of built in Awake.");
+                Assert.That(deploymentController.EditorUiRoot.scene, Is.EqualTo(scene));
+                Assert.That(deploymentRootCount, Is.EqualTo(1));
             }
             finally
             {
                 if (openedForTest) EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+
+        [Test]
+        public void CameraPan_DecorativeGraphicsDoNotBlockMapDrag_ButButtonsDo()
+        {
+            var canvas = new GameObject("Canvas", typeof(RectTransform), typeof(Canvas));
+            var backdrop = new GameObject("Backdrop", typeof(RectTransform), typeof(Image));
+            var button = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button));
+            backdrop.transform.SetParent(canvas.transform, false);
+            button.transform.SetParent(backdrop.transform, false);
+            try
+            {
+                Assert.That(CameraPanController.IsUiInteractionBlockingWorldPan(backdrop), Is.False,
+                    "A decorative full-screen Image must not disable BuildZone camera pan.");
+                Assert.That(CameraPanController.IsUiInteractionBlockingWorldPan(button), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(canvas);
             }
         }
 

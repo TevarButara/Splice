@@ -15,8 +15,8 @@ namespace Splice.UI
     /// <summary>
     /// Prototype meta shell for BuildZone. Town editing remains the 3D background while Raid and
     /// Defense History are focused overlays. The static shell is serialized in BuildZone so designers
-    /// can see and move every RectTransform in Edit Mode. Only data-driven target/report rows are
-    /// instantiated at runtime.
+    /// can see and move every RectTransform in Edit Mode. The three target cards are reusable serialized
+    /// views; only defense-history rows and transient empty/error states are instantiated at runtime.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class PrototypeMetaHubController : MonoBehaviour
@@ -41,6 +41,7 @@ namespace Splice.UI
         [SerializeField] private GameObject historyPanel;
         [SerializeField] private GameObject onboardingPanel;
         [SerializeField] private Transform targetList;
+        [SerializeField] private PrototypeRaidTargetCardView[] targetCards;
         [SerializeField] private Transform historyList;
         [SerializeField] private TMP_Text sectionTitle;
         [SerializeField] private TMP_Text statusText;
@@ -62,6 +63,7 @@ namespace Splice.UI
         public bool HasEditorAuthoredUi =>
             editorUiRoot != null && contentBackdrop != null && raidPanel != null &&
             historyPanel != null && onboardingPanel != null && targetList != null &&
+            targetCards is { Length: 3 } && Array.TrueForAll(targetCards, card => card != null && card.IsComplete) &&
             historyList != null && sectionTitle != null && statusText != null &&
             walletText != null && townTab != null && raidTab != null && historyTab != null &&
             refreshTargetsButton != null && refreshHistoryButton != null &&
@@ -70,6 +72,7 @@ namespace Splice.UI
         public bool IsRaidPanelVisible => raidPanel != null && raidPanel.activeSelf;
         public bool IsHistoryPanelVisible => historyPanel != null && historyPanel.activeSelf;
         public bool IsOnboardingVisible => onboardingPanel != null && onboardingPanel.activeSelf;
+        public int EditorAuthoredTargetCardCount => targetCards?.Length ?? 0;
 
         private void Awake()
         {
@@ -191,7 +194,7 @@ namespace Splice.UI
             if (refreshingTargets || targetProvider == null || lifetimeCancellation == null) return;
             refreshingTargets = true;
             SetStatus("SCANNING THE WORLD FOR RAIDABLE TOWNS…", Muted);
-            ClearChildren(targetList);
+            ClearTargetRuntimeState();
             try
             {
                 var targets = await targetProvider.GenerateTargetsAsync(lifetimeCancellation.Token);
@@ -245,35 +248,17 @@ namespace Splice.UI
 
         private void RenderTargets(IReadOnlyList<RaidTarget> targets)
         {
-            if (targetList == null) return;
-            var shown = Mathf.Min(3, targets?.Count ?? 0);
+            if (targetList == null || targetCards == null) return;
+            var shown = Mathf.Min(targetCards.Length, targets?.Count ?? 0);
             for (var index = 0; index < shown; index++)
             {
                 var target = targets[index];
-                var card = CreatePanel($"Target {index + 1}", targetList, Panel, new Vector2(480f, 535f));
-                var source = target.IsSnapshotBacked ? $"PLAYER SNAPSHOT  V{target.snapshotRevision}" : "WORLD BOT OUTPOST";
-                CreateText(card, target.displayName.ToUpperInvariant(), 28f, White,
-                    TextAlignmentOptions.TopLeft, new Vector2(34f, -35f), new Vector2(412f, 76f), FontStyles.Bold);
-                CreateText(card, source, 17f, target.IsSnapshotBacked ? Cyan : Muted,
-                    TextAlignmentOptions.TopLeft, new Vector2(34f, -114f), new Vector2(412f, 30f), FontStyles.Bold);
-                CreateText(card,
-                    $"POWER  <b>{target.basePowerRating:N0}</b>\n" +
-                    $"DEFENSE  {target.towerCount} towers  •  {target.garrisonCount} garrison\n" +
-                    $"CAPACITY  {target.usedCapacity}/{target.maxCapacity}\n\n" +
-                    $"EXPECTED GOLD  <color=#{ColorUtility.ToHtmlStringRGB(Amber)}><b>{target.StoredGold:N0}</b></color>\n" +
-                    "WAR GEM STAKE  <b>100</b>\nFULL VICTORY  <color=#A6F23F><b>+180</b></color>",
-                    22f, White, TextAlignmentOptions.TopLeft, new Vector2(34f, -168f),
-                    new Vector2(412f, 250f), FontStyles.Normal);
                 var captured = index;
                 var canRaid = target.CanRaid(PlayerProfile.AccountId, out var reason);
-                var button = CreateButton(card, canRaid ? "REVIEW RAID CONTRACT" : "INSPECTION ONLY",
-                    new Vector2(34f, 45f), new Vector2(412f, 76f), canRaid ? Coral : PanelSoft,
-                    canRaid ? White : Muted, () => StartRaid(captured));
-                button.interactable = canRaid;
-                if (!canRaid)
-                    CreateText(card, reason, 14f, Muted, TextAlignmentOptions.BottomLeft,
-                        new Vector2(34f, 126f), new Vector2(412f, 34f), FontStyles.Normal, false);
+                targetCards[index].Configure(target, canRaid, reason, () => StartRaid(captured));
             }
+            for (var index = shown; index < targetCards.Length; index++)
+                if (targetCards[index] != null) targetCards[index].gameObject.SetActive(false);
             if (shown == 0) RenderEmpty(targetList, "NO RAIDABLE TOWNS", "Refresh the target pool or switch to local services.");
         }
 
@@ -459,6 +444,35 @@ namespace Splice.UI
             layout.childControlHeight = false;
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
+            targetCards = new PrototypeRaidTargetCardView[3];
+            for (var index = 0; index < targetCards.Length; index++)
+                targetCards[index] = BuildTargetCard(targetList, index + 1);
+        }
+
+        private static PrototypeRaidTargetCardView BuildTargetCard(Transform parent, int index)
+        {
+            var card = CreatePanel($"Target Card {index}", parent, Panel, new Vector2(480f, 535f));
+            var title = CreateText(card, $"TARGET PREVIEW {index}", 28f, White,
+                TextAlignmentOptions.TopLeft, new Vector2(34f, -35f), new Vector2(412f, 76f), FontStyles.Bold);
+            var source = CreateText(card, index == 1 ? "PLAYER SNAPSHOT  V1" : "WORLD BOT OUTPOST", 17f,
+                index == 1 ? Cyan : Muted, TextAlignmentOptions.TopLeft,
+                new Vector2(34f, -114f), new Vector2(412f, 30f), FontStyles.Bold);
+            var details = CreateText(card,
+                "POWER  <b>1,250</b>\nDEFENSE  4 towers  •  6 garrison\nCAPACITY  48/60\n\n" +
+                "EXPECTED GOLD  <color=#FFB837><b>2,400</b></color>\n" +
+                "WAR GEM STAKE  <b>100</b>\nFULL VICTORY  <color=#A6F23F><b>+180</b></color>",
+                22f, White, TextAlignmentOptions.TopLeft, new Vector2(34f, -168f),
+                new Vector2(412f, 250f), FontStyles.Normal);
+            var reason = CreateText(card, "Target availability note", 14f, Muted,
+                TextAlignmentOptions.BottomLeft, new Vector2(34f, 126f),
+                new Vector2(412f, 34f), FontStyles.Normal, false);
+            reason.gameObject.SetActive(false);
+            var button = CreateButton(card, "REVIEW RAID CONTRACT", new Vector2(34f, 45f),
+                new Vector2(412f, 76f), Coral, White, null);
+            var view = card.gameObject.AddComponent<PrototypeRaidTargetCardView>();
+            view.InitializeEditorReferences(title, source, details, reason, button,
+                button.GetComponentInChildren<TMP_Text>(true));
+            return view;
         }
 
         private void BuildHistoryPanel(Transform root)
@@ -559,6 +573,22 @@ namespace Splice.UI
             if (parent == null) return;
             for (var index = parent.childCount - 1; index >= 0; index--)
                 Destroy(parent.GetChild(index).gameObject);
+        }
+
+        private void ClearTargetRuntimeState()
+        {
+            if (targetList == null) return;
+            for (var index = targetList.childCount - 1; index >= 0; index--)
+            {
+                var child = targetList.GetChild(index);
+                var card = child.GetComponent<PrototypeRaidTargetCardView>();
+                if (card != null)
+                {
+                    card.gameObject.SetActive(false);
+                    continue;
+                }
+                Destroy(child.gameObject);
+            }
         }
 
         private static string ShortName(string value)

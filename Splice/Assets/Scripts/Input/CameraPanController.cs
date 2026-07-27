@@ -3,6 +3,7 @@ using Splice.Characters;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 namespace Splice.Input
 {
@@ -99,6 +100,7 @@ namespace Splice.Input
             // The camera's authored starting spot IS the base view.
             homePosition = transform.position;
             cam = GetComponent<Camera>();
+            EnsureAuthoredZoomRange();
         }
 
         // Wire to the Home button's OnClick.
@@ -400,6 +402,8 @@ namespace Splice.Input
         }
 
         // Fresh UI hit-test at a screen point — stateless, so it can never get stuck reporting "over UI".
+        // Decorative full-screen Images are intentionally ignored. BuildZone has several editor-authored
+        // backdrops; treating every Graphic as interactive made the whole map impossible to drag.
         private static bool IsOverUI(Vector2 screenPosition)
         {
             var eventSystem = EventSystem.current;
@@ -408,7 +412,33 @@ namespace Splice.Input
             var pointerData = new PointerEventData(eventSystem) { position = screenPosition };
             uiHits.Clear();
             eventSystem.RaycastAll(pointerData, uiHits);
-            return uiHits.Count > 0;
+            foreach (var hit in uiHits)
+                if (IsUiInteractionBlockingWorldPan(hit.gameObject)) return true;
+            return false;
+        }
+
+        public static bool IsUiInteractionBlockingWorldPan(GameObject hitObject)
+        {
+            if (hitObject == null || !hitObject.activeInHierarchy) return false;
+
+            var selectable = hitObject.GetComponentInParent<Selectable>();
+            if (selectable != null && selectable.isActiveAndEnabled) return true;
+            if (ExecuteEvents.GetEventHandler<IScrollHandler>(hitObject) != null) return true;
+            if (ExecuteEvents.GetEventHandler<IBeginDragHandler>(hitObject) != null) return true;
+            if (ExecuteEvents.GetEventHandler<IDragHandler>(hitObject) != null) return true;
+            if (ExecuteEvents.GetEventHandler<IPointerClickHandler>(hitObject) != null) return true;
+            if (ExecuteEvents.GetEventHandler<IPointerDownHandler>(hitObject) != null) return true;
+            return false;
+        }
+
+        private void EnsureAuthoredZoomRange()
+        {
+            if (!IsOrtho) return;
+            minOrthoSize = Mathf.Max(.01f, minOrthoSize);
+            // Some legacy scenes authored the overview at size 133.5 while maxOrthoSize remained 20.
+            // The first scroll then snapped violently to 20. Preserve the authored view and leave room
+            // to zoom farther out without requiring every scene to duplicate camera constants.
+            maxOrthoSize = Mathf.Max(maxOrthoSize, Cam.orthographicSize * 1.5f, minOrthoSize);
         }
     }
 }

@@ -10,8 +10,8 @@ using UnityEngine.UI;
 
 namespace Splice.UI
 {
-    // Prototype B / Step 6A presentation layer. The hierarchy is generated at runtime so the full card and
-    // modal remain a single reusable unit. All dimensions use Canvas coordinates and safe anchors.
+    // Prototype B / Step 6A presentation layer. The hierarchy is serialized in BuildZone so designers can
+    // inspect and move every element in Edit Mode. Runtime code only binds actions and renders live data.
     public sealed class TownSnapshotCommitController : MonoBehaviour
     {
         private static readonly Color Ink = new Color32(17, 26, 43, 255);
@@ -25,22 +25,34 @@ namespace Splice.UI
         private static readonly Color Muted = new Color32(169, 184, 204, 255);
 
         [SerializeField] private BaseBuildManager buildManager;
-
-        private GameObject modalRoot;
-        private TMP_Text statusPill;
-        private TMP_Text statusHeadline;
-        private TMP_Text statusBody;
-        private TMP_Text modalSubtitle;
-        private TMP_Text towerValue;
-        private TMP_Text garrisonValue;
-        private TMP_Text powerValue;
-        private TMP_Text validationText;
-        private Button deployButton;
-        private TMP_Text deployButtonLabel;
+        [Header("Editor-authored BuildZone UI")]
+        [SerializeField] private GameObject editorUiRoot;
+        [SerializeField] private GameObject modalRoot;
+        [SerializeField] private TMP_Text statusPill;
+        [SerializeField] private TMP_Text statusHeadline;
+        [SerializeField] private TMP_Text statusBody;
+        [SerializeField] private TMP_Text modalSubtitle;
+        [SerializeField] private TMP_Text towerValue;
+        [SerializeField] private TMP_Text garrisonValue;
+        [SerializeField] private TMP_Text powerValue;
+        [SerializeField] private TMP_Text validationText;
+        [SerializeField] private Button reviewButton;
+        [SerializeField] private Button closeButton;
+        [SerializeField] private Button cancelButton;
+        [SerializeField] private Button deployButton;
+        [SerializeField] private TMP_Text deployButtonLabel;
         private CancellationTokenSource lifetimeCancellation;
         private bool refreshInFlight;
         private bool deploying;
         private string deployIdempotencyKey;
+
+        public GameObject EditorUiRoot => editorUiRoot;
+        public bool HasEditorAuthoredUi =>
+            editorUiRoot != null && modalRoot != null && statusPill != null &&
+            statusHeadline != null && statusBody != null && modalSubtitle != null &&
+            towerValue != null && garrisonValue != null && powerValue != null &&
+            validationText != null && reviewButton != null && closeButton != null &&
+            cancelButton != null && deployButton != null && deployButtonLabel != null;
 
         private sealed class DeployableCheck
         {
@@ -54,7 +66,19 @@ namespace Splice.UI
             lifetimeCancellation = new CancellationTokenSource();
             if (buildManager == null) buildManager = FindFirstObjectByType<BaseBuildManager>();
             SpliceUiSkinLibrary.EnsureLoaded();
-            BuildUi();
+            if (!HasEditorAuthoredUi)
+            {
+                Debug.LogError(
+                    "[TownSnapshotUI] Deployment UI is not serialized. Use Splice > UI > Rebuild BuildZone Editor UI in Edit Mode.",
+                    this);
+                enabled = false;
+                return;
+            }
+            BindButton(reviewButton, OpenReview);
+            BindButton(closeButton, CloseReview);
+            BindButton(cancelButton, CloseReview);
+            BindButton(deployButton, DeploySnapshot);
+            modalRoot.SetActive(false);
             RefreshStatus();
         }
 
@@ -268,8 +292,16 @@ namespace Splice.UI
             statusBody.text = body;
         }
 
-        private void BuildUi()
+        // Called by the Editor builder only. Runtime must never create or reposition this hierarchy.
+        public void RebuildEditorUi()
         {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("[TownSnapshotUI] UI can only be rebuilt in Edit Mode.", this);
+                return;
+            }
+
+            if (editorUiRoot != null) DestroyImmediate(editorUiRoot);
             var canvas = GetComponentInParent<Canvas>();
             if (canvas == null)
             {
@@ -278,6 +310,7 @@ namespace Splice.UI
             }
 
             var layer = NewRect("Town Deployment UI", canvas.transform);
+            editorUiRoot = layer.gameObject;
             Stretch(layer);
             layer.SetAsLastSibling();
 
@@ -296,9 +329,8 @@ namespace Splice.UI
                 White, FontStyles.Bold);
             statusBody = Text("Place defenses, Checkout, then deploy.", card, new Vector2(48f, -125f),
                 new Vector2(500f, 46f), 17f, Muted, FontStyles.Normal);
-            var review = Button("Review Deployment", card, new Vector2(48f, -192f), new Vector2(500f, 58f), Cyan,
+            reviewButton = Button("Review Deployment", card, new Vector2(48f, -192f), new Vector2(500f, 58f), Cyan,
                 "REVIEW & DEPLOY", Ink);
-            review.onClick.AddListener(OpenReview);
 
             modalRoot = PanelObject("Deployment Modal Backdrop", layer, new Color(0.025f, 0.04f, 0.075f, 0.84f), Vector2.zero).gameObject;
             Stretch(modalRoot.GetComponent<RectTransform>());
@@ -315,8 +347,7 @@ namespace Splice.UI
                 FontStyles.Bold, TextAlignmentOptions.Center);
             modalSubtitle = Text("FIRST DEPLOYMENT", modalCard, new Vector2(43f, -84f), new Vector2(690f, 28f), 15f,
                 Cyan, FontStyles.Bold);
-            var close = Button("Close Review", modalCard, new Vector2(806f, -36f), new Vector2(52f, 52f), PanelSoft, "×", White, 30f);
-            close.onClick.AddListener(CloseReview);
+            closeButton = Button("Close Review", modalCard, new Vector2(806f, -36f), new Vector2(52f, 52f), PanelSoft, "×", White, 30f);
 
             towerValue = StatCard(modalCard, new Vector2(42f, -133f), "TOWERS");
             garrisonValue = StatCard(modalCard, new Vector2(314f, -133f), "GARRISON");
@@ -329,14 +360,19 @@ namespace Splice.UI
             validationText.enableWordWrapping = true;
             validationText.overflowMode = TextOverflowModes.Ellipsis;
 
-            var cancel = Button("Cancel Deployment", modalCard, new Vector2(42f, -612f), new Vector2(250f, 48f),
+            cancelButton = Button("Cancel Deployment", modalCard, new Vector2(42f, -612f), new Vector2(250f, 48f),
                 PanelSoft, "BACK TO BUILD", White);
-            cancel.onClick.AddListener(CloseReview);
             deployButton = Button("Deploy Snapshot", modalCard, new Vector2(514f, -612f), new Vector2(344f, 48f),
                 Mint, "DEPLOY SNAPSHOT", Ink);
             deployButtonLabel = deployButton.GetComponentInChildren<TMP_Text>();
-            deployButton.onClick.AddListener(DeploySnapshot);
             modalRoot.SetActive(false);
+        }
+
+        private static void BindButton(Button button, UnityEngine.Events.UnityAction action)
+        {
+            if (button == null) return;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(action);
         }
 
         private static TMP_Text StatCard(Transform parent, Vector2 position, string label)
