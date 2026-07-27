@@ -13,21 +13,26 @@ namespace Splice.Placement
         [SerializeField] private Transform groundAnchor;
         [SerializeField] private Transform cameraFocus;
         [SerializeField] private Transform effectAnchor;
+        [SerializeField, HideInInspector] private string sourceAssetGuid;
 
         public Transform VisualRoot => visualRoot;
         public Transform GroundAnchor => groundAnchor;
         public Transform CameraFocus => cameraFocus;
         public Transform EffectAnchor => effectAnchor;
+        public string SourceAssetGuid => sourceAssetGuid;
         public bool IsComplete =>
             visualRoot != null && groundAnchor != null && cameraFocus != null && effectAnchor != null;
 
         public void ConfigureEditorReferences(Transform valueVisualRoot, Transform valueGroundAnchor,
-            Transform valueCameraFocus, Transform valueEffectAnchor)
+            Transform valueCameraFocus, Transform valueEffectAnchor,
+            string valueSourceAssetGuid = null)
         {
             visualRoot = valueVisualRoot;
             groundAnchor = valueGroundAnchor;
             cameraFocus = valueCameraFocus;
             effectAnchor = valueEffectAnchor;
+            if (!string.IsNullOrWhiteSpace(valueSourceAssetGuid))
+                sourceAssetGuid = valueSourceAssetGuid;
         }
 
         public bool TryGetRendererBounds(out Bounds bounds)

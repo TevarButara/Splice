@@ -652,6 +652,7 @@ MonoBehaviour:
   groundAnchor: {fileID: 5130097357819502216}
   cameraFocus: {fileID: 4704853673470594498}
   effectAnchor: {fileID: 4517220297587392484}
+  sourceAssetGuid: 84d529a3e8fb63341ac33ce87cb67210
 --- !u!4 &1985083701972878121 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 21cd824290a26e04ea73249ec5e55e06, type: 3}

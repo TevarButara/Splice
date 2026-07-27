@@ -42,8 +42,15 @@ namespace Splice.Editor.Placement
             }
             var path = AssetDatabase.GenerateUniqueAssetPath(
                 $"{folder}/{source.name}_Placeable.prefab");
-            var created = CreateGroundedWrapper(source, path, source.name + "_Placeable",
-                source.transform.localScale, source.transform.localRotation);
+            GameObject created;
+            if (source.GetComponent<Unity.Netcode.NetworkObject>() != null)
+            {
+                var authoredFootprint = MeasurePrefabWorldFootprint(source);
+                created = RebuildGroundedGameplayPrefab(source, path, authoredFootprint);
+            }
+            else
+                created = CreateGroundedWrapper(source, path, source.name + "_Placeable",
+                    source.transform.localScale, source.transform.localRotation);
             Selection.activeObject = created;
             EditorGUIUtility.PingObject(created);
         }
@@ -61,6 +68,7 @@ namespace Splice.Editor.Placement
             if (source == null || string.IsNullOrWhiteSpace(folder)) return null;
             var sourcePath = AssetDatabase.GetAssetPath(source);
             if (string.IsNullOrWhiteSpace(sourcePath)) return null;
+            var sourceGuid = AssetDatabase.AssetPathToGUID(sourcePath);
 
             foreach (var guid in AssetDatabase.FindAssets("t:Prefab", new[] { folder }))
             {
@@ -72,7 +80,16 @@ namespace Splice.Editor.Placement
                     : null;
                 if (profile == null || profile.VisualRoot == null) continue;
 
-                foreach (var dependency in AssetDatabase.GetDependencies(candidatePath, true))
+                if (!string.IsNullOrWhiteSpace(profile.SourceAssetGuid))
+                {
+                    if (profile.SourceAssetGuid == sourceGuid) return candidate;
+                    continue;
+                }
+
+                // Legacy wrappers may not have explicit source metadata yet. Only inspect direct
+                // dependencies; recursive traversal follows TowerDefinition.nextTier and can
+                // falsely match a wrapper from a different level.
+                foreach (var dependency in AssetDatabase.GetDependencies(candidatePath, false))
                     if (dependency == sourcePath) return candidate;
             }
             return null;
@@ -89,6 +106,8 @@ namespace Splice.Editor.Placement
                 if (profile == null || !profile.IsComplete)
                     throw new MissingReferenceException(
                         $"Grounded wrapper '{assetPath}' exists but its placement anchors are incomplete.");
+                EnsureSourceAssetGuid(assetPath, AssetDatabase.AssetPathToGUID(
+                    AssetDatabase.GetAssetPath(source)));
                 if (normalizeExisting)
                     NormalizeExistingWrapper(assetPath, visualScale, visualRotation);
                 // Existing wrappers are designer-owned. Bake/Ensure must not overwrite the
@@ -184,7 +203,8 @@ namespace Splice.Editor.Placement
                 var profile = root.GetComponent<GroundPlacementProfile>() ??
                               root.AddComponent<GroundPlacementProfile>();
                 profile.ConfigureEditorReferences(
-                    visualRoot, groundAnchor, cameraFocus, effectAnchor);
+                    visualRoot, groundAnchor, cameraFocus, effectAnchor,
+                    AssetDatabase.AssetPathToGUID(sourcePath));
                 if (!TryRendererBounds(visualRoot, out var bounds))
                     throw new MissingReferenceException(
                         $"Gameplay prefab '{source.name}' has no Renderer bounds.");
@@ -272,7 +292,9 @@ namespace Splice.Editor.Placement
                 var effectAnchor = CreateAnchor("EffectAnchor", wrapper.transform,
                     new Vector3(0f, normalizedBounds.size.y * .6f, 0f));
                 var profile = wrapper.AddComponent<GroundPlacementProfile>();
-                profile.ConfigureEditorReferences(visualRoot, groundAnchor, cameraFocus, effectAnchor);
+                profile.ConfigureEditorReferences(
+                    visualRoot, groundAnchor, cameraFocus, effectAnchor,
+                    AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(source)));
 
                 var saved = PrefabUtility.SaveAsPrefabAsset(wrapper, assetPath);
                 if (saved == null) throw new System.InvalidOperationException(
@@ -300,6 +322,25 @@ namespace Splice.Editor.Placement
                 profile.VisualRoot.localRotation = visualRotation;
                 profile.VisualRoot.localScale = visualScale;
                 NormalizeVisualAndAnchors(profile);
+                PrefabUtility.SaveAsPrefabAsset(wrapper, assetPath);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(wrapper);
+            }
+        }
+
+        private static void EnsureSourceAssetGuid(string assetPath, string sourceGuid)
+        {
+            if (string.IsNullOrWhiteSpace(sourceGuid)) return;
+            var wrapper = PrefabUtility.LoadPrefabContents(assetPath);
+            try
+            {
+                var profile = wrapper.GetComponent<GroundPlacementProfile>();
+                if (profile == null || profile.SourceAssetGuid == sourceGuid) return;
+                profile.ConfigureEditorReferences(profile.VisualRoot, profile.GroundAnchor,
+                    profile.CameraFocus, profile.EffectAnchor, sourceGuid);
+                EditorUtility.SetDirty(profile);
                 PrefabUtility.SaveAsPrefabAsset(wrapper, assetPath);
             }
             finally
@@ -364,6 +405,23 @@ namespace Splice.Editor.Placement
                 EditorUtility.SetDirty(asset);
             }
             AssetDatabase.SaveAssets();
+        }
+
+        private static float MeasurePrefabWorldFootprint(GameObject prefab)
+        {
+            var path = AssetDatabase.GetAssetPath(prefab);
+            var root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                if (!TryRendererBounds(root.transform, out var bounds))
+                    throw new MissingReferenceException(
+                        $"Gameplay prefab '{prefab.name}' has no Renderer bounds.");
+                return Mathf.Max(bounds.size.x, bounds.size.z);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
         }
 
         private static Transform CreateAnchor(string name, Transform parent, Vector3 localPosition)

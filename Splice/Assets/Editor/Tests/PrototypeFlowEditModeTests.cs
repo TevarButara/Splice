@@ -194,6 +194,32 @@ namespace Splice.Tests.EditMode
         }
 
         [Test]
+        public void TowerWrapperLookup_DoesNotFollowNextTierDependencies()
+        {
+            const string folder = "Assets/Prefabs/Natural/Tower";
+            var levelOne = AssetDatabase.LoadAssetAtPath<GameObject>(
+                folder + "/nat_tw1-lv1-2300.prefab");
+            var levelTwo = AssetDatabase.LoadAssetAtPath<GameObject>(
+                folder + "/nat-tw1-lv2-2700.prefab");
+            Assert.That(levelOne, Is.Not.Null);
+            Assert.That(levelTwo, Is.Not.Null);
+
+            var levelOneWrapper =
+                GroundedPrefabAuthoringEditor.FindGroundedWrapperForSource(levelOne, folder);
+            Assert.That(levelOneWrapper, Is.Not.Null);
+            Assert.That(AssetDatabase.GetAssetPath(levelOneWrapper),
+                Is.EqualTo(folder + "/nat_tw1-lv1-2300_Placeable.prefab"));
+            var profile = levelOneWrapper.GetComponent<GroundPlacementProfile>();
+            Assert.That(profile.SourceAssetGuid,
+                Is.EqualTo(AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(levelOne))));
+
+            var levelTwoWrapper =
+                GroundedPrefabAuthoringEditor.FindGroundedWrapperForSource(levelTwo, folder);
+            Assert.That(levelTwoWrapper, Is.Null,
+                "A level-1 wrapper must not match level 2 through TowerDefinition.nextTier.");
+        }
+
+        [Test]
         public void CheckoutBakeEnsure_PreservesDesignerOwnedRectTransform()
         {
             const string scenePath = "Assets/=======SCENES/BuildZone.unity";

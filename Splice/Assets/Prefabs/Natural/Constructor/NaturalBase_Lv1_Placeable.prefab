@@ -83,6 +83,7 @@ MonoBehaviour:
   groundAnchor: {fileID: 1269214443829876144}
   cameraFocus: {fileID: 4388454586056955336}
   effectAnchor: {fileID: 5183725436700570226}
+  sourceAssetGuid: a4dfc60a41cc64341b34badb60c8519c
 --- !u!1 &4592810388350740720
 GameObject:
   m_ObjectHideFlags: 0
