@@ -14,8 +14,9 @@ namespace Splice.UI
 {
     /// <summary>
     /// Prototype meta shell for BuildZone. Town editing remains the 3D background while Raid and
-    /// Defense History are focused overlays. This deliberately uses only runtime UGUI primitives:
-    /// it is deterministic, build-safe, and can later receive final art without changing the flow.
+    /// Defense History are focused overlays. The static shell is serialized in BuildZone so designers
+    /// can see and move every RectTransform in Edit Mode. Only data-driven target/report rows are
+    /// instantiated at runtime.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class PrototypeMetaHubController : MonoBehaviour
@@ -33,24 +34,38 @@ namespace Splice.UI
         private const string OnboardingKey = "Splice.Prototype.Onboarding.v1";
 
         [SerializeField] private BaseBuildManager buildManager;
+        [Header("Editor-authored BuildZone UI")]
+        [SerializeField] private GameObject editorUiRoot;
+        [SerializeField] private GameObject contentBackdrop;
+        [SerializeField] private GameObject raidPanel;
+        [SerializeField] private GameObject historyPanel;
+        [SerializeField] private GameObject onboardingPanel;
+        [SerializeField] private Transform targetList;
+        [SerializeField] private Transform historyList;
+        [SerializeField] private TMP_Text sectionTitle;
+        [SerializeField] private TMP_Text statusText;
+        [SerializeField] private TMP_Text walletText;
+        [SerializeField] private Button townTab;
+        [SerializeField] private Button raidTab;
+        [SerializeField] private Button historyTab;
+        [SerializeField] private Button refreshTargetsButton;
+        [SerializeField] private Button refreshHistoryButton;
+        [SerializeField] private Button onboardingContinueButton;
 
         private RaidTargetProvider targetProvider;
         private RaidHistoryController historyController;
         private CancellationTokenSource lifetimeCancellation;
-        private GameObject contentBackdrop;
-        private GameObject raidPanel;
-        private GameObject historyPanel;
-        private GameObject onboardingPanel;
-        private Transform targetList;
-        private Transform historyList;
-        private TMP_Text sectionTitle;
-        private TMP_Text statusText;
-        private TMP_Text walletText;
-        private Button townTab;
-        private Button raidTab;
-        private Button historyTab;
         private bool refreshingTargets;
         private bool refreshingHistory;
+
+        public GameObject EditorUiRoot => editorUiRoot;
+        public bool HasEditorAuthoredUi =>
+            editorUiRoot != null && contentBackdrop != null && raidPanel != null &&
+            historyPanel != null && onboardingPanel != null && targetList != null &&
+            historyList != null && sectionTitle != null && statusText != null &&
+            walletText != null && townTab != null && raidTab != null && historyTab != null &&
+            refreshTargetsButton != null && refreshHistoryButton != null &&
+            onboardingContinueButton != null;
 
         public bool IsRaidPanelVisible => raidPanel != null && raidPanel.activeSelf;
         public bool IsHistoryPanelVisible => historyPanel != null && historyPanel.activeSelf;
@@ -66,7 +81,15 @@ namespace Splice.UI
             if (buildManager != null) targetProvider.ConfigureRegistry(buildManager.Registry);
             historyController = GetComponent<RaidHistoryController>();
             if (historyController == null) historyController = gameObject.AddComponent<RaidHistoryController>();
-            BuildUi();
+            if (!HasEditorAuthoredUi)
+            {
+                Debug.LogError(
+                    "[PrototypeHub] BuildZone UI is not serialized. Use Splice > UI > Rebuild BuildZone Meta UI in Edit Mode.",
+                    this);
+                enabled = false;
+                return;
+            }
+            BindStaticButtonActions();
             ShowTown();
         }
 
@@ -79,8 +102,8 @@ namespace Splice.UI
                          FindObjectsSortMode.None))
                 palette.Rebuild();
             _ = RefreshWalletAsync();
-            if (!PlayerPrefs.HasKey(OnboardingKey) && onboardingPanel != null)
-                onboardingPanel.SetActive(true);
+            if (onboardingPanel != null)
+                onboardingPanel.SetActive(!PlayerPrefs.HasKey(OnboardingKey));
         }
 
         private void OnDestroy()
@@ -320,8 +343,16 @@ namespace Splice.UI
             SetStatus((result.error ?? historyController.LastError).ToUpperInvariant(), Coral);
         }
 
-        private void BuildUi()
+        // Called by the Editor builder only. Runtime must never create or reposition this shell.
+        public void RebuildEditorUi()
         {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("[PrototypeHub] UI can only be rebuilt in Edit Mode.", this);
+                return;
+            }
+
+            if (editorUiRoot != null) DestroyImmediate(editorUiRoot);
             var canvas = FindHubCanvas();
             if (canvas == null)
             {
@@ -330,6 +361,7 @@ namespace Splice.UI
             }
 
             var root = CreateRect("Prototype Meta UI", null);
+            editorUiRoot = root.gameObject;
             Stretch(root);
             var overlayCanvas = root.gameObject.AddComponent<Canvas>();
             overlayCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -369,11 +401,32 @@ namespace Splice.UI
 
             var nav = CreatePanel("Primary Navigation", root, Header, Vector2.zero);
             SetStretchBottom(nav, 98f);
-            townTab = CreateButton(nav, "TOWN", new Vector2(-390f, 12f), new Vector2(350f, 72f), PanelSoft, White, ShowTown);
-            raidTab = CreateButton(nav, "RAID", new Vector2(0f, 12f), new Vector2(350f, 72f), PanelSoft, White, ShowRaid);
-            historyTab = CreateButton(nav, "DEFENSE", new Vector2(390f, 12f), new Vector2(350f, 72f), PanelSoft, White, ShowHistory);
+            townTab = CreateButton(nav, "TOWN", new Vector2(-390f, 12f), new Vector2(350f, 72f), PanelSoft, White, null);
+            raidTab = CreateButton(nav, "RAID", new Vector2(0f, 12f), new Vector2(350f, 72f), PanelSoft, White, null);
+            historyTab = CreateButton(nav, "DEFENSE", new Vector2(390f, 12f), new Vector2(350f, 72f), PanelSoft, White, null);
 
             BuildOnboarding(root);
+            contentBackdrop.SetActive(false);
+            raidPanel.SetActive(false);
+            historyPanel.SetActive(false);
+            onboardingPanel.SetActive(false);
+        }
+
+        private void BindStaticButtonActions()
+        {
+            BindButton(townTab, ShowTown);
+            BindButton(raidTab, ShowRaid);
+            BindButton(historyTab, ShowHistory);
+            BindButton(refreshTargetsButton, () => _ = RefreshTargetsAsync());
+            BindButton(refreshHistoryButton, () => _ = RefreshHistoryAsync());
+            BindButton(onboardingContinueButton, CompleteOnboarding);
+        }
+
+        private static void BindButton(Button button, Action action)
+        {
+            if (button == null) return;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(() => action?.Invoke());
         }
 
         private static Canvas FindHubCanvas()
@@ -395,8 +448,8 @@ namespace Splice.UI
                 new Vector2(70f, -54f), new Vector2(700f, 58f), FontStyles.Bold);
             CreateText(root, "Scout power, loot and risk before locking the raid contract.", 20f, Muted,
                 TextAlignmentOptions.TopLeft, new Vector2(70f, -108f), new Vector2(920f, 36f), FontStyles.Normal);
-            CreateButton(root, "REFRESH TARGETS", new Vector2(-70f, -50f), new Vector2(270f, 62f),
-                PanelSoft, White, () => _ = RefreshTargetsAsync(), true);
+            refreshTargetsButton = CreateButton(root, "REFRESH TARGETS", new Vector2(-70f, -50f),
+                new Vector2(270f, 62f), PanelSoft, White, null, true);
             targetList = CreateRect("Target Cards", root);
             SetCentered((RectTransform)targetList, new Vector2(1520f, 560f), new Vector2(0f, -22f));
             var layout = targetList.gameObject.AddComponent<HorizontalLayoutGroup>();
@@ -414,8 +467,8 @@ namespace Splice.UI
                 new Vector2(70f, -54f), new Vector2(700f, 58f), FontStyles.Bold);
             CreateText(root, "Verified outcomes from attacks against your deployed town snapshot.", 20f, Muted,
                 TextAlignmentOptions.TopLeft, new Vector2(70f, -108f), new Vector2(920f, 36f), FontStyles.Normal);
-            CreateButton(root, "REFRESH REPORTS", new Vector2(-70f, -50f), new Vector2(270f, 62f),
-                PanelSoft, White, () => _ = RefreshHistoryAsync(), true);
+            refreshHistoryButton = CreateButton(root, "REFRESH REPORTS", new Vector2(-70f, -50f),
+                new Vector2(270f, 62f), PanelSoft, White, null, true);
             historyList = CreateRect("History Rows", root);
             SetCentered((RectTransform)historyList, new Vector2(1480f, 690f), new Vector2(0f, -30f));
             var layout = historyList.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -446,8 +499,8 @@ namespace Splice.UI
                 "<color=#A3B2C6>Defense reports unlock Replay and Revenge when verified.</color>",
                 25f, White, TextAlignmentOptions.TopLeft,
                 new Vector2(95f, -165f), new Vector2(850f, 390f), FontStyles.Normal);
-            CreateButton(card, "ENTER TOWN", new Vector2(270f, 48f), new Vector2(500f, 82f),
-                Lime, new Color(0.05f, 0.07f, 0.1f, 1f), CompleteOnboarding);
+            onboardingContinueButton = CreateButton(card, "ENTER TOWN", new Vector2(270f, 48f),
+                new Vector2(500f, 82f), Lime, new Color(0.05f, 0.07f, 0.1f, 1f), null);
         }
 
         private void SetPanelState(bool showRaid, bool showHistory)

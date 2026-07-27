@@ -8,6 +8,8 @@ using Unity.Netcode.Transports.UTP;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
 
 namespace Splice.Tests.EditMode
 {
@@ -76,6 +78,37 @@ namespace Splice.Tests.EditMode
             finally
             {
                 Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void BuildZone_MetaShellIsEditorAuthoredAndHasNoDuplicateRoot()
+        {
+            const string scenePath = "Assets/=======SCENES/BuildZone.unity";
+            var scene = SceneManager.GetSceneByPath(scenePath);
+            var openedForTest = !scene.IsValid() || !scene.isLoaded;
+            if (openedForTest) scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+
+            try
+            {
+                PrototypeMetaHubController controller = null;
+                var uiRootCount = 0;
+                foreach (var root in scene.GetRootGameObjects())
+                {
+                    if (root.name == "Prototype Meta UI") uiRootCount++;
+                    controller ??= root.GetComponentInChildren<PrototypeMetaHubController>(true);
+                }
+
+                Assert.That(controller, Is.Not.Null);
+                Assert.That(controller.HasEditorAuthoredUi, Is.True,
+                    "BuildZone must serialize the complete meta shell instead of creating it in Awake.");
+                Assert.That(controller.EditorUiRoot, Is.Not.Null);
+                Assert.That(controller.EditorUiRoot.scene, Is.EqualTo(scene));
+                Assert.That(uiRootCount, Is.EqualTo(1));
+            }
+            finally
+            {
+                if (openedForTest) EditorSceneManager.CloseScene(scene, true);
             }
         }
 
