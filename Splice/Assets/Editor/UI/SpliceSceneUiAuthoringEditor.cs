@@ -193,6 +193,12 @@ namespace Splice.Editor.UI
                 levelOne = new BaseLevelDefinition { level = 1 };
                 definition.levels.Add(levelOne);
             }
+            for (var index = definition.levels.Count - 1; index >= 0; index--)
+            {
+                var candidate = definition.levels[index];
+                if (candidate != null && candidate.level == 1 && candidate != levelOne)
+                    definition.levels.RemoveAt(index);
+            }
             levelOne.prefab = groundedPrefab;
             if (levelOne.maxHealth <= 0) levelOne.maxHealth = 7500;
             if (levelOne.defenseCapacity <= 0) levelOne.defenseCapacity = 100;

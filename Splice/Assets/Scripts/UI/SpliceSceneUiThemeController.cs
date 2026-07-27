@@ -424,9 +424,9 @@ namespace Splice.UI
                 tmp.color = foreground;
                 tmp.fontStyle = FontStyles.Bold;
                 tmp.fontSize = 22f;
-                tmp.enableAutoSizing = true;
-                tmp.fontSizeMin = 11f;
-                tmp.fontSizeMax = 22f;
+                // CanvasScaler handles cross-device scaling. TMP auto sizing serializes its
+                // last calculated font size, which dirties scenes when Mac/PC Game views differ.
+                tmp.enableAutoSizing = false;
                 tmp.enableWordWrapping = false;
                 tmp.overflowMode = TextOverflowModes.Ellipsis;
                 tmp.alignment = TextAlignmentOptions.Center;

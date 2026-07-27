@@ -2,6 +2,7 @@
 using NUnit.Framework;
 using Splice.Base;
 using Splice.Core;
+using Splice.Editor.Placement;
 using Splice.Input;
 using Splice.Data;
 using Splice.Placement;
@@ -166,6 +167,29 @@ namespace Splice.Tests.EditMode
             {
                 if (openedForTest) EditorSceneManager.CloseScene(scene, true);
             }
+        }
+
+        [Test]
+        public void NaturalBase_RawPrefabResolvesItsExistingWrapperAndHasOneLevelOne()
+        {
+            const string folder = "Assets/Prefabs/Natural/Constructor";
+            var raw = AssetDatabase.LoadAssetAtPath<GameObject>(
+                folder + "/nat-base-lv1-7500.prefab");
+            Assert.That(raw, Is.Not.Null);
+            var wrapper = GroundedPrefabAuthoringEditor.FindGroundedWrapperForSource(raw, folder);
+            Assert.That(wrapper, Is.Not.Null,
+                "The one-click authoring menu must reuse the canonical wrapper.");
+            Assert.That(AssetDatabase.GetAssetPath(wrapper),
+                Is.EqualTo(folder + "/NaturalBase_Lv1_Placeable.prefab"));
+
+            var definition = AssetDatabase.LoadAssetAtPath<BaseDefinitionSO>(
+                folder + "/Natural_TownBase.asset");
+            Assert.That(definition, Is.Not.Null);
+            var levelOneCount = 0;
+            foreach (var level in definition.levels)
+                if (level != null && level.level == 1) levelOneCount++;
+            Assert.That(levelOneCount, Is.EqualTo(1),
+                "A repeated editor bake or manual wrapper selection must not duplicate base level 1.");
         }
 
         [Test]

@@ -504,9 +504,9 @@ namespace Splice.Base
             statusLabel.fontSize = 25f;
             statusLabel.fontStyle = FontStyles.Bold;
             statusLabel.color = Color.white;
-            statusLabel.enableAutoSizing = true;
-            statusLabel.fontSizeMin = 16f;
-            statusLabel.fontSizeMax = 25f;
+            // CanvasScaler provides responsive sizing without TMP writing calculated sizes
+            // back into the scene whenever the Game view changes.
+            statusLabel.enableAutoSizing = false;
             statusLabel.raycastTarget = false;
             statusLabel.text = "INCOMING RAID STATUS PREVIEW";
             statusBanner.SetActive(true);

@@ -254,9 +254,8 @@ namespace Splice.Base
                 rect.sizeDelta = new Vector2(710f, 230f);
                 rect.localScale = Vector3.one;
                 confirmLabel.fontSize = 34f;
-                confirmLabel.enableAutoSizing = true;
-                confirmLabel.fontSizeMin = 18f;
-                confirmLabel.fontSizeMax = 34f;
+                // Keep the authored YAML deterministic across editor window resolutions.
+                confirmLabel.enableAutoSizing = false;
                 confirmLabel.alignment = TextAlignmentOptions.Center;
                 confirmLabel.color = new Color32(244, 248, 255, 255);
                 confirmLabel.raycastTarget = false;

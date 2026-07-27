@@ -30,6 +30,16 @@ namespace Splice.Editor.Placement
 
             var sourcePath = AssetDatabase.GetAssetPath(source);
             var folder = Path.GetDirectoryName(sourcePath)?.Replace('\\', '/') ?? "Assets";
+            var existing = FindGroundedWrapperForSource(source, folder);
+            if (existing != null)
+            {
+                Selection.activeObject = existing;
+                EditorGUIUtility.PingObject(existing);
+                EditorUtility.DisplayDialog("Splice Grounded Prefab",
+                    $"'{source.name}' already uses wrapper '{existing.name}'.\n\n" +
+                    "The existing wrapper was selected instead of creating a duplicate.", "OK");
+                return;
+            }
             var path = AssetDatabase.GenerateUniqueAssetPath(
                 $"{folder}/{source.name}_Placeable.prefab");
             var created = CreateGroundedWrapper(source, path, source.name + "_Placeable",
@@ -44,6 +54,28 @@ namespace Splice.Editor.Placement
             var source = Selection.activeObject as GameObject;
             return source != null &&
                    PrefabUtility.GetPrefabAssetType(source) != PrefabAssetType.NotAPrefab;
+        }
+
+        public static GameObject FindGroundedWrapperForSource(GameObject source, string folder)
+        {
+            if (source == null || string.IsNullOrWhiteSpace(folder)) return null;
+            var sourcePath = AssetDatabase.GetAssetPath(source);
+            if (string.IsNullOrWhiteSpace(sourcePath)) return null;
+
+            foreach (var guid in AssetDatabase.FindAssets("t:Prefab", new[] { folder }))
+            {
+                var candidatePath = AssetDatabase.GUIDToAssetPath(guid);
+                if (candidatePath == sourcePath) continue;
+                var candidate = AssetDatabase.LoadAssetAtPath<GameObject>(candidatePath);
+                var profile = candidate != null
+                    ? candidate.GetComponent<GroundPlacementProfile>()
+                    : null;
+                if (profile == null || profile.VisualRoot == null) continue;
+
+                foreach (var dependency in AssetDatabase.GetDependencies(candidatePath, true))
+                    if (dependency == sourcePath) return candidate;
+            }
+            return null;
         }
 
         public static GameObject EnsureGroundedWrapper(GameObject source, string assetPath,
