@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: Natural Town Core
   levels:
   - level: 1
-    prefab: {fileID: 2978211033196941333, guid: bf64ceedbd03945be9808a00f2ba6a63, type: 3}
+    prefab: {fileID: 4053652882196427703, guid: bf64ceedbd03945be9808a00f2ba6a63, type: 3}
     maxHealth: 7500
     defenseCapacity: 100
     powerRating: 100
