@@ -215,8 +215,123 @@ namespace Splice.Tests.EditMode
 
             var levelTwoWrapper =
                 GroundedPrefabAuthoringEditor.FindGroundedWrapperForSource(levelTwo, folder);
-            Assert.That(levelTwoWrapper, Is.Null,
+            Assert.That(levelTwoWrapper, Is.Not.Null);
+            Assert.That(levelTwoWrapper, Is.Not.SameAs(levelOneWrapper),
                 "A level-1 wrapper must not match level 2 through TowerDefinition.nextTier.");
+            Assert.That(AssetDatabase.GetAssetPath(levelTwoWrapper),
+                Is.EqualTo(folder + "/nat-tw1-lv2-2700_Placeable.prefab"));
+            var levelTwoProfile = levelTwoWrapper.GetComponent<GroundPlacementProfile>();
+            Assert.That(levelTwoProfile.SourceAssetGuid,
+                Is.EqualTo(AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(levelTwo))));
+        }
+
+        [Test]
+        public void GameplayWrapper_SupportsNestedCharacterVisualWithoutRootMeshRenderer()
+        {
+            const string folder = "Assets/__SpliceCharacterGroundingTest";
+            const string visualPath = folder + "/NestedVisual.prefab";
+            const string sourcePath = folder + "/CharacterSource.prefab";
+            const string wrapperPath = folder + "/CharacterSource_Placeable.prefab";
+            AssetDatabase.DeleteAsset(folder);
+            AssetDatabase.CreateFolder("Assets", "__SpliceCharacterGroundingTest");
+
+            try
+            {
+                var visualRoot = new GameObject("NestedVisual");
+                var mesh = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                mesh.name = "SkinnedVisualStandIn";
+                mesh.transform.SetParent(visualRoot.transform, false);
+                mesh.transform.localPosition = new Vector3(0f, 1.25f, 0f);
+                var visualPrefab = PrefabUtility.SaveAsPrefabAsset(visualRoot, visualPath);
+                Object.DestroyImmediate(visualRoot);
+                Assert.That(visualPrefab, Is.Not.Null);
+
+                var nestedSource = PrefabUtility.InstantiatePrefab(visualPrefab) as GameObject;
+                Assert.That(nestedSource, Is.Not.Null);
+                nestedSource.name = "CharacterSource";
+                nestedSource.transform.localPosition = new Vector3(-41.55f, .5172f, -16.52f);
+                nestedSource.transform.localRotation = Quaternion.Euler(0f, 178.285f, 0f);
+                nestedSource.transform.localScale = Vector3.one * .2f;
+                nestedSource.AddComponent<Unity.Netcode.NetworkObject>();
+                var source = PrefabUtility.SaveAsPrefabAsset(nestedSource, sourcePath);
+                Object.DestroyImmediate(nestedSource);
+                Assert.That(source, Is.Not.Null);
+                Assert.That(PrefabUtility.GetPrefabAssetType(source),
+                    Is.EqualTo(PrefabAssetType.Variant));
+
+                var wrapper = GroundedPrefabAuthoringEditor.RebuildGroundedGameplayPrefab(
+                    source, wrapperPath, 2f, replaceNetworkPrefabReferences: false);
+                Assert.That(wrapper, Is.Not.Null);
+                Assert.That(wrapper.GetComponent<Unity.Netcode.NetworkObject>(), Is.Not.Null);
+                Assert.That(wrapper.transform.localPosition, Is.EqualTo(Vector3.zero));
+                Assert.That(wrapper.transform.localRotation, Is.EqualTo(Quaternion.identity));
+                Assert.That(wrapper.transform.localScale, Is.EqualTo(Vector3.one));
+
+                var profile = wrapper.GetComponent<GroundPlacementProfile>();
+                Assert.That(profile, Is.Not.Null);
+                Assert.That(profile.IsComplete, Is.True);
+                Assert.That(profile.SourceAssetGuid,
+                    Is.EqualTo(AssetDatabase.AssetPathToGUID(sourcePath)));
+                Assert.That(profile.VisualRoot.GetComponentInChildren<Renderer>(true), Is.Not.Null);
+                Assert.That(profile.TryGetRendererBounds(out var bounds), Is.True);
+                Assert.That(Mathf.Max(bounds.size.x, bounds.size.z), Is.EqualTo(2f).Within(.05f));
+                Assert.That(bounds.min.y, Is.EqualTo(0f).Within(.05f));
+            }
+            finally
+            {
+                RemoveTemporaryNetworkPrefabEntries(folder);
+                AssetDatabase.DeleteAsset(folder);
+            }
+        }
+
+        [Test]
+        public void GroundedGameplayPrefab_ReconcilesDuplicateNetworkPrefabEntries()
+        {
+            var list = ScriptableObject.CreateInstance<Unity.Netcode.NetworkPrefabsList>();
+            var source = new GameObject("Raw", typeof(Unity.Netcode.NetworkObject));
+            var replacement = new GameObject("Placeable", typeof(Unity.Netcode.NetworkObject));
+            try
+            {
+                list.Add(new Unity.Netcode.NetworkPrefab { Prefab = source });
+                list.Add(new Unity.Netcode.NetworkPrefab { Prefab = replacement });
+                list.Add(new Unity.Netcode.NetworkPrefab { Prefab = replacement });
+
+                Assert.That(GroundedPrefabAuthoringEditor.ReconcileNetworkPrefabsList(
+                    list, source, replacement), Is.True);
+                Assert.That(list.PrefabList, Has.Count.EqualTo(1));
+                Assert.That(list.PrefabList[0].Prefab, Is.SameAs(replacement));
+            }
+            finally
+            {
+                Object.DestroyImmediate(source);
+                Object.DestroyImmediate(replacement);
+                Object.DestroyImmediate(list);
+            }
+        }
+
+        private static void RemoveTemporaryNetworkPrefabEntries(string folder)
+        {
+            foreach (var guid in AssetDatabase.FindAssets("t:NetworkPrefabsList"))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var list = AssetDatabase.LoadAssetAtPath<Unity.Netcode.NetworkPrefabsList>(path);
+                if (list == null) continue;
+                var entries = new System.Collections.Generic.List<Unity.Netcode.NetworkPrefab>(
+                    list.PrefabList);
+                var changed = false;
+                foreach (var entry in entries)
+                {
+                    if (entry == null || entry.Prefab == null) continue;
+                    var prefabPath = AssetDatabase.GetAssetPath(entry.Prefab);
+                    if (!prefabPath.StartsWith(folder + "/", System.StringComparison.Ordinal))
+                        continue;
+                    list.Remove(entry);
+                    changed = true;
+                }
+                if (!changed) continue;
+                EditorUtility.SetDirty(list);
+            }
+            AssetDatabase.SaveAssets();
         }
 
         [Test]

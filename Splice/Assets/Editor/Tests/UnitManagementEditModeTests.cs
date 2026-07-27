@@ -57,12 +57,18 @@ namespace Splice.Tests.EditMode
             var tower3 = AssetDatabase.LoadAssetAtPath<TowerDefinitionSO>(
                 "Assets/Prefabs/Natural/Tower/Nat-tw1-lv3-SO.asset");
             var raptor1 = AssetDatabase.LoadAssetAtPath<MonsterDefinitionSO>(
-                "Assets/Prefabs/Natural/Charactor/1_SO_raptor_lv1.asset");
+                "Assets/Prefabs/Natural/Charactor/SO/1_SO_raptor_lv1.asset");
             var raptor2 = AssetDatabase.LoadAssetAtPath<MonsterDefinitionSO>(
-                "Assets/Prefabs/Natural/Charactor/1_SO_raptor_lv2.asset");
+                "Assets/Prefabs/Natural/Charactor/SO/1_SO_raptor_lv2.asset");
             var raptor3 = AssetDatabase.LoadAssetAtPath<MonsterDefinitionSO>(
-                "Assets/Prefabs/Natural/Charactor/1_SO_raptor_lv3.asset");
+                "Assets/Prefabs/Natural/Charactor/SO/1_SO_raptor_lv3.asset");
 
+            Assert.That(tower1, Is.Not.Null);
+            Assert.That(tower2, Is.Not.Null);
+            Assert.That(tower3, Is.Not.Null);
+            Assert.That(raptor1, Is.Not.Null);
+            Assert.That(raptor2, Is.Not.Null);
+            Assert.That(raptor3, Is.Not.Null);
             Assert.That(tower1.nextTier, Is.SameAs(tower2));
             Assert.That(tower2.nextTier, Is.SameAs(tower3));
             Assert.That(tower3.nextTier, Is.Null);

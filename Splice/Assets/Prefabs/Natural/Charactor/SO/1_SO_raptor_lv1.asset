@@ -21,11 +21,15 @@ MonoBehaviour:
   moveSpeed: 5
   role: 0
   spell: {fileID: 0}
+  projectile: {fileID: 0}
   footprint: 2
   defenseCapacityCost: 1
   injuredMoveSpeed: 2
   waypointArriveRadius: 0.15
+  laneOffsetRange: 0.8
+  speedVariancePercent: 0.1
   fortHoldDistance: 1.5
+  roadsideEngageSeconds: 4
   injuredHealthFraction: 0.3
   turnSpeedDegPerSec: 250
   separationRadius: 1
@@ -33,6 +37,8 @@ MonoBehaviour:
   settleDeadzone: 0.02
   attackDurationSeconds: 0.6
   deathAnimSeconds: 1.5
+  landingSeconds: 0
+  spellCastSeconds: 0.8
   movement: 0
   flightHeight: 1
   buildTimeSeconds: 0.5
@@ -40,4 +46,4 @@ MonoBehaviour:
   nextTier: {fileID: 11400000, guid: d9f4de87a1aacdf40ae6248a6afaddfb, type: 2}
   upgradeCost: 6
   icon: {fileID: 0}
-  prefab: {fileID: 7114109506353519949, guid: bc2988788de61844193b61ddcce19003, type: 3}
+  prefab: {fileID: 5014654586745255708, guid: 79b17dc8cf0554c038816393a963b09d, type: 3}

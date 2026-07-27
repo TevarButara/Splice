@@ -152,7 +152,8 @@ namespace Splice.Editor.Placement
         }
 
         public static GameObject RebuildGroundedGameplayPrefab(GameObject source,
-            string assetPath, float targetWorldFootprint)
+            string assetPath, float targetWorldFootprint,
+            bool replaceNetworkPrefabReferences = true)
         {
             if (source == null) throw new System.ArgumentNullException(nameof(source));
             var sourcePath = AssetDatabase.GetAssetPath(source);
@@ -165,6 +166,14 @@ namespace Splice.Editor.Placement
             var root = PrefabUtility.LoadPrefabContents(sourcePath);
             try
             {
+                // Character prefabs are commonly authored as a prefab/model instance root with
+                // NetworkObject + NetworkBehaviour overrides. Its children cannot be reparented
+                // until that outermost instance is unpacked. This only affects the new _Placeable
+                // asset; the selected source prefab remains untouched.
+                if (PrefabUtility.IsAnyPrefabInstanceRoot(root))
+                    PrefabUtility.UnpackPrefabInstance(root, PrefabUnpackMode.OutermostRoot,
+                        InteractionMode.AutomatedAction);
+
                 var rootTransform = root.transform;
                 var oldPosition = rootTransform.localPosition;
                 var oldRotation = rootTransform.localRotation;
@@ -175,10 +184,10 @@ namespace Splice.Editor.Placement
 
                 var rootFilter = root.GetComponent<MeshFilter>();
                 var rootRenderer = root.GetComponent<MeshRenderer>();
-                if (rootFilter == null || rootRenderer == null)
+                if ((rootFilter == null) != (rootRenderer == null))
                     throw new MissingComponentException(
-                        $"Gameplay prefab '{source.name}' currently requires MeshFilter and " +
-                        "MeshRenderer on its root for canonical conversion.");
+                        $"Gameplay prefab '{source.name}' has only one of MeshFilter/MeshRenderer " +
+                        "on its root. Keep the pair together before canonical conversion.");
 
                 rootTransform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
                 rootTransform.localScale = Vector3.one;
@@ -189,12 +198,17 @@ namespace Splice.Editor.Placement
                 visualRoot.localPosition = oldPosition;
                 visualRoot.localRotation = oldRotation;
                 visualRoot.localScale = oldScale;
-                var visualFilter = visualRoot.gameObject.AddComponent<MeshFilter>();
-                EditorUtility.CopySerialized(rootFilter, visualFilter);
-                var visualRenderer = visualRoot.gameObject.AddComponent<MeshRenderer>();
-                EditorUtility.CopySerialized(rootRenderer, visualRenderer);
-                Object.DestroyImmediate(rootRenderer);
-                Object.DestroyImmediate(rootFilter);
+                if (rootFilter != null)
+                {
+                    // Static meshes such as towers keep their root mesh, while skinned characters
+                    // usually have all renderers below the root and only need their children moved.
+                    var visualFilter = visualRoot.gameObject.AddComponent<MeshFilter>();
+                    EditorUtility.CopySerialized(rootFilter, visualFilter);
+                    var visualRenderer = visualRoot.gameObject.AddComponent<MeshRenderer>();
+                    EditorUtility.CopySerialized(rootRenderer, visualRenderer);
+                    Object.DestroyImmediate(rootRenderer);
+                    Object.DestroyImmediate(rootFilter);
+                }
                 foreach (var child in children) child.SetParent(visualRoot, false);
 
                 var groundAnchor = CreateAnchor("GroundAnchor", rootTransform, Vector3.zero);
@@ -222,7 +236,8 @@ namespace Splice.Editor.Placement
 
             AssetDatabase.SaveAssets();
             var result = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
-            ReplaceNetworkPrefabReferences(sourcePath, assetPath, result);
+            if (replaceNetworkPrefabReferences)
+                ReplaceNetworkPrefabReferences(sourcePath, assetPath, result);
             return result;
         }
 
@@ -384,27 +399,66 @@ namespace Splice.Editor.Placement
             foreach (var guid in AssetDatabase.FindAssets("t:NetworkPrefabsList"))
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
-                var asset = AssetDatabase.LoadMainAssetAtPath(path);
-                if (asset == null) continue;
-                var serialized = new SerializedObject(asset);
-                var property = serialized.GetIterator();
-                var enterChildren = true;
-                var changed = false;
-                while (property.Next(enterChildren))
-                {
-                    enterChildren = false;
-                    if (property.propertyType != SerializedPropertyType.ObjectReference ||
-                        property.objectReferenceValue == null) continue;
-                    var referencedPath = AssetDatabase.GetAssetPath(property.objectReferenceValue);
-                    if (referencedPath != sourcePath && referencedPath != targetPath) continue;
-                    property.objectReferenceValue = replacement;
-                    changed = true;
-                }
-                if (!changed) continue;
-                serialized.ApplyModifiedPropertiesWithoutUndo();
-                EditorUtility.SetDirty(asset);
+                var list = AssetDatabase.LoadAssetAtPath<Unity.Netcode.NetworkPrefabsList>(path);
+                if (list == null) continue;
+                var source = AssetDatabase.LoadAssetAtPath<GameObject>(sourcePath);
+                if (!ReconcileNetworkPrefabsList(list, source, replacement)) continue;
+                EditorUtility.SetDirty(list);
             }
             AssetDatabase.SaveAssets();
+        }
+
+        public static bool ReconcileNetworkPrefabsList(
+            Unity.Netcode.NetworkPrefabsList list,
+            GameObject source,
+            GameObject replacement)
+        {
+            if (list == null || replacement == null) return false;
+
+            var entries = new System.Collections.Generic.List<Unity.Netcode.NetworkPrefab>(
+                list.PrefabList);
+            var changed = false;
+            var keptDirectReplacement = false;
+            foreach (var entry in entries)
+            {
+                if (entry == null) continue;
+                if (entry.Override == Unity.Netcode.NetworkPrefabOverride.None &&
+                    (entry.Prefab == source || entry.Prefab == replacement))
+                {
+                    if (!keptDirectReplacement)
+                    {
+                        keptDirectReplacement = true;
+                        if (entry.Prefab != replacement)
+                        {
+                            entry.Prefab = replacement;
+                            changed = true;
+                        }
+                    }
+                    else
+                    {
+                        list.Remove(entry);
+                        changed = true;
+                    }
+                    continue;
+                }
+
+                if (entry.Prefab == source)
+                {
+                    entry.Prefab = replacement;
+                    changed = true;
+                }
+                if (entry.SourcePrefabToOverride == source)
+                {
+                    entry.SourcePrefabToOverride = replacement;
+                    changed = true;
+                }
+                if (entry.OverridingTargetPrefab == source)
+                {
+                    entry.OverridingTargetPrefab = replacement;
+                    changed = true;
+                }
+            }
+            return changed;
         }
 
         private static float MeasurePrefabWorldFootprint(GameObject prefab)
