@@ -17,16 +17,27 @@ namespace Splice.UI
         [Tooltip("โชว์ loot ที่ได้จากการบุก (5.4) — เว้นว่างได้")]
         [SerializeField] private TMP_Text lootLabel;
         [SerializeField] private Button playAgainButton;
-        private Button returnToTownButton;
+        [SerializeField] private Button returnToTownButton;
 
         private RaidOutcome shownOutcome = RaidOutcome.InProgress;
         private RaidEndReason shownReason = RaidEndReason.None;
+        public bool HasEditorAuthoredReturnButton => returnToTownButton != null;
+        public Button ReturnToTownButton => returnToTownButton;
+        public bool CanAuthorEditorUi => resultPanel != null && playAgainButton != null;
 
         private void Awake()
         {
             if (resultPanel != null) resultPanel.SetActive(false);
             if (playAgainButton != null) playAgainButton.onClick.AddListener(ReloadScene);
-            BuildReturnToTownButton();
+            if (returnToTownButton != null)
+            {
+                returnToTownButton.onClick.RemoveListener(ReturnToTown);
+                returnToTownButton.onClick.AddListener(ReturnToTown);
+            }
+            else if (enabled)
+                Debug.LogError(
+                    "[RaidResultUI] Return button is not serialized. Use Splice > UI > Bake All Scene UI in Edit Mode.",
+                    this);
         }
 
         private void OnEnable()
@@ -112,13 +123,21 @@ namespace Splice.UI
 
         private void ReturnToTown() => PrototypeFlowRouter.LoadHub();
 
-        private void BuildReturnToTownButton()
+        // Called by the Editor baker only. Runtime must never clone or move buttons.
+        public void RebuildEditorReturnButton()
         {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("[RaidResultUI] Result UI can only be rebuilt in Edit Mode.", this);
+                return;
+            }
             if (playAgainButton == null || resultPanel == null) return;
-            returnToTownButton = Instantiate(playAgainButton, playAgainButton.transform.parent);
-            returnToTownButton.name = "ReturnToTownButton";
+            if (returnToTownButton == null)
+            {
+                returnToTownButton = Instantiate(playAgainButton, playAgainButton.transform.parent);
+                returnToTownButton.name = "ReturnToTownButton";
+            }
             returnToTownButton.onClick.RemoveAllListeners();
-            returnToTownButton.onClick.AddListener(ReturnToTown);
             var returnLabel = returnToTownButton.GetComponentInChildren<TMP_Text>(true);
             if (returnLabel != null) returnLabel.text = "RETURN TO TOWN";
             var legacyReturnLabel = returnToTownButton.GetComponentInChildren<Text>(true);

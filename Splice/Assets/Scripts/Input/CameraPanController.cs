@@ -113,6 +113,21 @@ namespace Splice.Input
             TickHeroFollow(immediate: true);
         }
 
+        // BuildZone entry hook: move the authored camera without changing its angle/zoom so the supplied
+        // world point is exactly at viewport center. Optionally make that position the new Home location.
+        public void CenterOnWorldPoint(Vector3 worldPoint, bool rememberAsHome)
+        {
+            if (Cam == null || !TryGetViewCenterAtHeight(worldPoint.y, out var currentCenter)) return;
+            var offset = worldPoint - currentCenter;
+            var desired = ClampPanPosition(transform.position + new Vector3(offset.x, 0f, offset.z));
+            transform.position = desired;
+            focusPoint = worldPoint;
+            hasFocus = true;
+            returningHome = false;
+            heroFollowSuspendedUntil = Time.unscaledTime + heroFollowResumeDelay;
+            if (rememberAsHome) homePosition = desired;
+        }
+
         // Defender spectator mode watches the town rather than centering the locally-owned simulated attacker.
         public void SetHeroFollowEnabled(bool enabled)
         {

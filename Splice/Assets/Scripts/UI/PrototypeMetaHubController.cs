@@ -15,8 +15,8 @@ namespace Splice.UI
     /// <summary>
     /// Prototype meta shell for BuildZone. Town editing remains the 3D background while Raid and
     /// Defense History are focused overlays. The static shell is serialized in BuildZone so designers
-    /// can see and move every RectTransform in Edit Mode. The three target cards are reusable serialized
-    /// views; only defense-history rows and transient empty/error states are instantiated at runtime.
+    /// can see and move every RectTransform in Edit Mode. Runtime only binds data and visibility to
+    /// reusable serialized views; it never creates or repositions UI.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class PrototypeMetaHubController : MonoBehaviour
@@ -42,7 +42,10 @@ namespace Splice.UI
         [SerializeField] private GameObject onboardingPanel;
         [SerializeField] private Transform targetList;
         [SerializeField] private PrototypeRaidTargetCardView[] targetCards;
+        [SerializeField] private PrototypeListStateView raidListState;
         [SerializeField] private Transform historyList;
+        [SerializeField] private PrototypeDefenseHistoryRowView[] historyRows;
+        [SerializeField] private PrototypeListStateView historyListState;
         [SerializeField] private TMP_Text sectionTitle;
         [SerializeField] private TMP_Text statusText;
         [SerializeField] private TMP_Text walletText;
@@ -52,6 +55,7 @@ namespace Splice.UI
         [SerializeField] private Button refreshTargetsButton;
         [SerializeField] private Button refreshHistoryButton;
         [SerializeField] private Button onboardingContinueButton;
+        [SerializeField] private PlayerTownBaseController townBaseController;
 
         private RaidTargetProvider targetProvider;
         private RaidHistoryController historyController;
@@ -64,7 +68,10 @@ namespace Splice.UI
             editorUiRoot != null && contentBackdrop != null && raidPanel != null &&
             historyPanel != null && onboardingPanel != null && targetList != null &&
             targetCards is { Length: 3 } && Array.TrueForAll(targetCards, card => card != null && card.IsComplete) &&
+            raidListState != null && raidListState.IsComplete &&
             historyList != null && sectionTitle != null && statusText != null &&
+            historyRows is { Length: 4 } && Array.TrueForAll(historyRows, row => row != null && row.IsComplete) &&
+            historyListState != null && historyListState.IsComplete &&
             walletText != null && townTab != null && raidTab != null && historyTab != null &&
             refreshTargetsButton != null && refreshHistoryButton != null &&
             onboardingContinueButton != null;
@@ -73,11 +80,16 @@ namespace Splice.UI
         public bool IsHistoryPanelVisible => historyPanel != null && historyPanel.activeSelf;
         public bool IsOnboardingVisible => onboardingPanel != null && onboardingPanel.activeSelf;
         public int EditorAuthoredTargetCardCount => targetCards?.Length ?? 0;
+        public int EditorAuthoredHistoryRowCount => historyRows?.Length ?? 0;
+
+        public void ConfigureTownBaseController(PlayerTownBaseController value) =>
+            townBaseController = value;
 
         private void Awake()
         {
             lifetimeCancellation = new CancellationTokenSource();
             if (buildManager == null) buildManager = FindFirstObjectByType<BaseBuildManager>();
+            if (townBaseController == null) townBaseController = FindFirstObjectByType<PlayerTownBaseController>();
             EnsureActiveFaction();
             targetProvider = GetComponent<RaidTargetProvider>();
             if (targetProvider == null) targetProvider = gameObject.AddComponent<RaidTargetProvider>();
@@ -119,6 +131,7 @@ namespace Splice.UI
         public void ShowTown()
         {
             SetPanelState(false, false);
+            townBaseController?.FocusTownBase();
             if (sectionTitle != null) sectionTitle.text = "TOWN COMMAND";
             if (statusText != null)
                 statusText.text = "Build defenses • Checkout the draft • Review & deploy an immutable snapshot";
@@ -194,7 +207,7 @@ namespace Splice.UI
             if (refreshingTargets || targetProvider == null || lifetimeCancellation == null) return;
             refreshingTargets = true;
             SetStatus("SCANNING THE WORLD FOR RAIDABLE TOWNS…", Muted);
-            ClearTargetRuntimeState();
+            ResetTargetPresentation();
             try
             {
                 var targets = await targetProvider.GenerateTargetsAsync(lifetimeCancellation.Token);
@@ -208,7 +221,8 @@ namespace Splice.UI
             catch (Exception exception)
             {
                 SetStatus("TARGET SERVICE UNAVAILABLE • " + exception.Message.ToUpperInvariant(), Coral);
-                RenderRetry(targetList, ShowRaid);
+                raidListState?.Show("COULD NOT LOAD", exception.Message, Coral,
+                    "TRY AGAIN", ShowRaid, true);
             }
             finally
             {
@@ -221,7 +235,7 @@ namespace Splice.UI
             if (refreshingHistory || historyController == null || lifetimeCancellation == null) return;
             refreshingHistory = true;
             SetStatus("LOADING VERIFIED DEFENSE REPORTS…", Muted);
-            ClearChildren(historyList);
+            ResetHistoryPresentation();
             try
             {
                 await historyController.RefreshAsync();
@@ -238,7 +252,8 @@ namespace Splice.UI
             catch (Exception exception)
             {
                 SetStatus("HISTORY SERVICE UNAVAILABLE • " + exception.Message.ToUpperInvariant(), Coral);
-                RenderRetry(historyList, ShowHistory);
+                historyListState?.Show("COULD NOT LOAD", exception.Message, Coral,
+                    "TRY AGAIN", ShowHistory, true);
             }
             finally
             {
@@ -259,7 +274,10 @@ namespace Splice.UI
             }
             for (var index = shown; index < targetCards.Length; index++)
                 if (targetCards[index] != null) targetCards[index].gameObject.SetActive(false);
-            if (shown == 0) RenderEmpty(targetList, "NO RAIDABLE TOWNS", "Refresh the target pool or switch to local services.");
+            if (shown == 0)
+                raidListState?.Show("NO RAIDABLE TOWNS",
+                    "Refresh the target pool or switch to local services.", White,
+                    "REFRESH TARGETS", ShowRaid, true);
         }
 
         private void StartRaid(int index)
@@ -281,37 +299,32 @@ namespace Splice.UI
 
         private void RenderHistory(IReadOnlyList<RaidDefenseHistoryItemDto> items)
         {
-            if (historyList == null) return;
-            var shown = Mathf.Min(4, items?.Count ?? 0);
+            if (historyRows == null) return;
+            var shown = Mathf.Min(historyRows.Length, items?.Count ?? 0);
             for (var index = 0; index < shown; index++)
             {
                 var item = items[index];
-                var row = CreatePanel($"Defense Report {index + 1}", historyList, Panel,
-                    new Vector2(1480f, 155f));
                 var held = item.outcome != "FULL_VICTORY" && item.outcome != "EXTRACTED";
-                CreateText(row, held ? "DEFENSE HELD" : "TOWN BREACHED", 25f,
-                    held ? Lime : Coral, TextAlignmentOptions.TopLeft,
-                    new Vector2(30f, -24f), new Vector2(275f, 38f), FontStyles.Bold);
-                CreateText(row,
+                var captured = index;
+                historyRows[index].Configure(
+                    held ? "DEFENSE HELD" : "TOWN BREACHED",
                     $"{ShortName(item.attackerDisplayName)}  •  {item.outcome}\n" +
                     $"{FormatUtc(item.completedUtc)}  •  Rings {item.breachedRings}  •  " +
                     $"War Gems {Signed(item.defenderWarGemDelta)}",
-                    19f, White, TextAlignmentOptions.TopLeft,
-                    new Vector2(320f, -25f), new Vector2(650f, 88f), FontStyles.Normal);
-                var captured = index;
-                var replay = CreateButton(row, item.replayAvailable ? "PLAY REPLAY" : "REPLAY UNAVAILABLE",
-                    new Vector2(1010f, 39f), new Vector2(205f, 66f),
-                    item.replayAvailable ? Cyan : PanelSoft, item.replayAvailable ? White : Muted,
-                    () => PlayReplay(captured));
-                replay.interactable = item.replayAvailable;
-                var revenge = CreateButton(row, item.revengeAvailable ? "REVENGE" : item.revengeState,
-                    new Vector2(1230f, 39f), new Vector2(220f, 66f),
-                    item.revengeAvailable ? Coral : PanelSoft, item.revengeAvailable ? White : Muted,
+                    held ? Lime : Coral,
+                    item.replayAvailable,
+                    item.replayAvailable ? "PLAY REPLAY" : "REPLAY UNAVAILABLE",
+                    () => PlayReplay(captured),
+                    item.revengeAvailable,
+                    item.revengeAvailable ? "REVENGE" : item.revengeState,
                     () => _ = StartRevengeAsync(captured));
-                revenge.interactable = item.revengeAvailable;
             }
-            if (shown == 0) RenderEmpty(historyList, "YOUR TOWN HAS NOT BEEN RAIDED",
-                "Deploy a snapshot, then use the incoming-defense route to generate a verified report.");
+            for (var index = shown; index < historyRows.Length; index++)
+                if (historyRows[index] != null) historyRows[index].gameObject.SetActive(false);
+            if (shown == 0)
+                historyListState?.Show("YOUR TOWN HAS NOT BEEN RAIDED",
+                    "Deploy a snapshot, then use the incoming-defense route to generate a verified report.",
+                    White, "REFRESH REPORTS", ShowHistory, true);
         }
 
         private void PlayReplay(int index)
@@ -447,6 +460,7 @@ namespace Splice.UI
             targetCards = new PrototypeRaidTargetCardView[3];
             for (var index = 0; index < targetCards.Length; index++)
                 targetCards[index] = BuildTargetCard(targetList, index + 1);
+            raidListState = BuildListState(root, "Raid List State");
         }
 
         private static PrototypeRaidTargetCardView BuildTargetCard(Transform parent, int index)
@@ -492,6 +506,76 @@ namespace Splice.UI
             layout.childControlHeight = false;
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
+            historyRows = new PrototypeDefenseHistoryRowView[4];
+            for (var index = 0; index < historyRows.Length; index++)
+                historyRows[index] = BuildHistoryRow(historyList, index + 1);
+            historyListState = BuildListState(root, "History List State");
+        }
+
+        public void EnsureEditorDynamicViews()
+        {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("[PrototypeHub] Dynamic views can only be authored in Edit Mode.", this);
+                return;
+            }
+
+            if (raidListState == null && raidPanel != null)
+                raidListState = BuildListState(raidPanel.transform, "Raid List State");
+
+            var validHistoryRows = historyRows is { Length: 4 } &&
+                Array.TrueForAll(historyRows, row => row != null && row.IsComplete);
+            if (!validHistoryRows && historyList != null)
+            {
+                foreach (var stale in historyList.GetComponentsInChildren<PrototypeDefenseHistoryRowView>(true))
+                    DestroyImmediate(stale.gameObject);
+                historyRows = new PrototypeDefenseHistoryRowView[4];
+                for (var index = 0; index < historyRows.Length; index++)
+                    historyRows[index] = BuildHistoryRow(historyList, index + 1);
+            }
+
+            if (historyListState == null && historyPanel != null)
+                historyListState = BuildListState(historyPanel.transform, "History List State");
+
+            raidListState?.Hide();
+            historyListState?.Hide();
+        }
+
+        private static PrototypeDefenseHistoryRowView BuildHistoryRow(Transform parent, int index)
+        {
+            var row = CreatePanel($"Defense Report {index}", parent, Panel, new Vector2(1480f, 155f));
+            var outcome = CreateText(row, "DEFENSE HELD", 25f, Lime, TextAlignmentOptions.TopLeft,
+                new Vector2(30f, -24f), new Vector2(275f, 38f), FontStyles.Bold);
+            var details = CreateText(row, "RAIDER • OUTCOME\nTIME • Rings 0 • War Gems +0",
+                19f, White, TextAlignmentOptions.TopLeft,
+                new Vector2(320f, -25f), new Vector2(650f, 88f), FontStyles.Normal);
+            var replay = CreateButton(row, "PLAY REPLAY", new Vector2(1010f, 39f),
+                new Vector2(205f, 66f), Cyan, White, null);
+            var revenge = CreateButton(row, "REVENGE", new Vector2(1230f, 39f),
+                new Vector2(220f, 66f), Coral, White, null);
+            var view = row.gameObject.AddComponent<PrototypeDefenseHistoryRowView>();
+            view.InitializeEditorReferences(outcome, details, replay,
+                replay.GetComponentInChildren<TMP_Text>(true), revenge,
+                revenge.GetComponentInChildren<TMP_Text>(true));
+            return view;
+        }
+
+        private static PrototypeListStateView BuildListState(Transform parent, string name)
+        {
+            var card = CreatePanel(name, parent, Panel, new Vector2(900f, 300f));
+            SetCentered(card, new Vector2(900f, 300f), new Vector2(0f, -20f));
+            var title = CreateText(card, "LIST STATE", 30f, White, TextAlignmentOptions.Center,
+                new Vector2(40f, -50f), new Vector2(820f, 50f), FontStyles.Bold);
+            var body = CreateText(card, "Designer-authored empty and error state.", 20f, Muted,
+                TextAlignmentOptions.Center, new Vector2(80f, -112f),
+                new Vector2(740f, 70f), FontStyles.Normal);
+            var action = CreateButton(card, "TRY AGAIN", new Vector2(250f, 35f),
+                new Vector2(400f, 68f), Coral, White, null);
+            var view = card.gameObject.AddComponent<PrototypeListStateView>();
+            view.InitializeEditorReferences(title, body, action,
+                action.GetComponentInChildren<TMP_Text>(true));
+            view.Hide();
+            return view;
         }
 
         private void BuildOnboarding(Transform root)
@@ -549,46 +633,20 @@ namespace Splice.UI
             if (label != null) label.color = selected ? new Color(.04f, .055f, .075f, 1f) : White;
         }
 
-        private static void RenderEmpty(Transform parent, string title, string body)
+        private void ResetTargetPresentation()
         {
-            var card = CreatePanel("Empty State", parent, Panel, new Vector2(900f, 300f));
-            CreateText(card, title, 30f, White, TextAlignmentOptions.Center,
-                new Vector2(40f, -65f), new Vector2(820f, 50f), FontStyles.Bold);
-            CreateText(card, body, 20f, Muted, TextAlignmentOptions.Center,
-                new Vector2(80f, -135f), new Vector2(740f, 90f), FontStyles.Normal);
+            if (targetCards != null)
+                foreach (var card in targetCards)
+                    if (card != null) card.gameObject.SetActive(false);
+            raidListState?.Hide();
         }
 
-        private static void RenderRetry(Transform parent, Action retry)
+        private void ResetHistoryPresentation()
         {
-            if (parent == null) return;
-            var card = CreatePanel("Retry State", parent, Panel, new Vector2(720f, 280f));
-            CreateText(card, "COULD NOT LOAD", 28f, Coral, TextAlignmentOptions.Center,
-                new Vector2(40f, -45f), new Vector2(640f, 55f), FontStyles.Bold);
-            CreateButton(card, "TRY AGAIN", new Vector2(160f, 40f), new Vector2(400f, 72f),
-                Coral, White, retry);
-        }
-
-        private static void ClearChildren(Transform parent)
-        {
-            if (parent == null) return;
-            for (var index = parent.childCount - 1; index >= 0; index--)
-                Destroy(parent.GetChild(index).gameObject);
-        }
-
-        private void ClearTargetRuntimeState()
-        {
-            if (targetList == null) return;
-            for (var index = targetList.childCount - 1; index >= 0; index--)
-            {
-                var child = targetList.GetChild(index);
-                var card = child.GetComponent<PrototypeRaidTargetCardView>();
-                if (card != null)
-                {
-                    card.gameObject.SetActive(false);
-                    continue;
-                }
-                Destroy(child.gameObject);
-            }
+            if (historyRows != null)
+                foreach (var row in historyRows)
+                    if (row != null) row.gameObject.SetActive(false);
+            historyListState?.Hide();
         }
 
         private static string ShortName(string value)

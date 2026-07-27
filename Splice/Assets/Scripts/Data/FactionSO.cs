@@ -16,6 +16,8 @@ namespace Splice.Data
         public FactionFamily family;
         public Sprite icon;
         public Color color = Color.white;
+        [Tooltip("ฐานหลักของเมือง แยก prefab และค่าสเตตัสตามเลเวล")]
+        public BaseDefinitionSO townBase;
 
         [Tooltip("มอน (การ์ด) ของเผ่านี้ — cardId แต่ละใบ unique เฉพาะในลิสต์นี้พอ")]
         public List<CardDefinitionSO> cards = new();

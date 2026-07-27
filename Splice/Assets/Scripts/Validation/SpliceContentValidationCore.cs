@@ -146,6 +146,7 @@ namespace Splice.Validation
             RequireId(faction.factionId, "FACTION_ID_MISSING", "Faction id", faction, report);
             RejectSeparator(faction.factionId, "FACTION_ID_SEPARATOR", "Faction id", faction, report);
             RequireDisplayName(faction.displayName, "faction", faction, report);
+            ValidateTownBase(faction, report);
             var cardIds = new HashSet<string>(StringComparer.Ordinal);
             ValidateFactionCardList(faction, faction.cards, "cards", false, cardIds, report);
             ValidateFactionCardList(faction, faction.minerCards, "minerCards", true, cardIds, report);
@@ -179,6 +180,58 @@ namespace Splice.Validation
                     report.Error("MONSTER_NEXT_TIER_UNREGISTERED",
                         $"Monster '{monster.monsterId}' next tier has no card in faction '{faction.factionId}'.",
                         monster);
+        }
+
+        private static void ValidateTownBase(FactionSO faction, ContentValidationReport report)
+        {
+            var definition = faction.townBase;
+            if (definition == null)
+            {
+                report.Error("FACTION_BASE_MISSING",
+                    $"Faction '{faction.factionId}' has no town base definition.", faction);
+                return;
+            }
+            RequireId(definition.baseId, "BASE_ID_MISSING", "Town base id", definition, report);
+            RejectSeparator(definition.baseId, "BASE_ID_SEPARATOR", "Town base id", definition, report);
+            RequireDisplayName(definition.displayName, "town base", definition, report);
+            if (definition.levels == null || definition.levels.Count == 0)
+            {
+                report.Error("BASE_LEVELS_EMPTY",
+                    $"Town base '{definition.baseId}' has no level definitions.", definition);
+                return;
+            }
+
+            var levels = new HashSet<int>();
+            var hasLevelOne = false;
+            for (var index = 0; index < definition.levels.Count; index++)
+            {
+                var level = definition.levels[index];
+                if (level == null)
+                {
+                    report.Error("BASE_LEVEL_NULL",
+                        $"Town base '{definition.baseId}' has a null level at index {index}.", definition);
+                    continue;
+                }
+                if (level.level < 1 || !levels.Add(level.level))
+                    report.Error("BASE_LEVEL_INVALID",
+                        $"Town base '{definition.baseId}' level '{level.level}' is invalid or duplicated.", definition);
+                if (level.level == 1) hasLevelOne = true;
+                if (level.prefab == null)
+                    report.Error("BASE_PREFAB_MISSING",
+                        $"Town base '{definition.baseId}' level {level.level} has no prefab.", definition);
+                if (level.maxHealth <= 0)
+                    report.Error("BASE_HEALTH_INVALID",
+                        $"Town base '{definition.baseId}' level {level.level} max health must be positive.", definition);
+                if (level.defenseCapacity <= 0)
+                    report.Error("BASE_CAPACITY_INVALID",
+                        $"Town base '{definition.baseId}' level {level.level} defense capacity must be positive.", definition);
+                if (level.upgradeGoldCost < 0 || level.upgradeDurationSeconds < 0f)
+                    report.Error("BASE_UPGRADE_INVALID",
+                        $"Town base '{definition.baseId}' level {level.level} has negative upgrade values.", definition);
+            }
+            if (!hasLevelOne)
+                report.Error("BASE_LEVEL_ONE_MISSING",
+                    $"Town base '{definition.baseId}' must define level 1 for new players.", definition);
         }
 
         private static void ValidateFactionCardList(FactionSO faction, IReadOnlyList<CardDefinitionSO> list,

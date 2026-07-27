@@ -4,6 +4,7 @@ using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 namespace Splice.Tests.PlayMode
 {
@@ -13,10 +14,35 @@ namespace Splice.Tests.PlayMode
         public IEnumerator LocalAuthoritativeReplayBuildsActorsAndReachesComplete()
         {
             var root = new GameObject("Command Stream Presentation Test");
+            root.SetActive(false);
             var type = Type.GetType(
                 "Splice.RaidWorker.RaidCommandStreamPresentationController, Assembly-CSharp");
             Assert.That(type, Is.Not.Null);
             var controller = root.AddComponent(type);
+            var canvasRoot = new GameObject("Authoritative Replay HUD Test",
+                typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            canvasRoot.transform.SetParent(root.transform, false);
+            var textType = Type.GetType("TMPro.TextMeshProUGUI, Unity.TextMeshPro");
+            Assert.That(textType, Is.Not.Null);
+            var title = new GameObject("Title", typeof(RectTransform));
+            title.transform.SetParent(canvasRoot.transform, false);
+            var titleText = title.AddComponent(textType);
+            var status = new GameObject("Status", typeof(RectTransform));
+            status.transform.SetParent(canvasRoot.transform, false);
+            var statusText = status.AddComponent(textType);
+            var progress = new GameObject("Progress", typeof(RectTransform), typeof(Image));
+            progress.transform.SetParent(canvasRoot.transform, false);
+            type.GetField("overlayRoot", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.SetValue(controller, canvasRoot);
+            type.GetField("overlayCanvas", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.SetValue(controller, canvasRoot.GetComponent<Canvas>());
+            type.GetField("titleLabel", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.SetValue(controller, titleText);
+            type.GetField("statusLabel", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.SetValue(controller, statusText);
+            type.GetField("progressFill", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.SetValue(controller, progress.GetComponent<Image>());
+            root.SetActive(true);
             type.GetMethod("ConfigureForTests")?.Invoke(controller, new object[] { 200f });
             type.GetMethod("BeginLocalDemo")?.Invoke(controller, null);
 

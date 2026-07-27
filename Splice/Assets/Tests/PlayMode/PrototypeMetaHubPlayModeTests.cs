@@ -78,36 +78,33 @@ namespace Splice.Tests.PlayMode
         [UnityTest]
         public IEnumerator RaidResult_AlwaysOffersReturnToTownBesideRetry()
         {
-            var canvas = new GameObject("Result Test Canvas", typeof(RectTransform), typeof(Canvas),
-                typeof(CanvasScaler), typeof(GraphicRaycaster));
-            var panel = new GameObject("Result Panel", typeof(RectTransform));
-            panel.transform.SetParent(canvas.transform, false);
-            var retry = new GameObject("Retry", typeof(RectTransform), typeof(CanvasRenderer),
-                typeof(UnityEngine.UI.Image), typeof(Button));
-            retry.transform.SetParent(panel.transform, false);
-
-            var host = new GameObject("Result UI Host");
-            host.SetActive(false);
-            var type = Type.GetType("Splice.UI.RaidResultUI, Assembly-CSharp");
-            var resultUi = host.AddComponent(type);
-            type.GetField("resultPanel", BindingFlags.Instance | BindingFlags.NonPublic)
-                ?.SetValue(resultUi, panel);
-            type.GetField("playAgainButton", BindingFlags.Instance | BindingFlags.NonPublic)
-                ?.SetValue(resultUi, retry.GetComponent<Button>());
-            host.SetActive(true);
-            type.GetMethod("BuildReturnToTownButton", BindingFlags.Instance | BindingFlags.NonPublic)
-                ?.Invoke(resultUi, null);
+            var operation = SceneManager.LoadSceneAsync("RaidArena", LoadSceneMode.Single);
+            Assert.That(operation, Is.Not.Null);
+            while (!operation.isDone) yield return null;
             yield return null;
 
-            var returnButton = type.GetField("returnToTownButton",
-                    BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(resultUi) as Button;
+            var type = Type.GetType("Splice.UI.RaidResultUI, Assembly-CSharp");
+            Assert.That(type, Is.Not.Null);
+            Component resultUi = null;
+            foreach (var candidate in UnityEngine.Object.FindObjectsByType(type,
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (candidate is Behaviour behaviour && behaviour.enabled)
+                {
+                    resultUi = candidate as Component;
+                    break;
+                }
+            }
+            Assert.That(resultUi, Is.Not.Null);
+            var hasAuthored = (bool)type.GetProperty("HasEditorAuthoredReturnButton",
+                BindingFlags.Instance | BindingFlags.Public)?.GetValue(resultUi);
+            var returnButton = type.GetProperty("ReturnToTownButton",
+                    BindingFlags.Instance | BindingFlags.Public)?.GetValue(resultUi) as Button;
+            Assert.That(hasAuthored, Is.True,
+                "Raid result navigation must be authored in RaidArena, never cloned at runtime.");
             Assert.That(returnButton, Is.Not.Null,
                 "Every completed raid needs a visible route back into the meta loop.");
             Assert.That(returnButton.name, Is.EqualTo("ReturnToTownButton"));
-
-            UnityEngine.Object.Destroy(host);
-            UnityEngine.Object.Destroy(canvas);
-            yield return null;
         }
 
         private static T Property<T>(Type type, Component instance, string name) =>

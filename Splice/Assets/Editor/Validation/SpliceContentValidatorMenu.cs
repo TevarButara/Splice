@@ -30,6 +30,7 @@ namespace Splice.Editor.Validation
                 LoadAll<FactionRegistrySO>(), LoadAll<HeroRegistrySO>());
             RaidSceneArchitectureValidator.Validate(report);
             BackendBoundaryValidator.Validate(report);
+            Splice.Editor.UI.SpliceSceneUiAuthoringValidator.Validate(report);
             LiveContentAddressablesConfigurator.Validate(report);
             if (includeGeneratedCatalog) SpliceContentCatalogExporter.ValidateGenerated(report);
             if (logResults) Log(report);

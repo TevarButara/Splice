@@ -41,6 +41,11 @@ namespace Splice.UI
         [ContextMenu("Bake Splice UI Theme Into Scene")]
         public void ApplyTheme()
         {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("[Splice UI] Theme/layout can only be baked in Edit Mode.", this);
+                return;
+            }
             SpliceUiSkinLibrary.EnsureLoaded();
             StyleCommonPanels();
             StyleCommonButtons();

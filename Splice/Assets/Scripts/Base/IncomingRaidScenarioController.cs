@@ -46,8 +46,10 @@ namespace Splice.Base
         [SerializeField] private RaidManager raidManager;
         [SerializeField] private BreachRingController breachRingController;
         [SerializeField] private RaidSceneCompositionController sceneCompositionController;
+        [Header("Editor-authored status UI")]
+        [SerializeField] private GameObject statusBanner;
+        [SerializeField] private TMP_Text statusLabel;
 
-        private TMP_Text statusLabel;
         private readonly List<string> raidCardIds = new();
         private bool starting;
         private bool running;
@@ -64,13 +66,26 @@ namespace Splice.Base
         public int CurrentWave => currentWave;
         public int SpawnedUnitCount => spawnedUnitCount;
         public string LastError => lastError;
+        public bool HasEditorAuthoredStatusUi => statusBanner != null && statusLabel != null;
+        public GameObject EditorStatusRoot => statusBanner;
 
-        private void Awake() => lifetimeCancellation = new CancellationTokenSource();
+        private void Awake()
+        {
+            lifetimeCancellation = new CancellationTokenSource();
+            if (statusBanner != null) statusBanner.SetActive(false);
+        }
 
         private IEnumerator Start()
         {
             ResolveReferences();
-            EnsureStatusBanner();
+            if (!HasEditorAuthoredStatusUi)
+            {
+                Debug.LogError(
+                    "[IncomingRaid] Status UI is not serialized. Use Splice > UI > Bake All Scene UI in Edit Mode.",
+                    this);
+                enabled = false;
+                yield break;
+            }
             if (!autoStartOnPlay) yield break;
             if (startupDelaySeconds > 0f) yield return new WaitForSecondsRealtime(startupDelaySeconds);
             BeginIncomingRaid();
@@ -104,7 +119,6 @@ namespace Splice.Base
             lastError = string.Empty;
             ResolveReferences();
             sceneCompositionController?.RequestMode(RaidPresentationMode.Defender);
-            EnsureStatusBanner();
             SetStatus("<color=#FFBD66>INCOMING RAID</color>\nConnecting defender command…");
 
             var deadline = Time.realtimeSinceStartup + serverReadyTimeoutSeconds;
@@ -439,9 +453,15 @@ namespace Splice.Base
                       $"TIME {Mathf.CeilToInt(raidManager.RemainingSeconds)}s");
         }
 
-        private void EnsureStatusBanner()
+        // Called by the Editor baker only. Runtime never creates UI.
+        public void RebuildEditorStatusUi()
         {
-            if (statusLabel != null) return;
+            if (Application.isPlaying)
+            {
+                Debug.LogError("[IncomingRaid] Status UI can only be rebuilt in Edit Mode.", this);
+                return;
+            }
+            if (HasEditorAuthoredStatusUi) return;
             Canvas canvas = null;
             var canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             for (var i = 0; i < canvases.Length; i++)
@@ -453,9 +473,13 @@ namespace Splice.Base
             canvas.overrideSorting = true;
             canvas.sortingOrder = Mathf.Max(canvas.sortingOrder, 300);
 
-            var banner = new GameObject("IncomingRaidStatus", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            var existing = canvas.transform.Find("IncomingRaidStatus");
+            var banner = existing != null
+                ? existing.gameObject
+                : new GameObject("IncomingRaidStatus", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             banner.transform.SetParent(canvas.transform, false);
             banner.transform.SetAsLastSibling();
+            statusBanner = banner;
             var rect = (RectTransform)banner.transform;
             rect.anchorMin = new Vector2(.5f, 1f);
             rect.anchorMax = new Vector2(.5f, 1f);
@@ -467,7 +491,8 @@ namespace Splice.Base
             if (!SpliceUiSkinLibrary.ApplyHeader(image, new Color(1f, .9f, .94f, .97f)))
                 image.color = new Color(.08f, .09f, .16f, .94f);
 
-            var labelObject = new GameObject("Status", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+            var labelObject = banner.transform.Find("Status")?.gameObject ??
+                              new GameObject("Status", typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
             labelObject.transform.SetParent(banner.transform, false);
             var labelRect = (RectTransform)labelObject.transform;
             labelRect.anchorMin = Vector2.zero;
@@ -483,12 +508,15 @@ namespace Splice.Base
             statusLabel.fontSizeMin = 16f;
             statusLabel.fontSizeMax = 25f;
             statusLabel.raycastTarget = false;
+            statusLabel.text = "INCOMING RAID STATUS PREVIEW";
+            statusBanner.SetActive(true);
         }
 
         private void SetStatus(string value)
         {
-            EnsureStatusBanner();
-            if (statusLabel != null) statusLabel.text = value;
+            if (statusLabel == null) return;
+            statusBanner?.SetActive(true);
+            statusLabel.text = value;
         }
 
         private void Fail(string error)

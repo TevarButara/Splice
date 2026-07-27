@@ -8,8 +8,8 @@ using UnityEngine.UI;
 
 namespace Splice.Base
 {
-    // Checkout owns its runtime wiring as well as the confirmation state. This avoids a silent dead button
-    // when a scene merge or prefab override drops persistent Button.onClick entries.
+    // Checkout owns runtime wiring and state, while every visual is serialized in BuildZone.
+    // Runtime must never create or reposition this UI because designers need an identical editable hierarchy.
     public class BaseBuildCheckoutController : MonoBehaviour
     {
         [SerializeField] private BaseBuildManager buildManager;
@@ -20,18 +20,32 @@ namespace Splice.Base
         [SerializeField] private Button openButton;
         [SerializeField] private Button confirmButton;
         [SerializeField] private Button cancelButton;
-        private GameObject modalBackdrop;
+        [Header("Editor-authored confirmation visuals")]
+        [SerializeField] private GameObject modalBackdrop;
+        [SerializeField] private GameObject headerSkin;
         private CancellationTokenSource lifetimeCancellation;
         private string checkoutIdempotencyKey;
         private bool checkoutInFlight;
 
         public bool IsConfirmOpen => confirmPanel != null && confirmPanel.activeSelf;
+        public GameObject EditorUiRoot => confirmPanel;
+        public bool HasEditorAuthoredUi =>
+            confirmPanel != null && confirmLabel != null && openButton != null &&
+            confirmButton != null && cancelButton != null && modalBackdrop != null &&
+            headerSkin != null;
 
         private void Awake()
         {
             lifetimeCancellation = new CancellationTokenSource();
             ResolveReferences();
-            BuildAndStyleConfirmation();
+            if (!HasEditorAuthoredUi)
+            {
+                Debug.LogError(
+                    "[BaseBuildCheckout] Confirmation UI is not serialized. Use Splice > UI > Bake All Scene UI in Edit Mode.",
+                    this);
+                enabled = false;
+                return;
+            }
             WireButtons();
             if (confirmPanel != null) confirmPanel.SetActive(false);
             if (modalBackdrop != null) modalBackdrop.SetActive(false);
@@ -132,10 +146,15 @@ namespace Splice.Base
         {
             if (buildManager == null) buildManager = FindFirstObjectByType<BaseBuildManager>();
             if (openButton == null) openButton = GetComponent<Button>();
-            if (confirmPanel != null && confirmButton == null)
+            if (confirmPanel != null)
             {
                 var buttons = confirmPanel.GetComponentsInChildren<Button>(true);
-                if (buttons.Length > 0) confirmButton = buttons[0];
+                foreach (var button in buttons)
+                {
+                    if (button == null) continue;
+                    if (button.name == "CheckoutCancelButton") cancelButton ??= button;
+                    else confirmButton ??= button;
+                }
             }
             if (confirmPanel != null && confirmLabel == null)
                 confirmLabel = confirmPanel.GetComponentInChildren<TMP_Text>(true);
@@ -180,14 +199,25 @@ namespace Splice.Base
                 $"{buildManager.UsedCapacity}/{buildManager.DefenseCapacity}</color></size>";
         }
 
-        private void BuildAndStyleConfirmation()
+        // Called by the Editor baker only. Runtime only changes text, interactable and active state.
+        public void RebuildEditorUi()
         {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("[BaseBuildCheckout] UI can only be rebuilt in Edit Mode.", this);
+                return;
+            }
+
+            ResolveReferences();
             if (confirmPanel == null) return;
             var canvas = GetComponentInParent<Canvas>();
             if (canvas != null)
             {
                 confirmPanel.transform.SetParent(canvas.transform, false);
-                modalBackdrop = CreateBackdrop(canvas.transform);
+                var existingBackdrop = FindDirectChild(canvas.transform, "Checkout Modal Backdrop");
+                modalBackdrop = existingBackdrop != null
+                    ? existingBackdrop.gameObject
+                    : CreateBackdrop(canvas.transform);
                 var modalCanvas = confirmPanel.GetComponent<Canvas>();
                 if (modalCanvas == null) modalCanvas = confirmPanel.AddComponent<Canvas>();
                 modalCanvas.overrideSorting = true;
@@ -212,7 +242,7 @@ namespace Splice.Base
                 panelImage.color = new Color32(17, 26, 43, 248);
                 EnsureOutline(confirmPanel, new Color32(57, 215, 210, 180), new Vector2(3f, -3f));
             }
-            CreateHeaderSkin(confirmPanel.transform);
+            headerSkin = CreateHeaderSkin(confirmPanel.transform);
 
             if (confirmLabel != null)
             {
@@ -245,6 +275,10 @@ namespace Splice.Base
                 StyleButton(cancelButton, new Color32(32, 50, 76, 255), new Color32(244, 248, 255, 255));
                 SetButtonLabel(cancelButton, "CANCEL");
             }
+            // Keep the confirmation visible in Edit Mode so artists can design it directly.
+            // Awake always hides both objects before the first runtime frame.
+            modalBackdrop?.SetActive(true);
+            confirmPanel.SetActive(true);
         }
 
         private static GameObject CreateBackdrop(Transform parent)
@@ -343,7 +377,7 @@ namespace Splice.Base
             if (legacy != null) legacy.text = value;
         }
 
-        private static void CreateHeaderSkin(Transform parent)
+        private static GameObject CreateHeaderSkin(Transform parent)
         {
             var existing = parent.Find("Checkout Header Skin");
             var go = existing != null
@@ -360,6 +394,15 @@ namespace Splice.Base
             image.raycastTarget = false;
             if (!SpliceUiSkinLibrary.ApplyHeader(image)) image.color = new Color32(32, 50, 76, 255);
             rect.SetAsFirstSibling();
+            return go;
+        }
+
+        private static Transform FindDirectChild(Transform root, string exactName)
+        {
+            if (root == null) return null;
+            for (var index = 0; index < root.childCount; index++)
+                if (root.GetChild(index).name == exactName) return root.GetChild(index);
+            return null;
         }
 
         private static void EnsureOutline(GameObject target, Color color, Vector2 distance)

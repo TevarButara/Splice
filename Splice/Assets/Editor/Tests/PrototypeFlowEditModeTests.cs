@@ -3,6 +3,7 @@ using NUnit.Framework;
 using Splice.Base;
 using Splice.Core;
 using Splice.Input;
+using Splice.Data;
 using Splice.UI;
 using Splice.RaidWorker;
 using Unity.Netcode.Transports.UTP;
@@ -94,18 +95,26 @@ namespace Splice.Tests.EditMode
             {
                 PrototypeMetaHubController controller = null;
                 TownSnapshotCommitController deploymentController = null;
+                BaseBuildCheckoutController checkoutController = null;
+                PlayerTownBaseController townBaseController = null;
                 var uiRootCount = 0;
                 var deploymentRootCount = 0;
                 var targetCardCount = 0;
+                var historyRowCount = 0;
+                var listStateCount = 0;
                 foreach (var root in scene.GetRootGameObjects())
                 {
                     if (root.name == "Prototype Meta UI") uiRootCount++;
                     controller ??= root.GetComponentInChildren<PrototypeMetaHubController>(true);
                     deploymentController ??= root.GetComponentInChildren<TownSnapshotCommitController>(true);
+                    checkoutController ??= root.GetComponentInChildren<BaseBuildCheckoutController>(true);
+                    townBaseController ??= root.GetComponentInChildren<PlayerTownBaseController>(true);
                     foreach (var rect in root.GetComponentsInChildren<RectTransform>(true))
                     {
                         if (rect.name == "Town Deployment UI") deploymentRootCount++;
                         if (rect.GetComponent<PrototypeRaidTargetCardView>() != null) targetCardCount++;
+                        if (rect.GetComponent<PrototypeDefenseHistoryRowView>() != null) historyRowCount++;
+                        if (rect.GetComponent<PrototypeListStateView>() != null) listStateCount++;
                     }
                 }
 
@@ -118,15 +127,89 @@ namespace Splice.Tests.EditMode
                 Assert.That(controller.EditorAuthoredTargetCardCount, Is.EqualTo(3));
                 Assert.That(targetCardCount, Is.EqualTo(3),
                     "All three target cards must exist in the scene before Play Mode.");
+                Assert.That(controller.EditorAuthoredHistoryRowCount, Is.EqualTo(4));
+                Assert.That(historyRowCount, Is.EqualTo(4),
+                    "All defense report rows must exist in the scene before Play Mode.");
+                Assert.That(listStateCount, Is.EqualTo(2),
+                    "Raid/history empty and retry states must exist before Play Mode.");
                 Assert.That(deploymentController, Is.Not.Null);
                 Assert.That(deploymentController.HasEditorAuthoredUi, Is.True,
                     "Deployment status and review cards must be serialized instead of built in Awake.");
                 Assert.That(deploymentController.EditorUiRoot.scene, Is.EqualTo(scene));
                 Assert.That(deploymentRootCount, Is.EqualTo(1));
+                Assert.That(checkoutController, Is.Not.Null);
+                Assert.That(checkoutController.HasEditorAuthoredUi, Is.True,
+                    "Pa_ConFirmCheckOut and its backdrop/header/buttons must be serialized.");
+                Assert.That(townBaseController, Is.Not.Null);
+                Assert.That(townBaseController.HasRequiredReferences, Is.True);
+                Assert.That(townBaseController.BasePoint.name, Is.EqualTo("BasePoint"));
+                Assert.That(townBaseController.BasePoint.childCount, Is.GreaterThan(0),
+                    "A level-1 base preview must be visible at BasePoint in the editor.");
             }
             finally
             {
                 if (openedForTest) EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+
+        [Test]
+        public void EveryRootScreenCanvas_UsesOneCrossPlatformResponsiveContract()
+        {
+            var scenePaths = new[]
+            {
+                "Assets/=======SCENES/Bootstrap.unity",
+                "Assets/=======SCENES/BuildZone.unity",
+                "Assets/=======SCENES/RaidArena.unity",
+                "Assets/=======SCENES/RaidAttackerPresentation.unity",
+                "Assets/=======SCENES/RaidDefenderPresentation.unity",
+                "Assets/=======SCENES/SampleScene.unity",
+            };
+            foreach (var scenePath in scenePaths)
+            {
+                var scene = SceneManager.GetSceneByPath(scenePath);
+                var openedForTest = !scene.IsValid() || !scene.isLoaded;
+                if (openedForTest) scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+                try
+                {
+                    foreach (var root in scene.GetRootGameObjects())
+                    foreach (var canvas in root.GetComponentsInChildren<Canvas>(true))
+                    {
+                        if (!canvas.isRootCanvas || canvas.renderMode == RenderMode.WorldSpace) continue;
+                        var scaler = canvas.GetComponent<CanvasScaler>();
+                        Assert.That(scaler, Is.Not.Null, $"{scene.name}/{canvas.name}");
+                        Assert.That(scaler.uiScaleMode,
+                            Is.EqualTo(CanvasScaler.ScaleMode.ScaleWithScreenSize),
+                            $"{scene.name}/{canvas.name}");
+                        Assert.That(scaler.referenceResolution, Is.EqualTo(new Vector2(1920f, 1080f)),
+                            $"{scene.name}/{canvas.name}");
+                        Assert.That(scaler.matchWidthOrHeight, Is.EqualTo(.5f).Within(.001f),
+                            $"{scene.name}/{canvas.name}");
+                    }
+                }
+                finally
+                {
+                    if (openedForTest) EditorSceneManager.CloseScene(scene, true);
+                }
+            }
+        }
+
+        [Test]
+        public void BaseDefinition_ResolvesHighestUnlockedLevelWithoutSceneRules()
+        {
+            var definition = ScriptableObject.CreateInstance<BaseDefinitionSO>();
+            try
+            {
+                var level1 = new BaseLevelDefinition { level = 1, defenseCapacity = 100 };
+                var level3 = new BaseLevelDefinition { level = 3, defenseCapacity = 300 };
+                definition.levels.Add(level3);
+                definition.levels.Add(level1);
+                Assert.That(definition.ResolveLevel(1), Is.SameAs(level1));
+                Assert.That(definition.ResolveLevel(2), Is.SameAs(level1));
+                Assert.That(definition.ResolveLevel(99), Is.SameAs(level3));
+            }
+            finally
+            {
+                Object.DestroyImmediate(definition);
             }
         }
 

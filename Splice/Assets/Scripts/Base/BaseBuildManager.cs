@@ -93,7 +93,10 @@ namespace Splice.Base
         public bool CanAfford(int additionalCost) => NetCost + additionalCost <= PlayerWallet.MetaGold;
 
         // ---------- defense capacity (เพดานฝ่ายรับ ผูกกับ base level ไม่ใช่เงิน — กัน defense snowball) ----------
-        public int DefenseCapacity => baseCapacity + capacityPerLevel * Mathf.Max(0, PlayerProfile.BaseLevel(CityFactionId) - 1);
+        public BaseLevelDefinition CurrentBaseLevel =>
+            registry?.GetFaction(CityFactionId)?.townBase?.ResolveLevel(PlayerProfile.BaseLevel(CityFactionId));
+        public int DefenseCapacity => CurrentBaseLevel?.defenseCapacity ??
+            baseCapacity + capacityPerLevel * Mathf.Max(0, PlayerProfile.BaseLevel(CityFactionId) - 1);
         public int UsedCapacity
         {
             get { var u = 0; foreach (var p in placed) if (p != null) u += p.CapacityCost; return u; }

@@ -32,15 +32,17 @@ namespace Splice.RaidWorker
         [SerializeField] private Vector3 outerRingPoint = new(0f, 3f, 80f);
         [SerializeField] private Vector3 innerRingPoint = new(0f, 3f, 270f);
         [SerializeField] private Vector3 coreRingPoint = new(0f, 3f, 470f);
+        [Header("Editor-authored replay HUD")]
+        [SerializeField] private GameObject overlayRoot;
+        [SerializeField] private Canvas overlayCanvas;
+        [SerializeField] private TMP_Text titleLabel;
+        [SerializeField] private TMP_Text statusLabel;
+        [SerializeField] private Image progressFill;
 
         private readonly List<GameObject> ringBarriers = new();
         private readonly List<Material> runtimeMaterials = new();
         private Transform visualRoot;
         private Transform attackersRoot;
-        private Canvas overlayCanvas;
-        private TMP_Text titleLabel;
-        private TMP_Text statusLabel;
-        private Image progressFill;
         private Coroutine playback;
         private RaidSimulationResult activeResult;
         private int currentTick;
@@ -52,6 +54,15 @@ namespace Splice.RaidWorker
         public int VisibleActorCount => attackersRoot != null ? attackersRoot.childCount : 0;
         public string LastCommandType { get; private set; } = string.Empty;
         public string LastError { get; private set; } = string.Empty;
+        public bool HasEditorAuthoredReplayUi =>
+            overlayRoot != null && overlayCanvas != null && titleLabel != null &&
+            statusLabel != null && progressFill != null;
+        public GameObject EditorReplayUiRoot => overlayRoot;
+
+        private void Awake()
+        {
+            if (overlayRoot != null) overlayRoot.SetActive(false);
+        }
 
         private IEnumerator Start()
         {
@@ -114,7 +125,12 @@ namespace Splice.RaidWorker
 
             if (playback != null) StopCoroutine(playback);
             ClearVisuals();
-            BuildOverlay(result);
+            if (!PrepareOverlay(result))
+            {
+                LastError = "Authoritative replay HUD is not serialized in RaidArena.";
+                Debug.LogError("[RaidReplay] " + LastError, this);
+                return;
+            }
             ResolveSceneAnchors();
             BuildWorld(input);
             activeResult = result;
@@ -198,7 +214,7 @@ namespace Splice.RaidWorker
         public void ShowLifecycleStatus(RaidLifecycleDto lifecycle)
         {
             if (lifecycle == null) return;
-            if (overlayCanvas == null) BuildOverlay(null);
+            if (!PrepareOverlay(null)) return;
             var state = (lifecycle.state ?? string.Empty).ToUpperInvariant();
             titleLabel.text = state switch
             {
@@ -230,7 +246,7 @@ namespace Splice.RaidWorker
 
         public void ShowLifecycleError(string error)
         {
-            if (overlayCanvas == null) BuildOverlay(null);
+            if (!PrepareOverlay(null)) return;
             titleLabel.text = "REPLAY UNAVAILABLE";
             titleLabel.color = Red();
             statusLabel.text = string.IsNullOrWhiteSpace(error)
@@ -434,16 +450,46 @@ namespace Splice.RaidWorker
             ringBarriers.Add(root);
         }
 
-        private void BuildOverlay(RaidSimulationResult result)
+        private bool PrepareOverlay(RaidSimulationResult result)
         {
+            if (!HasEditorAuthoredReplayUi)
+            {
+                Debug.LogError(
+                    "[RaidReplay] Replay HUD is not serialized. Use Splice > UI > Bake All Scene UI in Edit Mode.",
+                    this);
+                return false;
+            }
+
+            overlayRoot.SetActive(true);
+            titleLabel.text = "AUTHORITATIVE RAID REPLAY  •  ×" + playbackSpeed.ToString("0.#");
+            titleLabel.color = Cyan();
+            statusLabel.text = result == null
+                ? "Waiting for authoritative lifecycle update…"
+                : "Preparing immutable command stream…";
+            progressFill.fillAmount = 0f;
+            progressFill.color = Cyan();
+            return true;
+        }
+
+        // Called by the Editor baker only. Runtime reuses this serialized hierarchy.
+        public void RebuildEditorReplayUi()
+        {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("[RaidReplay] Replay HUD can only be rebuilt in Edit Mode.", this);
+                return;
+            }
+            if (HasEditorAuthoredReplayUi) return;
+
             var canvasObject = new GameObject("Authoritative Replay HUD", typeof(Canvas),
                 typeof(CanvasScaler), typeof(GraphicRaycaster));
+            overlayRoot = canvasObject;
             overlayCanvas = canvasObject.GetComponent<Canvas>();
             overlayCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
             overlayCanvas.sortingOrder = 5000;
             var scaler = canvasObject.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(750f, 1334f);
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = .5f;
 
             var panel = new GameObject("Replay Status Panel", typeof(RectTransform), typeof(Image));
@@ -453,7 +499,7 @@ namespace Splice.RaidWorker
             panelRect.anchorMax = new Vector2(.5f, 1f);
             panelRect.pivot = new Vector2(.5f, 1f);
             panelRect.anchoredPosition = new Vector2(0f, -32f);
-            panelRect.sizeDelta = new Vector2(690f, 170f);
+            panelRect.sizeDelta = new Vector2(1100f, 170f);
             panel.GetComponent<Image>().color = new Color(.025f, .045f, .075f, .94f);
 
             titleLabel = CreateUiText(panel.transform, "AUTHORITY_TITLE", 30f, FontStyles.Bold,
@@ -485,6 +531,7 @@ namespace Splice.RaidWorker
             progressFill.fillMethod = Image.FillMethod.Horizontal;
             progressFill.fillAmount = 0f;
             progressFill.color = Cyan();
+            overlayRoot.SetActive(true);
         }
 
         private static TMP_Text CreateUiText(Transform parent, string name, float fontSize,
@@ -825,12 +872,11 @@ namespace Splice.RaidWorker
         private void ClearVisuals()
         {
             if (visualRoot != null) Destroy(visualRoot.gameObject);
-            if (overlayCanvas != null) Destroy(overlayCanvas.gameObject);
+            if (overlayRoot != null) overlayRoot.SetActive(false);
             ringBarriers.Clear();
             SpawnedActorCount = 0;
             visualRoot = null;
             attackersRoot = null;
-            overlayCanvas = null;
         }
 
         private static bool IsSha256(string value) => value != null && value.Length == 64 &&

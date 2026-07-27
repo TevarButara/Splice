@@ -17,6 +17,7 @@ MonoBehaviour:
   family: 2
   icon: {fileID: 0}
   color: {r: 1, g: 1, b: 1, a: 1}
+  townBase: {fileID: 11400000, guid: 6e9f0f5eaf3d9418885a3b886fdf49d0, type: 2}
   cards:
   - {fileID: 11400000, guid: 95b91e6814a136a42a5aca23df97cfe7, type: 2}
   - {fileID: 11400000, guid: e2dfbdf754e3f6349b03cdf56c9bff7d, type: 2}
