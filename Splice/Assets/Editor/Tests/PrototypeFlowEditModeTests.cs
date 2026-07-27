@@ -4,6 +4,7 @@ using Splice.Base;
 using Splice.Core;
 using Splice.Input;
 using Splice.Data;
+using Splice.Placement;
 using Splice.UI;
 using Splice.RaidWorker;
 using Unity.Netcode.Transports.UTP;
@@ -145,6 +146,21 @@ namespace Splice.Tests.EditMode
                 Assert.That(townBaseController.BasePoint.name, Is.EqualTo("BasePoint"));
                 Assert.That(townBaseController.BasePoint.childCount, Is.GreaterThan(0),
                     "A level-1 base preview must be visible at BasePoint in the editor.");
+                Assert.That(townBaseController.BasePoint.position.y, Is.EqualTo(0f).Within(.01f),
+                    "BasePoint must be snapped to BuildZoneTerrain, never the PanBounds volume.");
+                var preview = townBaseController.BasePoint.GetChild(0);
+                var placement = preview.GetComponent<GroundPlacementProfile>();
+                Assert.That(placement, Is.Not.Null);
+                Assert.That(placement.IsComplete, Is.True);
+                Assert.That(placement.GroundAnchor.localPosition, Is.EqualTo(Vector3.zero));
+                Assert.That(placement.TryGetRendererBounds(out var baseBounds), Is.True);
+                Assert.That(baseBounds.min.y, Is.EqualTo(townBaseController.BasePoint.position.y).Within(.05f),
+                    "The canonical Natural Base renderer bottom must touch the authored ground.");
+                var groundLayer = LayerMask.NameToLayer(GroundPlacementUtility.GroundLayerName);
+                Assert.That(groundLayer, Is.GreaterThanOrEqualTo(8));
+                Assert.That(GameObject.Find("BuildZoneTerrain")?.layer, Is.EqualTo(groundLayer));
+                Assert.That(GameObject.Find("PanBounds")?.layer, Is.Not.EqualTo(groundLayer),
+                    "PanBounds must never be accepted as a terrain hit.");
             }
             finally
             {
@@ -190,6 +206,42 @@ namespace Splice.Tests.EditMode
                 {
                     if (openedForTest) EditorSceneManager.CloseScene(scene, true);
                 }
+            }
+        }
+
+        [Test]
+        public void RaidResultEditorBake_IsIdempotentAndNeverDriftsButtons()
+        {
+            const string scenePath = "Assets/=======SCENES/RaidArena.unity";
+            var scene = SceneManager.GetSceneByPath(scenePath);
+            var openedForTest = !scene.IsValid() || !scene.isLoaded;
+            if (openedForTest) scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+            try
+            {
+                RaidResultUI result = null;
+                foreach (var root in scene.GetRootGameObjects())
+                foreach (var candidate in root.GetComponentsInChildren<RaidResultUI>(true))
+                    if (candidate.enabled && candidate.CanAuthorEditorUi) result = candidate;
+                Assert.That(result, Is.Not.Null);
+
+                var serialized = new SerializedObject(result);
+                var retry = serialized.FindProperty("playAgainButton").objectReferenceValue as Button;
+                var returnToTown =
+                    serialized.FindProperty("returnToTownButton").objectReferenceValue as Button;
+                Assert.That(retry, Is.Not.Null);
+                Assert.That(returnToTown, Is.Not.Null);
+                result.RebuildEditorReturnButton();
+                var retryAfterFirst = retry.GetComponent<RectTransform>().anchoredPosition;
+                var returnAfterFirst = returnToTown.GetComponent<RectTransform>().anchoredPosition;
+                result.RebuildEditorReturnButton();
+                Assert.That(retry.GetComponent<RectTransform>().anchoredPosition,
+                    Is.EqualTo(retryAfterFirst));
+                Assert.That(returnToTown.GetComponent<RectTransform>().anchoredPosition,
+                    Is.EqualTo(returnAfterFirst));
+            }
+            finally
+            {
+                if (openedForTest) EditorSceneManager.CloseScene(scene, true);
             }
         }
 

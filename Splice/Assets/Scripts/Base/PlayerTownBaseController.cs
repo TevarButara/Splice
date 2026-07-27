@@ -2,6 +2,7 @@ using System.Collections;
 using Splice.Core;
 using Splice.Data;
 using Splice.Input;
+using Splice.Placement;
 using UnityEngine;
 
 namespace Splice.Base
@@ -16,6 +17,7 @@ namespace Splice.Base
         [SerializeField] private FactionRegistrySO registry;
         [SerializeField] private Transform basePoint;
         [SerializeField] private CameraPanController cameraPan;
+        [SerializeField] private LayerMask groundMask;
 
         private GameObject spawnedBase;
         private BaseLevelDefinition resolvedLevel;
@@ -24,7 +26,9 @@ namespace Splice.Base
         public Transform BasePoint => basePoint;
         public GameObject SpawnedBase => spawnedBase;
         public BaseLevelDefinition ResolvedLevel => resolvedLevel;
-        public bool HasRequiredReferences => registry != null && basePoint != null && cameraPan != null;
+        public LayerMask GroundMask => groundMask;
+        public bool HasRequiredReferences =>
+            registry != null && basePoint != null && cameraPan != null && groundMask.value != 0;
 
         private void Awake() => EnsureBase();
 
@@ -36,11 +40,12 @@ namespace Splice.Base
         }
 
         public void ConfigureEditorReferences(FactionRegistrySO valueRegistry, Transform valueBasePoint,
-            CameraPanController valueCameraPan)
+            CameraPanController valueCameraPan, LayerMask valueGroundMask)
         {
             registry = valueRegistry;
             basePoint = valueBasePoint;
             cameraPan = valueCameraPan;
+            groundMask = valueGroundMask;
         }
 
         public bool EnsureBase()
@@ -132,9 +137,25 @@ namespace Splice.Base
 
         private void PlaceAtBasePoint(GameObject value)
         {
+            Physics.SyncTransforms();
+            if (!GroundPlacementUtility.TrySnapMarkerToGround(basePoint, groundMask, out var groundHit))
+                Debug.LogError(
+                    $"[TownBase] No Ground-layer surface exists below BasePoint at {basePoint.position}.",
+                    this);
             value.transform.SetParent(basePoint, false);
             value.transform.localPosition = Vector3.zero;
             value.transform.localRotation = Quaternion.identity;
+            value.transform.localScale = Vector3.one;
+            if (GroundPlacementUtility.TryPlaceOnGround(value, basePoint.position, groundMask, out groundHit))
+            {
+                // Canonical placeable prefabs keep GroundAnchor at local zero, therefore the base remains
+                // an exact child of BasePoint. Keeping the assignment explicit prevents prefab overrides.
+                value.transform.SetParent(basePoint, true);
+            }
+            else
+                Debug.LogError(
+                    $"[TownBase] Prefab '{value.name}' has no complete GroundPlacementProfile.",
+                    value);
             value.SetActive(true);
         }
     }

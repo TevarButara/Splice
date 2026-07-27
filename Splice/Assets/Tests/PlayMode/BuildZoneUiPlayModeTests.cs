@@ -27,11 +27,13 @@ namespace Splice.Tests.PlayMode
             var listStateType = Type.GetType("Splice.UI.PrototypeListStateView, Assembly-CSharp");
             var checkoutType = Type.GetType("Splice.Base.BaseBuildCheckoutController, Assembly-CSharp");
             var townBaseType = Type.GetType("Splice.Base.PlayerTownBaseController, Assembly-CSharp");
+            var placementType = Type.GetType("Splice.Placement.GroundPlacementProfile, Assembly-CSharp");
             Assert.That(controllerType, Is.Not.Null);
             Assert.That(deploymentType, Is.Not.Null);
             Assert.That(targetCardType, Is.Not.Null);
             Assert.That(historyRowType, Is.Not.Null);
             Assert.That(listStateType, Is.Not.Null);
+            Assert.That(placementType, Is.Not.Null);
             Component controller = null;
             Component deploymentController = null;
             var rootCount = 0;
@@ -86,6 +88,17 @@ namespace Splice.Tests.PlayMode
             Assert.That(spawnedBase, Is.Not.Null);
             Assert.That(spawnedBase.transform.parent, Is.EqualTo(basePoint));
             Assert.That(spawnedBase.transform.localPosition, Is.EqualTo(Vector3.zero));
+            Assert.That(basePoint.position.y, Is.EqualTo(0f).Within(.01f),
+                "Runtime must raycast the Ground layer instead of stopping on PanBounds.");
+            var placement = spawnedBase.GetComponent(placementType);
+            Assert.That(placement, Is.Not.Null);
+            var renderers = spawnedBase.GetComponentsInChildren<Renderer>(true);
+            Assert.That(renderers, Is.Not.Empty);
+            var bounds = renderers[0].bounds;
+            for (var index = 1; index < renderers.Length; index++)
+                bounds.Encapsulate(renderers[index].bounds);
+            Assert.That(bounds.min.y, Is.EqualTo(basePoint.position.y).Within(.05f),
+                "Natural Base must touch the terrain and must not sink or float.");
         }
 
         [UnityTest]

@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using Splice.Base;
 using Splice.Data;
+using Splice.Editor.Placement;
 using Splice.Input;
+using Splice.Placement;
 using Splice.RaidWorker;
 using Splice.UI;
 using Splice.Validation;
@@ -76,12 +78,23 @@ namespace Splice.Editor.UI
                 throw new MissingReferenceException(
                     "BuildZone requires BaseBuildManager, CameraPanController and an exact 'BasePoint'.");
 
+            var groundLayer = GroundedPrefabAuthoringEditor.EnsureGroundLayer();
+            var terrain = FindTransform(scene, "BuildZoneTerrain");
+            if (terrain == null)
+                throw new MissingReferenceException("BuildZone requires an exact 'BuildZoneTerrain'.");
+            GroundedPrefabAuthoringEditor.SetLayerRecursively(terrain.gameObject, groundLayer);
+            var groundMask = (LayerMask)(1 << groundLayer);
+            Physics.SyncTransforms();
+            if (!GroundPlacementUtility.TrySnapMarkerToGround(basePoint, groundMask, out _))
+                throw new MissingReferenceException(
+                    "BasePoint could not find BuildZoneTerrain on the Ground layer.");
+
             var baseDefinition = EnsureNaturalBaseDefinition(buildManager.Registry);
-            EnsureEditorBasePreview(scene, basePoint, baseDefinition);
+            EnsureEditorBasePreview(scene, basePoint, baseDefinition, groundMask);
 
             var townBase = FindInScene<PlayerTownBaseController>(scene);
             if (townBase == null) townBase = buildManager.gameObject.AddComponent<PlayerTownBaseController>();
-            townBase.ConfigureEditorReferences(buildManager.Registry, basePoint, cameraPan);
+            townBase.ConfigureEditorReferences(buildManager.Registry, basePoint, cameraPan, groundMask);
             EditorUtility.SetDirty(townBase);
 
             var meta = FindInScene<PrototypeMetaHubController>(scene);
@@ -141,23 +154,31 @@ namespace Splice.Editor.UI
                 throw new MissingReferenceException("BuildZone FactionRegistry is missing or empty.");
             var faction = registry.Factions[0];
             if (faction == null) throw new MissingReferenceException("BuildZone first faction is null.");
-            if (faction.townBase != null) return faction.townBase;
 
             const string assetPath = "Assets/Prefabs/Natural/Constructor/Natural_TownBase.asset";
-            var definition = AssetDatabase.LoadAssetAtPath<BaseDefinitionSO>(assetPath);
+            const string rawPrefabPath =
+                "Assets/Prefabs/Natural/Constructor/nat-base-lv1-7500.prefab";
+            const string groundedPrefabPath =
+                "Assets/Prefabs/Natural/Constructor/NaturalBase_Lv1_Placeable.prefab";
+            var rawPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(rawPrefabPath);
+            if (rawPrefab == null) throw new MissingReferenceException(
+                "Natural level-1 base art prefab was not found in the Constructor folder.");
+            var groundedPrefab = GroundedPrefabAuthoringEditor.EnsureGroundedWrapper(
+                rawPrefab, groundedPrefabPath, "NaturalBase_Lv1_Placeable",
+                Vector3.one * 58.58779f, Quaternion.identity);
+
+            var definition = faction.townBase != null
+                ? faction.townBase
+                : AssetDatabase.LoadAssetAtPath<BaseDefinitionSO>(assetPath);
             if (definition == null)
             {
-                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
-                    "Assets/Prefabs/Natural/Constructor/nat-base-lv1-7500.prefab");
-                if (prefab == null) throw new MissingReferenceException(
-                    "Natural level-1 base prefab was not found in the Constructor folder.");
                 definition = ScriptableObject.CreateInstance<BaseDefinitionSO>();
                 definition.baseId = "town-base";
                 definition.displayName = "Natural Town Core";
                 definition.levels.Add(new BaseLevelDefinition
                 {
                     level = 1,
-                    prefab = prefab,
+                    prefab = groundedPrefab,
                     maxHealth = 7500,
                     defenseCapacity = 100,
                     powerRating = 100,
@@ -166,13 +187,23 @@ namespace Splice.Editor.UI
                 });
                 AssetDatabase.CreateAsset(definition, assetPath);
             }
+            var levelOne = definition.ResolveLevel(1);
+            if (levelOne == null)
+            {
+                levelOne = new BaseLevelDefinition { level = 1 };
+                definition.levels.Add(levelOne);
+            }
+            levelOne.prefab = groundedPrefab;
+            if (levelOne.maxHealth <= 0) levelOne.maxHealth = 7500;
+            if (levelOne.defenseCapacity <= 0) levelOne.defenseCapacity = 100;
+            EditorUtility.SetDirty(definition);
             faction.townBase = definition;
             EditorUtility.SetDirty(faction);
             return definition;
         }
 
         private static void EnsureEditorBasePreview(Scene scene, Transform basePoint,
-            BaseDefinitionSO definition)
+            BaseDefinitionSO definition, LayerMask groundMask)
         {
             var level = definition?.ResolveLevel(1);
             if (level?.prefab == null) return;
@@ -188,6 +219,14 @@ namespace Splice.Editor.UI
                         break;
                     }
             }
+            for (var index = basePoint.childCount - 1; index >= 0; index--)
+            {
+                var child = basePoint.GetChild(index);
+                if (child.gameObject == preview || child.name == level.prefab.name) continue;
+                if (child.name == "nat-base-lv1-7500" ||
+                    child.GetComponent<GroundPlacementProfile>() != null)
+                    Object.DestroyImmediate(child.gameObject);
+            }
             if (preview == null)
                 preview = PrefabUtility.InstantiatePrefab(level.prefab, scene) as GameObject;
             if (preview == null) return;
@@ -195,6 +234,13 @@ namespace Splice.Editor.UI
             preview.transform.SetParent(basePoint, false);
             preview.transform.localPosition = Vector3.zero;
             preview.transform.localRotation = Quaternion.identity;
+            preview.transform.localScale = Vector3.one;
+            Physics.SyncTransforms();
+            if (!GroundPlacementUtility.TryPlaceOnGround(
+                    preview, basePoint.position, groundMask, out _))
+                throw new MissingReferenceException(
+                    $"Base preview '{level.prefab.name}' could not align to BuildZoneTerrain.");
+            preview.transform.SetParent(basePoint, true);
             preview.SetActive(true);
         }
 
@@ -288,6 +334,23 @@ namespace Splice.Editor.UI
             if (townBase == null || !townBase.HasRequiredReferences)
                 report.Error("BUILDZONE_BASE_CONTRACT",
                     "BuildZone requires a configured PlayerTownBaseController and exact BasePoint.", townBase);
+            var groundLayer = LayerMask.NameToLayer(GroundPlacementUtility.GroundLayerName);
+            var terrain = FindTransform(scene, "BuildZoneTerrain");
+            var panBounds = FindTransform(scene, "PanBounds");
+            if (groundLayer < 0 || terrain == null || terrain.gameObject.layer != groundLayer)
+                report.Error("BUILDZONE_GROUND_LAYER",
+                    "BuildZoneTerrain must use the dedicated Ground layer.", terrain);
+            if (groundLayer >= 0 && panBounds != null && panBounds.gameObject.layer == groundLayer)
+                report.Error("BUILDZONE_PAN_BOUNDS_GROUND",
+                    "PanBounds must not use the Ground layer.", panBounds);
+            if (townBase != null && townBase.BasePoint != null)
+            {
+                var placement = townBase.BasePoint.GetComponentInChildren<GroundPlacementProfile>(true);
+                if (placement == null || !placement.IsComplete)
+                    report.Error("BUILDZONE_BASE_GROUND_PROFILE",
+                        "The editor base preview must use a complete GroundPlacementProfile.",
+                        townBase.BasePoint);
+            }
             var meta = Find<PrototypeMetaHubController>(scene);
             if (meta == null || !meta.HasEditorAuthoredUi)
                 report.Error("BUILDZONE_META_UI_RUNTIME",
@@ -319,6 +382,14 @@ namespace Splice.Editor.UI
                 var value = root.GetComponentInChildren<T>(true);
                 if (value != null) return value;
             }
+            return null;
+        }
+
+        private static Transform FindTransform(Scene scene, string exactName)
+        {
+            foreach (var root in scene.GetRootGameObjects())
+            foreach (var value in root.GetComponentsInChildren<Transform>(true))
+                if (value.name == exactName) return value;
             return null;
         }
 

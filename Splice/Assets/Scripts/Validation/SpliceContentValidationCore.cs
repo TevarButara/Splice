@@ -4,6 +4,7 @@ using System.Linq;
 using Splice.Characters;
 using Splice.Combat;
 using Splice.Data;
+using Splice.Placement;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -219,6 +220,27 @@ namespace Splice.Validation
                 if (level.prefab == null)
                     report.Error("BASE_PREFAB_MISSING",
                         $"Town base '{definition.baseId}' level {level.level} has no prefab.", definition);
+                else
+                {
+                    var placement = level.prefab.GetComponent<GroundPlacementProfile>();
+                    if (placement == null || !placement.IsComplete)
+                        report.Error("BASE_GROUND_PROFILE_MISSING",
+                            $"Town base '{definition.baseId}' level {level.level} must use a canonical " +
+                            "GroundPlacementProfile prefab.", level.prefab);
+                    else if (placement.GroundAnchor.parent != level.prefab.transform ||
+                             placement.GroundAnchor.localPosition.sqrMagnitude >
+                             GroundPlacementUtility.GroundTolerance *
+                             GroundPlacementUtility.GroundTolerance)
+                        report.Error("BASE_GROUND_ANCHOR_INVALID",
+                            $"Town base '{definition.baseId}' level {level.level} GroundAnchor must be " +
+                            "a direct child at local zero.", level.prefab);
+                    if (level.prefab.transform.localPosition != Vector3.zero ||
+                        level.prefab.transform.localScale != Vector3.one ||
+                        level.prefab.transform.localRotation != Quaternion.identity)
+                        report.Error("BASE_ROOT_TRANSFORM_INVALID",
+                            $"Town base '{definition.baseId}' level {level.level} root must use " +
+                            "position/rotation zero and scale one.", level.prefab);
+                }
                 if (level.maxHealth <= 0)
                     report.Error("BASE_HEALTH_INVALID",
                         $"Town base '{definition.baseId}' level {level.level} max health must be positive.", definition);

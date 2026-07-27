@@ -146,9 +146,11 @@ namespace Splice.UI
             var retryRect = playAgainButton.GetComponent<RectTransform>();
             var returnRect = returnToTownButton.GetComponent<RectTransform>();
             if (retryRect == null || returnRect == null) return;
-            var original = retryRect.anchoredPosition;
-            retryRect.anchoredPosition = original + new Vector2(-190f, 0f);
-            returnRect.anchoredPosition = original + new Vector2(190f, 0f);
+            // Use the midpoint of the authored pair. Re-running the baker must be idempotent;
+            // subtracting from the retry position on every bake caused both buttons to drift left.
+            var center = (retryRect.anchoredPosition + returnRect.anchoredPosition) * .5f;
+            retryRect.anchoredPosition = center + new Vector2(-190f, 0f);
+            returnRect.anchoredPosition = center + new Vector2(190f, 0f);
             retryRect.sizeDelta = new Vector2(Mathf.Min(330f, retryRect.sizeDelta.x), retryRect.sizeDelta.y);
             returnRect.sizeDelta = retryRect.sizeDelta;
             var retryLabel = playAgainButton.GetComponentInChildren<TMP_Text>(true);
