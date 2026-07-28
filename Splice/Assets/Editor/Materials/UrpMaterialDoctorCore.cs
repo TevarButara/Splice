@@ -83,11 +83,76 @@ namespace Splice.Editor.Materials
 
         public static string GetSelectedFolderPath()
         {
-            if (Selection.objects == null || Selection.objects.Length != 1)
-                return string.Empty;
+            var folders = new HashSet<string>(StringComparer.Ordinal);
+            if (Selection.objects != null)
+            {
+                foreach (UnityEngine.Object selectedObject in Selection.objects)
+                {
+                    if (TryGetAssetFolderPath(selectedObject, out string folder))
+                        folders.Add(folder);
+                }
+            }
 
-            string path = AssetDatabase.GetAssetPath(Selection.activeObject);
-            return AssetDatabase.IsValidFolder(path) ? path.Replace('\\', '/').TrimEnd('/') : string.Empty;
+            // Selection.assetGUIDs can lag one Project-window event behind Selection.objects.
+            // Prefer concrete selected folder objects when available so a stale GUID cannot
+            // make a valid single-folder selection appear ambiguous.
+            if (folders.Count > 0)
+                return folders.Count == 1 ? folders.First() : string.Empty;
+
+            if (Selection.assetGUIDs != null)
+            {
+                foreach (string guid in Selection.assetGUIDs)
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(guid);
+                    if (AssetDatabase.IsValidFolder(path))
+                        folders.Add(path.Replace('\\', '/').TrimEnd('/'));
+                }
+            }
+
+            return folders.Count == 1 ? folders.First() : string.Empty;
+        }
+
+        public static bool TryGetAssetFolderPath(UnityEngine.Object selectedObject, out string folderPath)
+        {
+            folderPath = string.Empty;
+            if (selectedObject == null)
+                return false;
+
+            string path = AssetDatabase.GetAssetPath(selectedObject);
+            if (!AssetDatabase.IsValidFolder(path))
+                return false;
+
+            folderPath = path.Replace('\\', '/').TrimEnd('/');
+            return true;
+        }
+
+        public static bool TryConvertAbsoluteFolderToAssetPath(
+            string absolutePath,
+            out string assetPath,
+            out string reason)
+        {
+            assetPath = string.Empty;
+            if (string.IsNullOrWhiteSpace(absolutePath))
+            {
+                reason = "No folder was selected.";
+                return false;
+            }
+
+            string assetsRoot = Path.GetFullPath(Application.dataPath)
+                .Replace('\\', '/')
+                .TrimEnd('/');
+            string selected = Path.GetFullPath(absolutePath)
+                .Replace('\\', '/')
+                .TrimEnd('/');
+
+            if (!selected.StartsWith(assetsRoot + "/", StringComparison.Ordinal))
+            {
+                reason = "Choose a subfolder inside this project's Assets folder.";
+                return false;
+            }
+
+            assetPath = "Assets/" + selected.Substring(assetsRoot.Length + 1);
+            return IsAllowedSelectedFolder(assetPath, out reason);
         }
 
         public static List<UrpMaterialAudit> AuditFolder(string folderPath)

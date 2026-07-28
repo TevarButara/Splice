@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -13,7 +14,8 @@ namespace Splice.Editor.Materials
             "Convert only the audited materials inside this selected folder?\n\n" +
             "The operation changes material shader assignments in place. A raw backup is written under Library/SpliceMaterialBackups first.";
 
-        private string _folderPath = string.Empty;
+        [SerializeField] private DefaultAsset _folderAsset;
+        [SerializeField] private string _folderPath = string.Empty;
         private string _message = "Select exactly one subfolder under Assets in the Project window.";
         private List<UrpMaterialAudit> _audits = new List<UrpMaterialAudit>();
         private Vector2 _scroll;
@@ -36,15 +38,37 @@ namespace Splice.Editor.Materials
                 "There is intentionally no whole-project conversion command.",
                 MessageType.Info);
 
+            EditorGUI.BeginChangeCheck();
+            DefaultAsset folderAsset = (DefaultAsset)EditorGUILayout.ObjectField(
+                "Folder (drag here)",
+                _folderAsset,
+                typeof(DefaultAsset),
+                false);
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (UrpMaterialDoctorCore.TryGetAssetFolderPath(folderAsset, out string draggedPath) &&
+                    UrpMaterialDoctorCore.IsAllowedSelectedFolder(draggedPath, out _))
+                {
+                    SetFolder(draggedPath);
+                }
+                else
+                {
+                    _folderAsset = null;
+                    _message = "Please drag a subfolder below Assets into the Folder field.";
+                }
+            }
+
             using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.PrefixLabel("Selected folder");
+                EditorGUILayout.PrefixLabel("Resolved path");
                 EditorGUILayout.SelectableLabel(
                     string.IsNullOrEmpty(_folderPath) ? "<none>" : _folderPath,
                     EditorStyles.textField,
                     GUILayout.Height(EditorGUIUtility.singleLineHeight));
-                if (GUILayout.Button("Use Project Selection", GUILayout.Width(150f)))
+                if (GUILayout.Button("Use Selection", GUILayout.Width(105f)))
                     UseCurrentSelection();
+                if (GUILayout.Button("Browse...", GUILayout.Width(80f)))
+                    BrowseForFolder();
             }
 
             using (new EditorGUILayout.HorizontalScope())
@@ -66,19 +90,69 @@ namespace Splice.Editor.Materials
             DrawAuditTable();
         }
 
+        private void OnEnable()
+        {
+            if (UrpMaterialDoctorCore.IsAllowedSelectedFolder(_folderPath, out _))
+                _folderAsset = AssetDatabase.LoadAssetAtPath<DefaultAsset>(_folderPath);
+        }
+
+        private void OnSelectionChange()
+        {
+            string selected = UrpMaterialDoctorCore.GetSelectedFolderPath();
+            if (UrpMaterialDoctorCore.IsAllowedSelectedFolder(selected, out _))
+                SetFolder(selected);
+        }
+
         private void UseCurrentSelection()
         {
             string selected = UrpMaterialDoctorCore.GetSelectedFolderPath();
             if (!UrpMaterialDoctorCore.IsAllowedSelectedFolder(selected, out string reason))
             {
-                _folderPath = string.Empty;
-                _audits.Clear();
+                _message = reason + " You can also drag the folder into the field or use Browse.";
+                Repaint();
+                return;
+            }
+
+            SetFolder(selected);
+        }
+
+        private void BrowseForFolder()
+        {
+            string startFolder = UrpMaterialDoctorCore.IsAllowedSelectedFolder(_folderPath, out _)
+                ? Path.GetFullPath(Path.Combine(
+                    Directory.GetParent(Application.dataPath)?.FullName ?? Application.dataPath,
+                    _folderPath))
+                : Application.dataPath;
+            string selected = EditorUtility.OpenFolderPanel(
+                "Select a Material Folder Below Assets",
+                startFolder,
+                string.Empty);
+            if (string.IsNullOrEmpty(selected))
+                return;
+
+            if (!UrpMaterialDoctorCore.TryConvertAbsoluteFolderToAssetPath(
+                    selected,
+                    out string assetPath,
+                    out string reason))
+            {
                 _message = reason;
                 Repaint();
                 return;
             }
 
-            _folderPath = selected;
+            SetFolder(assetPath);
+        }
+
+        private void SetFolder(string folderPath)
+        {
+            if (!UrpMaterialDoctorCore.IsAllowedSelectedFolder(folderPath, out string reason))
+            {
+                _message = reason;
+                return;
+            }
+
+            _folderPath = folderPath;
+            _folderAsset = AssetDatabase.LoadAssetAtPath<DefaultAsset>(_folderPath);
             _audits.Clear();
             _message = $"Ready to audit only: {_folderPath}";
             Repaint();

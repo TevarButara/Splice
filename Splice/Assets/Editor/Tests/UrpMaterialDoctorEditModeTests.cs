@@ -16,6 +16,7 @@ namespace Splice.Tests.EditMode
         {
             AssetDatabase.DeleteAsset(TemporaryFolder);
             AssetDatabase.CreateFolder("Assets", "__UrpMaterialDoctorTests");
+            AssetDatabase.ImportAsset(TemporaryFolder, ImportAssetOptions.ForceSynchronousImport);
         }
 
         [TearDown]
@@ -31,6 +32,48 @@ namespace Splice.Tests.EditMode
             Assert.That(UrpMaterialDoctorCore.IsAllowedSelectedFolder(TemporaryFolder, out _), Is.True);
             Assert.That(UrpMaterialDoctorCore.IsAllowedSelectedFolder("Packages", out _), Is.False);
             Assert.That(UrpMaterialDoctorCore.IsAllowedSelectedFolder("Assets/NotARealFolder", out _), Is.False);
+        }
+
+        [Test]
+        public void FolderSelection_FindsSingleFolderEvenWhenAnotherAssetIsAlsoSelected()
+        {
+            string materialPath = TemporaryFolder + "/SelectedAsset.mat";
+            CreateMaterial(materialPath, "Standard");
+            Object[] previousSelection = Selection.objects;
+            try
+            {
+                var folder = AssetDatabase.LoadAssetAtPath<DefaultAsset>(TemporaryFolder);
+                var material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+                Assert.That(folder, Is.Not.Null);
+                Selection.objects = new Object[] { material, folder };
+
+                Assert.That(UrpMaterialDoctorCore.GetSelectedFolderPath(), Is.EqualTo(TemporaryFolder));
+            }
+            finally
+            {
+                Selection.objects = previousSelection;
+            }
+        }
+
+        [Test]
+        public void BrowsePath_AcceptsOnlySubfolderInsideProjectAssets()
+        {
+            string absoluteFolder = Path.GetFullPath(
+                Path.Combine(Directory.GetParent(Application.dataPath).FullName, TemporaryFolder));
+
+            Assert.That(
+                UrpMaterialDoctorCore.TryConvertAbsoluteFolderToAssetPath(
+                    absoluteFolder,
+                    out string assetPath,
+                    out _),
+                Is.True);
+            Assert.That(assetPath, Is.EqualTo(TemporaryFolder));
+            Assert.That(
+                UrpMaterialDoctorCore.TryConvertAbsoluteFolderToAssetPath(
+                    Directory.GetParent(Application.dataPath).FullName,
+                    out _,
+                    out _),
+                Is.False);
         }
 
         [Test]
