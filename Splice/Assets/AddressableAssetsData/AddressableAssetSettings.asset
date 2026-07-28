@@ -15,7 +15,7 @@ MonoBehaviour:
   m_DefaultGroup: 624912bc232bf4e87bc9f024f2f84882
   m_currentHash:
     serializedVersion: 2
-    Hash: c04adcf32a23fac9e4c9d4af9f26ee5b
+    Hash: 00000000000000000000000000000000
   m_ExtractTypeTreeData: 0
   m_DisableWriteTypeTree: 0
   m_OptimizeCatalogSize: 0
@@ -72,6 +72,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: d1fc8cdb0576f4383804c8009e2c958b, type: 2}
   - {fileID: 11400000, guid: 1b79dda93b81d48a083f89a30466205c, type: 2}
   - {fileID: 11400000, guid: 0b98ba6210443487faa9ab43673de8e7, type: 2}
+  - {fileID: 11400000, guid: 2be55e6bb675b4a35b1f0356fab9d0e1, type: 2}
   m_BuildSettings:
     m_LogResourceManagerExceptions: 1
     m_ContentDirectoryBuildPath: Temp/com.unity.addressables/ContentDirectories
@@ -93,7 +94,7 @@ MonoBehaviour:
       - m_Id: b96b3fde8ff834a3892463d162f14ba3
         m_Value: 'ServerData/[BuildTarget]'
       - m_Id: e5528e9d00c5247dc906e4888a46e939
-        m_Value: 1.0.1
+        m_Value: 1.0.0
     m_ProfileEntryNames:
     - m_Id: 24cd39eeec5fe41f8b1f5693005af8d2
       m_Name: Remote.LoadPath
@@ -124,6 +125,7 @@ MonoBehaviour:
     - map/default
     - season/default
     - shared-remote
+    - hero/hero_rowan
   m_SchemaTemplates: []
   m_GroupTemplateObjects:
   - {fileID: 11400000, guid: 33a22f330779f411b89d869f37c5542b, type: 2}
