@@ -57,7 +57,7 @@ Transform:
   m_GameObject: {fileID: 159141272214787019}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.6849179, z: 0}
+  m_LocalPosition: {x: 0, y: 12.122648, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -601,7 +601,7 @@ Transform:
   m_GameObject: {fileID: 2773334974989061791}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.5707649, z: 0}
+  m_LocalPosition: {x: 0, y: 10.102206, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1118,7 +1118,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 1594146336
+  GlobalObjectIdHash: 1627846279
   InScenePlacedSourceGlobalObjectIdHash: 1594146336
   DeferredDespawnTick: 0
   Ownership: 1
@@ -1240,15 +1240,15 @@ LODGroup:
   m_AnimateCrossFading: 0
   m_LastLODIsBillboard: 0
   m_LODs:
-  - screenRelativeHeight: 0.4918324
+  - screenRelativeHeight: 0.40717903
     fadeTransitionWidth: 0
     renderers:
     - renderer: {fileID: 4004879451971035402}
-  - screenRelativeHeight: 0.23653316
+  - screenRelativeHeight: 0.100239664
     fadeTransitionWidth: 0
     renderers:
     - renderer: {fileID: 3759772180129640905}
-  - screenRelativeHeight: 0.073380165
+  - screenRelativeHeight: 0.00920304
     fadeTransitionWidth: 0
     renderers:
     - renderer: {fileID: 3134506937343239108}
@@ -83776,9 +83776,9 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8878320009777527680}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: 0.999888, z: -0, w: 0.014966026}
-  m_LocalPosition: {x: -0.01725769, y: 0.10170883, z: -0.011131287}
-  m_LocalScale: {x: 0.2, y: 0.2, z: 0.2}
+  m_LocalRotation: {x: -0, y: -0.014364379, z: -0, w: 0.9998969}
+  m_LocalPosition: {x: 0.30568057, y: 1.8001871, z: 0.19666626}
+  m_LocalScale: {x: 3.5398831, y: 3.5398831, z: 3.5398831}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 8109285968346205951}
@@ -83787,7 +83787,7 @@ Transform:
   - {fileID: 5140406343775807105}
   - {fileID: 6315707327581433062}
   m_Father: {fileID: 4140957811919468561}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -1.646, z: 0}
 --- !u!1 &9014356650739095051
 GameObject:
   m_ObjectHideFlags: 0

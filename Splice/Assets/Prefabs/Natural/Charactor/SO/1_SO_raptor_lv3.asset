@@ -22,7 +22,7 @@ MonoBehaviour:
   role: 0
   spell: {fileID: 0}
   projectile: {fileID: 0}
-  footprint: 2
+  footprint: 12
   defenseCapacityCost: 2
   injuredMoveSpeed: 1
   waypointArriveRadius: 0.15
@@ -43,5 +43,7 @@ MonoBehaviour:
   flightHeight: 0
   buildTimeSeconds: 1
   goldCost: 10
+  nextTier: {fileID: 0}
+  upgradeCost: 0
   icon: {fileID: 0}
-  prefab: {fileID: 7114109506353519949, guid: bc2988788de61844193b61ddcce19003, type: 3}
+  prefab: {fileID: 3661839142737987451, guid: d3e5c6a9386efe5479fb5fac3bfd8b51, type: 3}

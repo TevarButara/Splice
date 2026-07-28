@@ -22,7 +22,7 @@ MonoBehaviour:
   role: 0
   spell: {fileID: 0}
   projectile: {fileID: 0}
-  footprint: 2
+  footprint: 12
   defenseCapacityCost: 1
   injuredMoveSpeed: 2
   waypointArriveRadius: 0.15
