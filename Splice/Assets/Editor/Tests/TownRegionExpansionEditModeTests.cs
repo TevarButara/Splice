@@ -1,9 +1,13 @@
 using System.Collections.Generic;
 using System.Reflection;
 using NUnit.Framework;
+using Splice.Backend;
 using Splice.Base;
 using Splice.Data;
+using Splice.UI;
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Splice.EditorTests
 {
@@ -109,6 +113,75 @@ namespace Splice.EditorTests
                 Object.DestroyImmediate(definition);
             }
         }
+
+        [Test]
+        public void PurchasePanel_RestoresAuthoritativeButtonStateAfterBusyRequest()
+        {
+            var root = new GameObject("TownRegionUiTest");
+            try
+            {
+                var controller = root.AddComponent<TownRegionPurchaseController>();
+                var unlocked = CreateRegionButton(root.transform, "east");
+                var blocked = CreateRegionButton(root.transform, "outer-north");
+                Set(controller, "regionButtons",
+                    new List<TownRegionPurchaseButtonView> { unlocked, blocked });
+                var status = new GameObject("Status", typeof(RectTransform),
+                    typeof(CanvasRenderer), typeof(TextMeshProUGUI))
+                    .GetComponent<TextMeshProUGUI>();
+                status.transform.SetParent(root.transform);
+                Set(controller, "statusText", status);
+
+                var expansion = new TownExpansionView
+                {
+                    factionId = Faction,
+                    mapTemplateId = TownExpansionPrototypeCatalog.MapTemplateId,
+                    mapVersion = TownExpansionPrototypeCatalog.MapVersion,
+                    unlockedRegionIds = new List<string> { "core", "east" },
+                    availableRegions = new List<TownRegionOfferDto>
+                    {
+                        new()
+                        {
+                            regionId = "outer-north",
+                            displayName = "Outer North",
+                            goldCost = 1200,
+                            prerequisiteRegionIds = new List<string> { "north" },
+                        },
+                    },
+                };
+
+                typeof(TownRegionPurchaseController).GetMethod("Render",
+                        BindingFlags.Instance | BindingFlags.NonPublic)
+                    ?.Invoke(controller, new object[] { expansion, string.Empty });
+
+                Assert.That(unlocked.Button.interactable, Is.False,
+                    "An unlocked region must stay disabled after an async request completes.");
+                Assert.That(blocked.Button.interactable, Is.False,
+                    "A region with an unmet prerequisite must stay disabled.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        private static TownRegionPurchaseButtonView CreateRegionButton(Transform parent,
+            string regionId)
+        {
+            var root = new GameObject(regionId, typeof(RectTransform), typeof(Button));
+            root.transform.SetParent(parent);
+            var label = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer),
+                typeof(TextMeshProUGUI)).GetComponent<TextMeshProUGUI>();
+            label.transform.SetParent(root.transform);
+            var view = root.AddComponent<TownRegionPurchaseButtonView>();
+            Set(view, "regionId", regionId);
+            Set(view, "button", root.GetComponent<Button>());
+            Set(view, "label", label);
+            return view;
+        }
+
+        private static void Set(object target, string field, object value) =>
+            target.GetType().GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)
+                ?.SetValue(target, value);
 
         private static BaseLayout ValidLayout() => new()
         {

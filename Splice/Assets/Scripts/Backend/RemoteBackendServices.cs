@@ -14,6 +14,7 @@ namespace Splice.Backend
         public const string RaidQuotes = "/v1/raid-quotes";
         public const string Raids = "/v1/raids";
         public const string SnapshotBatch = "/v1/town-snapshots/latest/query";
+        public const string IncomingDefenseRaids = "/v1/raid-observer/incoming";
 
         public static string TownDraft(string factionId) =>
             "/v1/towns/" + Segment(factionId) + "/draft";
@@ -297,6 +298,19 @@ namespace Splice.Backend
         public Task<RaidReplayDto> GetReplayAsync(string raidId,
             CancellationToken cancellationToken) =>
             client.GetAsync<RaidReplayDto>(BackendRoutes.RaidReplay(raidId), cancellationToken);
+    }
+
+    public sealed class RemoteRaidObserverService : IRaidObserverService
+    {
+        private readonly BackendApiClient client;
+
+        public RemoteRaidObserverService(BackendApiClient client) =>
+            this.client = client ?? throw new ArgumentNullException(nameof(client));
+
+        public Task<IncomingDefenseRaidListDto> GetIncomingDefenseAsync(
+            CancellationToken cancellationToken) =>
+            client.GetAsync<IncomingDefenseRaidListDto>(BackendRoutes.IncomingDefenseRaids,
+                cancellationToken);
     }
 
     // Deliberately retained after C4A: only the trusted /internal result route may settle shared economy.

@@ -26,7 +26,8 @@ public sealed class GarrisonMonsterView
 }
 public sealed class BaseLayoutView
 {
-    public int Version { get; set; } = 2;
+    // Missing field means legacy v1 for backward-compatible clients; Unity v2 sends it explicitly.
+    public int Version { get; set; } = 1;
     public string OwnerAccountId { get; set; } = string.Empty;
     public string FactionId { get; set; } = string.Empty;
     public string MapTemplateId { get; set; } = "town-default-v1";

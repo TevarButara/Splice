@@ -255,6 +255,23 @@ namespace Splice.Backend
     }
 
     [Serializable]
+    public sealed class IncomingDefenseRaidDto
+    {
+        public string raidId;
+        public string state;
+        public string attackerDisplayName;
+        public string targetSnapshotId;
+        public bool replayAvailable;
+        public string updatedUtc;
+    }
+
+    [Serializable]
+    public sealed class IncomingDefenseRaidListDto
+    {
+        public List<IncomingDefenseRaidDto> raids = new();
+    }
+
+    [Serializable]
     public sealed class RaidReplayDto
     {
         public string raidId;
@@ -359,6 +376,12 @@ namespace Splice.Backend
             CancellationToken cancellationToken);
         Task<RaidLifecycleDto> GetLifecycleAsync(string raidId, CancellationToken cancellationToken);
         Task<RaidReplayDto> GetReplayAsync(string raidId, CancellationToken cancellationToken);
+    }
+
+    public interface IRaidObserverService
+    {
+        Task<IncomingDefenseRaidListDto> GetIncomingDefenseAsync(
+            CancellationToken cancellationToken);
     }
 
     public interface IRaidReportService

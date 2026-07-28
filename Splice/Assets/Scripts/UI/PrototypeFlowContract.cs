@@ -13,6 +13,8 @@ namespace Splice.UI
         public const string RaidScene = "RaidArena";
         public const string AttackerPresentationScene = "RaidAttackerPresentation";
         public const string DefenderPresentationScene = "RaidDefenderPresentation";
+        public const string WorldMapScene = "WorldMap";
+        public const string ForestScene = "ForestZone";
 
         public static readonly string[] RequiredSceneNames =
         {
@@ -21,6 +23,8 @@ namespace Splice.UI
             RaidScene,
             AttackerPresentationScene,
             DefenderPresentationScene,
+            WorldMapScene,
+            ForestScene,
         };
 
         public static bool ShouldAutoOpenRaidContract(bool hasSelectedTarget,

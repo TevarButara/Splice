@@ -1,0 +1,74 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6ad54246bc74a4c2db176830dfcf9285, type: 3}
+  m_Name: TownMap_Default
+  m_EditorClassIdentifier: Assembly-CSharp::Splice.Data.TownMapDefinitionSO
+  mapId: town-default-v1
+  mapVersion: 1
+  gameMode: 0
+  sceneName: BuildZone
+  cameraFocus: {x: 0, y: 0, z: 0}
+  cameraRadius: 90
+  regions:
+  - regionId: core
+    displayName: Town Core
+    localCenter: {x: 0, y: 0}
+    size: {x: 40, y: 40}
+    initiallyUnlocked: 1
+    purchaseGoldCost: 0
+    additionalDefenseCapacity: 0
+    prerequisiteRegionIds: []
+  - regionId: north
+    displayName: North Ridge
+    localCenter: {x: 0, y: 40}
+    size: {x: 40, y: 40}
+    initiallyUnlocked: 0
+    purchaseGoldCost: 500
+    additionalDefenseCapacity: 20
+    prerequisiteRegionIds:
+    - core
+  - regionId: east
+    displayName: East Quarter
+    localCenter: {x: 40, y: 0}
+    size: {x: 40, y: 40}
+    initiallyUnlocked: 0
+    purchaseGoldCost: 500
+    additionalDefenseCapacity: 20
+    prerequisiteRegionIds:
+    - core
+  - regionId: south
+    displayName: South Gate
+    localCenter: {x: 0, y: -40}
+    size: {x: 40, y: 40}
+    initiallyUnlocked: 0
+    purchaseGoldCost: 700
+    additionalDefenseCapacity: 25
+    prerequisiteRegionIds:
+    - core
+  - regionId: west
+    displayName: West Quarter
+    localCenter: {x: -40, y: 0}
+    size: {x: 40, y: 40}
+    initiallyUnlocked: 0
+    purchaseGoldCost: 700
+    additionalDefenseCapacity: 25
+    prerequisiteRegionIds:
+    - core
+  - regionId: outer-north
+    displayName: Outer North
+    localCenter: {x: 0, y: 80}
+    size: {x: 40, y: 40}
+    initiallyUnlocked: 0
+    purchaseGoldCost: 1200
+    additionalDefenseCapacity: 30
+    prerequisiteRegionIds:
+    - north

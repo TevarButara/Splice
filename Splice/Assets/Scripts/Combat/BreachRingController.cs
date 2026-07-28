@@ -45,6 +45,7 @@ namespace Splice.Combat
         private readonly List<ObjectiveRecord> objectives = new();
         private bool objectivesInitialized;
         private bool runtimeReady;
+        private bool invalidSetupLogged;
         private int awardedBreachCount;
         private float nextRefreshAt;
 
@@ -142,11 +143,20 @@ namespace Splice.Combat
             objectivesInitialized = objectives.Count > 0;
             runtimeReady = false;
 
-            if (!IsConfigurationValid)
+            // An empty list is a normal transient state while a snapshot is still spawning its
+            // objectives. Only report authored/loaded partial ring data, and report it once.
+            if (objectives.Count > 0 && !IsConfigurationValid && !invalidSetupLogged)
+            {
+                invalidSetupLogged = true;
                 Debug.LogError(
                     $"[BreachRings] Invalid setup: Outer={OuterTotal}, Inner={InnerTotal}, Core={CoreTotal}. " +
                     "Every ring needs at least one required objective.",
                     this);
+            }
+            else if (IsConfigurationValid)
+            {
+                invalidSetupLogged = false;
+            }
         }
 
         private bool AreObjectivesRuntimeReady()

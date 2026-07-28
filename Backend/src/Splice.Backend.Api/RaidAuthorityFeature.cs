@@ -27,6 +27,9 @@ public sealed record RaidLifecycleView(string RaidId, string State, string Targe
     string AllocationState, string ResultId, string Outcome, int BreachedRings,
     long WarGemPayout, bool ReplayAvailable, string SimulationVersion,
     string CommandStreamHash, string UpdatedUtc);
+public sealed record IncomingDefenseRaidView(string RaidId, string State, string AttackerDisplayName,
+    string TargetSnapshotId, bool ReplayAvailable, string UpdatedUtc);
+public sealed record IncomingDefenseRaidListView(IReadOnlyList<IncomingDefenseRaidView> Raids);
 public sealed record RaidReplayInputView(string RaidId, string TargetSnapshotId,
     string LoadoutSnapshotId, long AttackerPower, long ArmyPower, long HeroPower,
     long GearPower, long DefenderPower, JsonElement TargetSnapshot,
@@ -58,9 +61,38 @@ public static partial class RaidAuthorityFeature
         app.MapPost("/v1/raids/{raidId:guid}/allocation", AllocateAsync);
         app.MapGet("/v1/raids/{raidId:guid}", GetLifecycleAsync);
         app.MapGet("/v1/raids/{raidId:guid}/replay", GetReplayAsync);
+        app.MapGet("/v1/raid-observer/incoming", GetIncomingDefenseAsync);
         app.MapPost("/internal/v1/raids/{raidId:guid}/start", StartAsync);
         app.MapPost("/internal/v1/raids/{raidId:guid}/result", SubmitResultAsync);
         MapRaidWorkerEndpoints(app);
+    }
+
+    private static async Task<IResult> GetIncomingDefenseAsync(HttpContext context,
+        NpgsqlDataSource dataSource)
+    {
+        var defenderId = RequestIdentityMiddleware.PlayerId(context);
+        await using var connection = await dataSource.OpenConnectionAsync(context.RequestAborted);
+        await using var command = new NpgsqlCommand("""
+            SELECT r.id, r.state, attacker.display_name, r.target_snapshot_id,
+                   rp.result_id IS NOT NULL,
+                   COALESCE(r.completed_at, r.started_at, r.created_at)
+              FROM splice.raid_sessions r
+              JOIN splice.players attacker ON attacker.id = r.attacker_player_id
+              LEFT JOIN splice.raid_replays rp ON rp.raid_id = r.id
+             WHERE r.defender_player_id = @defender
+               AND (r.state IN ('FUNDED', 'ACTIVE', 'SETTLING')
+                    OR (r.state = 'SETTLED' AND r.completed_at > clock_timestamp() - interval '24 hours'))
+             ORDER BY COALESCE(r.completed_at, r.started_at, r.created_at) DESC, r.id DESC
+             LIMIT 20
+            """, connection);
+        command.Parameters.AddWithValue("defender", defenderId);
+        var raids = new List<IncomingDefenseRaidView>();
+        await using var reader = await command.ExecuteReaderAsync(context.RequestAborted);
+        while (await reader.ReadAsync(context.RequestAborted))
+            raids.Add(new IncomingDefenseRaidView(reader.GetGuid(0).ToString("D"), reader.GetString(1),
+                reader.GetString(2), reader.GetGuid(3).ToString("D"), reader.GetBoolean(4),
+                reader.GetFieldValue<DateTimeOffset>(5).ToString("O")));
+        return Results.Ok(new IncomingDefenseRaidListView(raids));
     }
 
     private static async Task<IResult> AllocateAsync(HttpContext context, Guid raidId,

@@ -7,10 +7,30 @@ using UnityEngine.SceneManagement;
 
 namespace Splice.UI
 {
+    public enum PrototypeHubDestination
+    {
+        Town,
+        Raid,
+        History,
+    }
+
     public static class PrototypeFlowRouter
     {
+        private static PrototypeHubDestination pendingHubDestination;
+
         public static void LoadHub()
         {
+            LoadHub(PrototypeHubDestination.Town);
+        }
+
+        public static void LoadRaidHub()
+        {
+            LoadHub(PrototypeHubDestination.Raid);
+        }
+
+        private static void LoadHub(PrototypeHubDestination destination)
+        {
+            pendingHubDestination = destination;
             ShutdownNetworkSession();
             RaidSessionContext.Clear();
             RaidContext.Clear();
@@ -18,10 +38,29 @@ namespace Splice.UI
             SceneManager.LoadScene(PrototypeFlowContract.HubScene);
         }
 
+        public static PrototypeHubDestination ConsumeHubDestination()
+        {
+            var destination = pendingHubDestination;
+            pendingHubDestination = PrototypeHubDestination.Town;
+            return destination;
+        }
+
         public static void LoadRaid()
         {
             ShutdownNetworkSession();
             SceneManager.LoadScene(PrototypeFlowContract.RaidScene);
+        }
+
+        public static void LoadWorldMap()
+        {
+            ShutdownNetworkSession();
+            SceneManager.LoadScene(PrototypeFlowContract.WorldMapScene);
+        }
+
+        public static void LoadForest()
+        {
+            ShutdownNetworkSession();
+            SceneManager.LoadScene(PrototypeFlowContract.ForestScene);
         }
 
         public static void ShutdownNetworkSession()

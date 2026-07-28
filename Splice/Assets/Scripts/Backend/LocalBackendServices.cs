@@ -489,6 +489,16 @@ namespace Splice.Backend
         };
     }
 
+    public sealed class LocalRaidObserverService : IRaidObserverService
+    {
+        public Task<IncomingDefenseRaidListDto> GetIncomingDefenseAsync(
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new IncomingDefenseRaidListDto());
+        }
+    }
+
     public sealed class LocalRaidReportService : IRaidReportService
     {
         public Task<RaidDefenseHistoryPageDto> GetDefenseHistoryAsync(int limit,
@@ -667,6 +677,7 @@ namespace Splice.Backend
         private static ITownSnapshotService townSnapshots;
         private static ITownExpansionService townExpansion;
         private static IRaidContractService raidContracts;
+        private static IRaidObserverService raidObserver;
         private static IRaidReportService raidReports;
         private static IRaidSettlementService raidSettlement;
 
@@ -674,6 +685,7 @@ namespace Splice.Backend
         public static ITownSnapshotService TownSnapshots => townSnapshots ??= new LocalTownSnapshotService();
         public static ITownExpansionService TownExpansion => townExpansion ??= new LocalTownExpansionService();
         public static IRaidContractService RaidContracts => raidContracts ??= new LocalRaidContractService(Wallet);
+        public static IRaidObserverService RaidObserver => raidObserver ??= new LocalRaidObserverService();
         public static IRaidReportService RaidReports => raidReports ??= new LocalRaidReportService();
         public static IRaidSettlementService RaidSettlement =>
             raidSettlement ??= new LocalRaidSettlementService(RaidReports);
@@ -704,12 +716,14 @@ namespace Splice.Backend
         public static void Configure(IWalletService walletService, ITownSnapshotService townSnapshotService,
             IRaidContractService raidContractService, IRaidReportService raidReportService = null,
             IRaidSettlementService raidSettlementService = null,
-            ITownExpansionService townExpansionService = null)
+            ITownExpansionService townExpansionService = null,
+            IRaidObserverService raidObserverService = null)
         {
             wallet = walletService ?? throw new ArgumentNullException(nameof(walletService));
             townSnapshots = townSnapshotService ?? throw new ArgumentNullException(nameof(townSnapshotService));
             townExpansion = townExpansionService ?? new LocalTownExpansionService();
             raidContracts = raidContractService ?? throw new ArgumentNullException(nameof(raidContractService));
+            raidObserver = raidObserverService ?? new LocalRaidObserverService();
             raidReports = raidReportService ?? new LocalRaidReportService();
             raidSettlement = raidSettlementService ?? new LocalRaidSettlementService(raidReports);
         }
@@ -722,6 +736,7 @@ namespace Splice.Backend
             townSnapshots = new RemoteTownSnapshotService(client);
             townExpansion = new RemoteTownExpansionService(client);
             raidContracts = new RemoteRaidContractService(client);
+            raidObserver = new RemoteRaidObserverService(client);
             raidReports = new RemoteRaidReportService(client);
             raidSettlement = new ClientAuthorityGuardRaidSettlementService();
         }
@@ -732,6 +747,7 @@ namespace Splice.Backend
             townSnapshots = null;
             townExpansion = null;
             raidContracts = null;
+            raidObserver = null;
             raidReports = null;
             raidSettlement = null;
         }

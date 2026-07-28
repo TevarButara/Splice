@@ -105,7 +105,18 @@ namespace Splice.UI
                 return;
             }
             BindStaticButtonActions();
-            ShowTown();
+            switch (PrototypeFlowRouter.ConsumeHubDestination())
+            {
+                case PrototypeHubDestination.Raid:
+                    ShowRaid();
+                    break;
+                case PrototypeHubDestination.History:
+                    ShowHistory();
+                    break;
+                default:
+                    ShowTown();
+                    break;
+            }
         }
 
         private IEnumerator Start()

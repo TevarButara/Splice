@@ -17,6 +17,7 @@ var connectionString = args[0];
 
 const string attackerId = "11000000-0000-0000-0000-000000000001";
 const string defenderAlphaId = "11000000-0000-0000-0000-000000000002";
+const string expansionPlayerId = "11000000-0000-0000-0000-000000000099";
 const string fairTargetId = "41000000-0000-0000-0000-000000000001";
 const string highTargetAId = "41000000-0000-0000-0000-000000000002";
 const string highTargetBId = "41000000-0000-0000-0000-000000000003";
@@ -200,6 +201,16 @@ try
     Equal(HttpStatusCode.Created, confirm.Status, "raid funded");
     Equal(900L, Long(confirm, "wallet", "warGemBalance"), "server debits quoted stake");
     var raidId = String(confirm, "raidId");
+
+    var defenderIncoming = await SendAsync(host.Client, HttpMethod.Get,
+        "/v1/raid-observer/incoming", null, null, authenticatedPlayerId: defenderAlphaId);
+    Equal(HttpStatusCode.OK, defenderIncoming.Status,
+        "defender can read server-authoritative incoming raid notifications");
+    var incomingItems = defenderIncoming.Json.RootElement.GetProperty("raids");
+    True(incomingItems.EnumerateArray().Any(item =>
+            item.GetProperty("raidId").GetString() == raidId &&
+            item.GetProperty("state").GetString() == "FUNDED"),
+        "funded raid appears in defender observer feed");
 
     var confirmReplay = await SendAsync(host.Client, HttpMethod.Post, "/v1/raids",
         confirmBody, "raid:confirm:fair");
@@ -1488,7 +1499,34 @@ static object ReplayResultBody(string allocationId, string workerId, string resu
 static async Task RunC3Async(TestHost host, string connectionString)
 {
     const string faction = "c3-natural";
+    const string expansionFaction = "c3-expansion";
     await SeedC3Async(connectionString);
+
+    var initialExpansion = await SendAsync(host.Client, HttpMethod.Get,
+        $"/v1/towns/{expansionFaction}/expansion", null, null,
+        authenticatedPlayerId: expansionPlayerId);
+    Equal(HttpStatusCode.OK, initialExpansion.Status, "town expansion read");
+    True(initialExpansion.Json.RootElement.GetProperty("unlockedRegionIds").EnumerateArray()
+            .Any(region => region.GetString() == "core"),
+        "new town expansion always includes the core region");
+    var purchaseEast = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/towns/{expansionFaction}/regions", new { regionId = "east" },
+        "region:c3:east", authenticatedPlayerId: expansionPlayerId);
+    Equal(HttpStatusCode.Created, purchaseEast.Status, "town region purchase");
+    True(purchaseEast.Json.RootElement.GetProperty("expansion").GetProperty("unlockedRegionIds")
+            .EnumerateArray().Any(region => region.GetString() == "east"),
+        "purchased region becomes server-authoritative");
+    var purchaseReplay = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/towns/{expansionFaction}/regions", new { regionId = "east" },
+        "region:c3:east", authenticatedPlayerId: expansionPlayerId);
+    Equal(HttpStatusCode.Created, purchaseReplay.Status,
+        "town region purchase is idempotent and does not debit twice");
+    var missingPrerequisite = await SendAsync(host.Client, HttpMethod.Post,
+        $"/v1/towns/{expansionFaction}/regions", new { regionId = "outer-north" },
+        "region:c3:outer-north", authenticatedPlayerId: expansionPlayerId);
+    Equal(HttpStatusCode.Conflict, missingPrerequisite.Status,
+        "town expansion rejects missing prerequisite");
+    ErrorCode(missingPrerequisite, "TOWN_REGION_PREREQUISITE");
 
     var noSnapshot = await SendAsync(host.Client, HttpMethod.Get,
         $"/v1/towns/{faction}/snapshots/latest", null, null);
@@ -1733,15 +1771,25 @@ static async Task SeedC3Async(string connectionString)
     await connection.OpenAsync();
     await using var command = new NpgsqlCommand("""
         SET search_path = splice, public;
+        INSERT INTO players (id, display_name) VALUES
+          ('11000000-0000-0000-0000-000000000099', 'Town Expansion Test')
+        ON CONFLICT (id) DO NOTHING;
         INSERT INTO ledger_accounts (id, account_key, owner_type, owner_id, currency_code) VALUES
           ('21000000-0000-0000-0000-000000000002', 'test:c3:attacker:gold', 'PLAYER',
-           '11000000-0000-0000-0000-000000000001', 'GOLD')
+           '11000000-0000-0000-0000-000000000001', 'GOLD'),
+          ('21000000-0000-0000-0000-000000000099', 'test:c3:expansion:gold', 'PLAYER',
+           '11000000-0000-0000-0000-000000000099', 'GOLD')
         ON CONFLICT (id) DO NOTHING;
         SELECT post_ledger_transaction(
           'test:c3:mint:gold:500', 'TEST_MINT', 'TEST', NULL,
           jsonb_build_array(
             jsonb_build_object('account_id','00000000-0000-0000-0000-000000000101','amount',-500),
             jsonb_build_object('account_id','21000000-0000-0000-0000-000000000002','amount',500)));
+        SELECT post_ledger_transaction(
+          'test:c3:mint:expansion-gold:2000', 'TEST_MINT', 'TEST', NULL,
+          jsonb_build_array(
+            jsonb_build_object('account_id','00000000-0000-0000-0000-000000000101','amount',-2000),
+            jsonb_build_object('account_id','21000000-0000-0000-0000-000000000099','amount',2000)));
         INSERT INTO content_definitions
           (content_id, faction_id, content_kind, defense_capacity_cost, gold_cost,
            raid_power, content_version, combat_payload) VALUES

@@ -27,6 +27,7 @@ namespace Splice.Tests.EditMode
             {
                 "Bootstrap", "BuildZone", "RaidArena",
                 "RaidAttackerPresentation", "RaidDefenderPresentation",
+                "WorldMap", "ForestZone",
             };
             Assert.That(PrototypeFlowContract.ValidateEnabledSceneNames(complete, out var missing), Is.True);
             Assert.That(missing, Is.Empty);
@@ -52,7 +53,7 @@ namespace Splice.Tests.EditMode
         {
             Assert.That(PrototypeFlowContract.HubScene, Is.EqualTo("BuildZone"));
             Assert.That(PrototypeFlowContract.RaidScene, Is.EqualTo("RaidArena"));
-            Assert.That(PrototypeFlowContract.RequiredSceneNames, Has.Length.EqualTo(5));
+            Assert.That(PrototypeFlowContract.RequiredSceneNames, Has.Length.EqualTo(7));
         }
 
         [TestCase(true, true, false, false, false, true)]

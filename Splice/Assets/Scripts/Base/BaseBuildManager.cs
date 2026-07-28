@@ -100,8 +100,20 @@ namespace Splice.Base
         // ---------- defense capacity (เพดานฝ่ายรับ ผูกกับ base level ไม่ใช่เงิน — กัน defense snowball) ----------
         public BaseLevelDefinition CurrentBaseLevel =>
             registry?.GetFaction(CityFactionId)?.townBase?.ResolveLevel(PlayerProfile.BaseLevel(CityFactionId));
-        public int DefenseCapacity => CurrentBaseLevel?.defenseCapacity ??
-            baseCapacity + capacityPerLevel * Mathf.Max(0, PlayerProfile.BaseLevel(CityFactionId) - 1);
+        public int DefenseCapacity
+        {
+            get
+            {
+                var baseValue = CurrentBaseLevel?.defenseCapacity ??
+                    baseCapacity + capacityPerLevel * Mathf.Max(0, PlayerProfile.BaseLevel(CityFactionId) - 1);
+                expansionState ??= TownExpansionStore.Load(CityFactionId, townMap);
+                var bonus = 0;
+                foreach (var id in expansionState.unlockedRegionIds)
+                    if (TownExpansionPrototypeCatalog.Regions.TryGetValue(id, out var region))
+                        bonus += region.additionalDefenseCapacity;
+                return baseValue + bonus;
+            }
+        }
         public int UsedCapacity
         {
             get { var u = 0; foreach (var p in placed) if (p != null) u += p.CapacityCost; return u; }
@@ -179,6 +191,15 @@ namespace Splice.Base
                     out expansionState, out error)) return false;
             hasUnsavedChanges = true;
             return true;
+        }
+
+        public void ApplyExpansionState(TownExpansionState state)
+        {
+            if (state == null || !string.Equals(state.factionId, CityFactionId,
+                    System.StringComparison.Ordinal)) return;
+            expansionState = state;
+            TownExpansionStore.Save(state);
+            hasUnsavedChanges = true;
         }
 
         public Bounds CurrentUnlockedBounds
