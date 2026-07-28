@@ -1,0 +1,24 @@
+{
+    "name": "Veridian.RockGenLite.Editor.Tests",
+    "rootNamespace": "Veridian.RockGenLite.Editor.Tests",
+    "references": [
+        "GUID:e9ce7dd8a21591949aeb06ccb9e4bd98",
+        "GUID:660aae9d67409e042b8c3e58ada44df2"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

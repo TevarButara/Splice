@@ -1,0 +1,9 @@
+fileFormatVersion: 2
+guid: 3115cdd0e9e29334d96d565109aa4816
+AssetOrigin:
+  serializedVersion: 1
+  productId: 384418
+  packageName: 'Procedural Rock Generator Lite: Noise & Textures'
+  packageVersion: 1.0
+  assetPath: Assets/Veridian/RockGeneratorLite/Runtime/RockNoiseFunctionPointers.cs
+  uploadId: 946948

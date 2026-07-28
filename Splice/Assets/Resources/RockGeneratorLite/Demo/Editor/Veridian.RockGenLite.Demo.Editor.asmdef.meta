@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 9148689907c77fa43996d967e549c804
+AssemblyDefinitionImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 384418
+  packageName: 'Procedural Rock Generator Lite: Noise & Textures'
+  packageVersion: 1.0
+  assetPath: Assets/Veridian/RockGeneratorLite/Demo/Editor/Veridian.RockGenLite.Demo.Editor.asmdef
+  uploadId: 946948

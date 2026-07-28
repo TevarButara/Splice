@@ -1,0 +1,14 @@
+fileFormatVersion: 2
+guid: 521a70294e1bc6f4b936aa6f0af5e1bf
+DefaultImporter:
+  externalObjects: {}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 384418
+  packageName: 'Procedural Rock Generator Lite: Noise & Textures'
+  packageVersion: 1.0
+  assetPath: Assets/Veridian/RockGeneratorLite/Demo/Scene/RockGenLiteDemo.unity
+  uploadId: 946948

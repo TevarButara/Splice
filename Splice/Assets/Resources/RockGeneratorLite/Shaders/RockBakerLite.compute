@@ -1,0 +1,715 @@
+#pragma kernel CSClear
+#pragma kernel CSBakeMesh
+#pragma kernel CSJFAInit
+#pragma kernel CSJFAStep
+#pragma kernel CSJFAApply
+
+StructuredBuffer<float3> Vertices;
+StructuredBuffer<float3> Normals;
+StructuredBuffer<float4> Tangents;
+StructuredBuffer<float2> UVs;
+StructuredBuffer<int> Triangles;
+
+Texture2D<float4> InputAlbedoMap;
+SamplerState sampler_InputAlbedoMap;
+
+Texture2D<float4> InputNormalMap;
+SamplerState sampler_InputNormalMap;
+
+RWTexture2D<float4> OutputAlbedo;
+RWTexture2D<float4> OutputNormal;
+RWTexture2D<float4> OutputExtra;
+
+// JFA Specific Buffers
+RWTexture2D<float2> JFAMapWrite;
+Texture2D<float2> JFAMapRead;
+int StepWidth;
+
+int Width;
+int Height;
+int TriCount;
+int TriStartOffset;
+
+int ColorizationMethod;
+int ColorPattern;
+float4 PrimaryColor;
+float4 SecondaryColor;
+float4 TertiaryColor;
+float4 CavityColor;
+
+int SlopeMode;
+float SlopeThreshold;
+float SlopeBlend;
+
+float TextureNoiseFreq;
+float TextureNoiseBlend;
+float CavityStrength;
+
+float StrataWarpFreq;
+float StrataWarpStrength;
+float PatchFreq;
+
+float AOStrength;
+float BaseSmoothness;
+
+int MetallicStyle;
+float4 OreColor;
+float OreFrequency;
+float OreCoverage;
+float OreMetallic;
+float OreSmoothness;
+
+int UseNormalPerturbation;
+float NormalNoiseFreq;
+float NormalNoiseStrength;
+float NormalMapStrength;
+
+int UseMicroDetail;
+float MicroDetailFreq;
+float MicroDetailStrength;
+
+float InputTextureScale;
+float InputTriplanarBlend;
+
+int Seed;
+
+uint Hash(uint input)
+{
+    uint state = input * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28) + 4u)) ^ state) * 277803737u;
+    return (word >> 22) ^ word;
+}
+
+float3 Hash3D_Gradient(int3 p, int seed)
+{
+    uint hx = Hash((uint) seed ^ (uint) p.x * 1597334677u + (uint) p.y * 3812015801u + (uint) p.z * 217645177u);
+    uint hy = Hash(hx * 1664525u + 1013904223u);
+    uint hz = Hash(hy * 1664525u + 1013904223u);
+    float3 grad = float3((float) hx / 4294967295.0 * 2.0 - 1.0, (float) hy / 4294967295.0 * 2.0 - 1.0, (float) hz / 4294967295.0 * 2.0 - 1.0);
+    float lenSq = dot(grad, grad);
+    if (lenSq < 1e-6)
+        return float3(1.0, 0.0, 0.0);
+    return grad * rsqrt(max(lenSq, 1e-5));
+}
+
+float3 Hash3D_01(int3 p, int seed)
+{
+    uint s = (uint) seed;
+    uint hx = Hash((uint) p.x ^ s * 3923971u + (uint) p.y ^ s * 5924977u + (uint) p.z ^ s * 83492791u);
+    uint hy = Hash(hx * 1664525u + 1013904223u);
+    uint hz = Hash(hy * 1664525u + 1013904223u);
+    return float3((float) hx / 4294967295.0, (float) hy / 4294967295.0, (float) hz / 4294967295.0);
+}
+
+float4 GetSimplex3D_Deriv(float3 samplePos, float frequency, int seed)
+{
+    float3 p = samplePos * frequency;
+    float F3 = 1.0 / 3.0;
+    float G3 = 1.0 / 6.0;
+    float3 i = floor(p + (p.x + p.y + p.z) * F3);
+    float3 x0 = p - (i - (i.x + i.y + i.z) * G3);
+
+    int3 rank = int3(
+        (x0.x >= x0.y ? 1 : 0) + (x0.x >= x0.z ? 1 : 0),
+        (x0.y > x0.x ? 1 : 0) + (x0.y >= x0.z ? 1 : 0),
+        (x0.z > x0.x ? 1 : 0) + (x0.z > x0.y ? 1 : 0)
+    );
+
+    int3 i1 = int3(rank.x >= 2 ? 1 : 0, rank.y >= 2 ? 1 : 0, rank.z >= 2 ? 1 : 0);
+    int3 i2 = int3(rank.x >= 1 ? 1 : 0, rank.y >= 1 ? 1 : 0, rank.z >= 1 ? 1 : 0);
+
+    float3 x1 = x0 - i1 + G3;
+    float3 x2 = x0 - i2 + 2.0 * G3;
+    float3 x3 = x0 - 1.0 + 3.0 * G3;
+
+    float4 tempResult = float4(0, 0, 0, 0);
+    int3 i_int = int3(i);
+
+    float tC0 = max(0.0, 0.6 - dot(x0, x0));
+    if (tC0 > 0.0)
+    {
+        float tC0_2 = tC0 * tC0;
+        float tC0_4 = tC0_2 * tC0_2;
+        float3 g0 = Hash3D_Gradient(i_int, seed);
+        float d0 = dot(g0, x0);
+        tempResult.w += tC0_4 * d0;
+        tempResult.xyz += tC0_4 * g0 - 8.0 * tC0_2 * tC0 * d0 * x0;
+    }
+    
+    float tC1 = max(0.0, 0.6 - dot(x1, x1));
+    if (tC1 > 0.0)
+    {
+        float tC1_2 = tC1 * tC1;
+        float tC1_4 = tC1_2 * tC1_2;
+        float3 g1 = Hash3D_Gradient(i_int + i1, seed);
+        float d1 = dot(g1, x1);
+        tempResult.w += tC1_4 * d1;
+        tempResult.xyz += tC1_4 * g1 - 8.0 * tC1_2 * tC1 * d1 * x1;
+    }
+    
+    float tC2 = max(0.0, 0.6 - dot(x2, x2));
+    if (tC2 > 0.0)
+    {
+        float tC2_2 = tC2 * tC2;
+        float tC2_4 = tC2_2 * tC2_2;
+        float3 g2 = Hash3D_Gradient(i_int + i2, seed);
+        float d2 = dot(g2, x2);
+        tempResult.w += tC2_4 * d2;
+        tempResult.xyz += tC2_4 * g2 - 8.0 * tC2_2 * tC2 * d2 * x2;
+    }
+    
+    float tC3 = max(0.0, 0.6 - dot(x3, x3));
+    if (tC3 > 0.0)
+    {
+        float tC3_2 = tC3 * tC3;
+        float tC3_4 = tC3_2 * tC3_2;
+        float3 g3 = Hash3D_Gradient(i_int + int3(1, 1, 1), seed);
+        float d3 = dot(g3, x3);
+        tempResult.w += tC3_4 * d3;
+        tempResult.xyz += tC3_4 * g3 - 8.0 * tC3_2 * tC3 * d3 * x3;
+    }
+
+    return float4(tempResult.xyz * 32.0 * frequency, clamp(tempResult.w * 32.0, -1.0, 1.0));
+}
+
+float GetSimplex3D(float3 samplePos, float frequency, int seed)
+{
+    return GetSimplex3D_Deriv(samplePos, frequency, seed).w;
+}
+
+float4 GetFBM_3D_Deriv(float3 samplePos, float frequency, int seed, int octaves)
+{
+    float4 sum = float4(0, 0, 0, 0);
+    float amplitude = 1.0;
+    float freq = frequency;
+    float maxAmp = 0.0;
+    for (int i = 0; i < octaves; i++)
+    {
+        float4 d = GetSimplex3D_Deriv(samplePos, freq, seed + i * 79);
+        sum += d * amplitude;
+        maxAmp += amplitude;
+        amplitude *= 0.5;
+        freq *= 2.0;
+    }
+    return sum / max(maxAmp, 0.0001);
+}
+
+float GetVoronoiEdge3D(float3 samplePos, float frequency, int seed)
+{
+    float3 p = samplePos * frequency;
+    int3 grid = floor(p);
+    float3 fracP = frac(p);
+    
+    float d1 = 999.0;
+    float d2 = 999.0;
+    float3 diff1 = float3(0, 0, 0);
+    float3 diff2 = float3(0, 0, 0);
+    
+    for (int z = -1; z <= 1; z++)
+    {
+        for (int y = -1; y <= 1; y++)
+        {
+            for (int x = -1; x <= 1; x++)
+            {
+                int3 offset = int3(x, y, z);
+                float3 randPos = Hash3D_01(grid + offset, seed);
+                float3 diff = float3(offset) + randPos - fracP;
+                float distSq = dot(diff, diff);
+                
+                if (distSq < d1)
+                {
+                    d2 = d1;
+                    diff2 = diff1;
+                    d1 = distSq;
+                    diff1 = diff;
+                }
+                else if (distSq < d2)
+                {
+                    d2 = distSq;
+                    diff2 = diff;
+                }
+            }
+        }
+    }
+    
+    float3 cellDiff = diff2 - diff1;
+    float lenSq = dot(cellDiff, cellDiff);
+    if (lenSq > 1e-5)
+    {
+        return dot((diff1 + diff2) * 0.5, cellDiff) * rsqrt(lenSq);
+    }
+    return 0.0;
+}
+
+float GetVoronoiF1_3D(float3 samplePos, float frequency, int seed)
+{
+    float3 p = samplePos * frequency;
+    int3 grid = floor(p);
+    float3 fracP = frac(p);
+    float d1 = 999.0;
+    
+    for (int z = -1; z <= 1; z++)
+    {
+        for (int y = -1; y <= 1; y++)
+        {
+            for (int x = -1; x <= 1; x++)
+            {
+                int3 offset = int3(x, y, z);
+                float3 randPos = Hash3D_01(grid + offset, seed);
+                float3 diff = float3(offset) + randPos - fracP;
+                float distSq = dot(diff, diff);
+                if (distSq < d1)
+                    d1 = distSq;
+            }
+        }
+    }
+    return sqrt(d1);
+}
+
+float3 BlendNormalsRNM(float3 n1, float3 n2)
+{
+    float3 t = n1 + float3(0.0, 0.0, 1.0);
+    float3 u = n2 * float3(-1.0, -1.0, 1.0);
+    return normalize(t * dot(t, u) / max(t.z, 1e-5) - u);
+}
+
+float EdgeFunction(float2 a, float2 b, float2 c)
+{
+    return (c.x - a.x) * (b.y - a.y) - (c.y - a.y) * (b.x - a.x);
+}
+
+float3 UnpackNormal(float4 sampleTex)
+{
+    float x = sampleTex.x * 2.0 - 1.0;
+    float y = sampleTex.y * 2.0 - 1.0;
+    float z = sqrt(max(1.0 - (x * x + y * y), 0.0));
+    return float3(x, y, z);
+}
+
+[numthreads(8, 8, 1)]
+void CSClear(uint3 id : SV_DispatchThreadID)
+{
+    // Bit-shift abort: (1u << 10) = 1024. Thread dies instantly without crashing the engine
+    if (id.x >= (1u << 10) || id.y >= (1u << 10))
+        return;
+    if ((int) id.x >= Width || (int) id.y >= Height)
+        return;
+
+    // Use alpha 0.0 to mark empty pixels for JFA
+    OutputAlbedo[id.xy] = float4(0, 0, 0, 0.0);
+    OutputNormal[id.xy] = float4(0.5, 0.5, 1.0, 0.5);
+    OutputExtra[id.xy] = float4(0.0, 1.0, 0.5, BaseSmoothness);
+}
+
+[numthreads(64, 1, 1)]
+void CSBakeMesh(uint3 id : SV_DispatchThreadID)
+{
+    if ((int) id.x >= TriCount)
+        return;
+
+    int triIndex = TriStartOffset + (int) id.x;
+
+    int i0 = Triangles[triIndex * 3];
+    int i1 = Triangles[triIndex * 3 + 1];
+    int i2 = Triangles[triIndex * 3 + 2];
+
+    // Limit Triangle bounds using the bit-shift
+    float safeWidth = min((float) Width, (float) (1 << 10));
+    float safeHeight = min((float) Height, (float) (1 << 10));
+
+    float2 uv0 = UVs[i0] * float2(safeWidth, safeHeight);
+    float2 uv1 = UVs[i1] * float2(safeWidth, safeHeight);
+    float2 uv2 = UVs[i2] * float2(safeWidth, safeHeight);
+
+    int minX = (int) clamp(floor(min(uv0.x, min(uv1.x, uv2.x))) - 1.0, 0.0, safeWidth - 1.0);
+    int maxX = (int) clamp(ceil(max(uv0.x, max(uv1.x, uv2.x))) + 1.0, 0.0, safeWidth - 1.0);
+    int minY = (int) clamp(floor(min(uv0.y, min(uv1.y, uv2.y))) - 1.0, 0.0, safeHeight - 1.0);
+    int maxY = (int) clamp(ceil(max(uv0.y, max(uv1.y, uv2.y))) + 1.0, 0.0, safeHeight - 1.0);
+
+    float area = EdgeFunction(uv0, uv1, uv2);
+    if (abs(area) < 0.0001)
+        return;
+        
+    float absArea = abs(area);
+
+    for (int y = minY; y <= maxY; y++)
+    {
+        for (int x = minX; x <= maxX; x++)
+        {
+            // Failsafe bit-shift clamp per pixel drawn
+            if (x >= (1 << 10) || y >= (1 << 10))
+                continue;
+
+            float2 p = float2((float) x + 0.5, (float) y + 0.5);
+
+            float w0 = EdgeFunction(uv1, uv2, p) / area;
+            float w1 = EdgeFunction(uv2, uv0, p) / area;
+            float w2 = EdgeFunction(uv0, uv1, p) / area;
+
+            if (w0 >= -0.001 && w1 >= -0.001 && w2 >= -0.001)
+            {
+                float cw0 = max(w0, 0.0);
+                float cw1 = max(w1, 0.0);
+                float cw2 = max(w2, 0.0);
+                
+                float sumC = cw0 + cw1 + cw2;
+                if (abs(sumC) > 0.0001)
+                {
+                    cw0 /= sumC;
+                    cw1 /= sumC;
+                    cw2 /= sumC;
+                }
+
+                float3 pos = cw0 * Vertices[i0] + cw1 * Vertices[i1] + cw2 * Vertices[i2];
+                float3 norm = normalize(cw0 * Normals[i0] + cw1 * Normals[i1] + cw2 * Normals[i2]);
+                
+                float3 proj0 = pos - dot(pos - Vertices[i0], Normals[i0]) * Normals[i0];
+                float3 proj1 = pos - dot(pos - Vertices[i1], Normals[i1]) * Normals[i1];
+                float3 proj2 = pos - dot(pos - Vertices[i2], Normals[i2]) * Normals[i2];
+                float3 evalPos = cw0 * proj0 + cw1 * proj1 + cw2 * proj2;
+
+                float4 tan4 = cw0 * Tangents[i0] + cw1 * Tangents[i1] + cw2 * Tangents[i2];
+                float3 tangent = normalize(tan4.xyz);
+                float tangentW = (Tangents[i0].w + Tangents[i1].w + Tangents[i2].w) >= 0.0 ? 1.0 : -1.0;
+                float3 bitangent = normalize(cross(norm, tangent) * tangentW);
+
+                float4 detailDeriv = GetFBM_3D_Deriv(evalPos, TextureNoiseFreq, Seed + 999, 4);
+                float rawCavity = saturate((length(detailDeriv.xyz) * 0.15) * CavityStrength);
+                float cavityMask = rawCavity * rawCavity;
+                float texNoise = saturate(detailDeriv.w * 0.5 + 0.5);
+
+                float4 baseColor = float4(0, 0, 0, 1);
+
+                if (ColorizationMethod == 2)
+                {
+                    float3 weights = abs(norm);
+                    weights = pow(max(weights, 1e-6), max(1.0, InputTriplanarBlend));
+                    weights /= (weights.x + weights.y + weights.z);
+
+                    float3 signN = sign(norm);
+                    if (signN.x == 0)
+                        signN.x = 1.0;
+                    if (signN.y == 0)
+                        signN.y = 1.0;
+                    if (signN.z == 0)
+                        signN.z = 1.0;
+
+                    float2 uvX = float2(-pos.z * signN.x, pos.y) * InputTextureScale;
+                    float2 uvY = float2(pos.x, -pos.z * signN.y) * InputTextureScale;
+                    float2 uvZ = float2(pos.x * signN.z, pos.y) * InputTextureScale;
+
+                    float4 colX = InputAlbedoMap.SampleLevel(sampler_InputAlbedoMap, uvX, 0);
+                    float4 colY = InputAlbedoMap.SampleLevel(sampler_InputAlbedoMap, uvY, 0);
+                    float4 colZ = InputAlbedoMap.SampleLevel(sampler_InputAlbedoMap, uvZ, 0);
+
+                    baseColor = colX * weights.x + colY * weights.y + colZ * weights.z;
+                    baseColor = lerp(baseColor, baseColor * CavityColor, cavityMask);
+
+                    if (SlopeMode != 0)
+                    {
+                        float slopeDot = dot(norm, float3(0, 1, 0));
+                        float slope = (SlopeMode == 2) ? abs(slopeDot) : max(0.0, slopeDot);
+                        
+                        float curvedThreshold = pow(SlopeThreshold, 3.0);
+                        float internalThreshold = lerp(1.0, -1.0, curvedThreshold);
+                        
+                        float minEdge = internalThreshold - SlopeBlend * 0.5;
+                        float maxEdge = internalThreshold + SlopeBlend * 0.5;
+                        if (abs(maxEdge - minEdge) < 0.001)
+                            maxEdge = minEdge + 0.001;
+
+                        float slopeMask = saturate(smoothstep(minEdge, maxEdge, slope) - (texNoise * TextureNoiseBlend * 0.5));
+                        baseColor = lerp(baseColor, SecondaryColor, slopeMask);
+                    }
+                }
+                else
+                {
+                    if (ColorPattern == 1)
+                    {
+                        float4 warpDeriv = GetFBM_3D_Deriv(evalPos, StrataWarpFreq, Seed + 412, 3);
+                        float yWarp = warpDeriv.w * StrataWarpStrength;
+                        float wavePos = evalPos.y + yWarp;
+
+                        float strataFrequency = TextureNoiseFreq * 2.0;
+                        float wave = sin((wavePos * strataFrequency) + (texNoise - 0.5) * TextureNoiseBlend * 5.0) * 0.5 + 0.5;
+                        
+                        float4 strataColor;
+                        if (wave < 0.5)
+                            strataColor = lerp(PrimaryColor, SecondaryColor, smoothstep(0.1, 0.9, wave * 2.0));
+                        else
+                            strataColor = lerp(SecondaryColor, TertiaryColor, smoothstep(0.1, 0.9, (wave - 0.5) * 2.0));
+
+                        baseColor = lerp(strataColor, CavityColor, cavityMask);
+                        baseColor = lerp(baseColor, baseColor * (texNoise * 0.5 + 0.5), TextureNoiseBlend * 0.3);
+                    }
+                    else if (ColorPattern == 2)
+                    {
+                        float patch1 = GetSimplex3D(evalPos, PatchFreq, Seed + 222) * 0.5 + 0.5;
+                        float patch2 = GetSimplex3D(evalPos, PatchFreq * 1.5, Seed + 333) * 0.5 + 0.5;
+                        
+                        float edgeSoftness = lerp(0.01, 0.4, TextureNoiseBlend);
+                        float breakup = (texNoise - 0.5) * TextureNoiseBlend;
+                        
+                        float mask1 = smoothstep(0.5 - edgeSoftness, 0.5 + edgeSoftness, patch1 + breakup);
+                        float mask2 = smoothstep(0.6 - edgeSoftness, 0.6 + edgeSoftness, patch2 + breakup);
+
+                        baseColor = PrimaryColor;
+                        baseColor = lerp(baseColor, SecondaryColor, mask1);
+                        baseColor = lerp(baseColor, TertiaryColor, mask2 * (1.0 - mask1));
+                        baseColor = lerp(baseColor, CavityColor, cavityMask);
+                    }
+                    else
+                    {
+                        baseColor = PrimaryColor;
+                        if (SlopeMode != 0)
+                        {
+                            float slopeDot = dot(norm, float3(0, 1, 0));
+                            float slope = (SlopeMode == 2) ? abs(slopeDot) : max(0.0, slopeDot);
+                            
+                            float curvedThreshold = pow(SlopeThreshold, 3.0);
+                            float internalThreshold = lerp(1.0, -1.0, curvedThreshold);
+                            
+                            float minEdge = internalThreshold - SlopeBlend * 0.5;
+                            float maxEdge = internalThreshold + SlopeBlend * 0.5;
+                            if (abs(maxEdge - minEdge) < 0.001)
+                                maxEdge = minEdge + 0.001;
+
+                            float slopeMask = saturate(smoothstep(minEdge, maxEdge, slope) - (texNoise * TextureNoiseBlend * 0.5));
+                            baseColor = lerp(PrimaryColor, SecondaryColor, slopeMask);
+                        }
+                        
+                        baseColor = lerp(baseColor, PrimaryColor, texNoise * TextureNoiseBlend);
+                        baseColor = lerp(baseColor, CavityColor, cavityMask);
+                    }
+                }
+
+                bool hasProceduralNormal = false;
+                float3 tsProceduralNormal = float3(0, 0, 1);
+                float3 finalTSNormal = float3(0, 0, 1);
+                float heightMapVal = texNoise;
+
+                if (UseNormalPerturbation == 1)
+                {
+                    float4 bumpDeriv = GetFBM_3D_Deriv(evalPos, NormalNoiseFreq, Seed + 200, 3);
+                    float3 grad = bumpDeriv.xyz;
+                    grad = grad - norm * dot(grad, norm);
+                    float3 perturbedLocalNorm = normalize(norm - grad * NormalNoiseStrength);
+                    
+                    tsProceduralNormal = normalize(float3(dot(tangent, perturbedLocalNorm), dot(bitangent, perturbedLocalNorm), dot(norm, perturbedLocalNorm)));
+                    hasProceduralNormal = true;
+                    heightMapVal = saturate(bumpDeriv.w * 0.5 + 0.5);
+                }
+
+                if (ColorizationMethod == 2)
+                {
+                    float3 weights = abs(norm);
+                    weights = pow(max(weights, 1e-6), max(1.0, InputTriplanarBlend));
+                    weights /= (weights.x + weights.y + weights.z);
+
+                    float3 signN = sign(norm);
+                    if (signN.x == 0)
+                        signN.x = 1.0;
+                    if (signN.y == 0)
+                        signN.y = 1.0;
+                    if (signN.z == 0)
+                        signN.z = 1.0;
+
+                    float2 uvX = float2(-pos.z * signN.x, pos.y) * InputTextureScale;
+                    float2 uvY = float2(pos.x, -pos.z * signN.y) * InputTextureScale;
+                    float2 uvZ = float2(pos.x * signN.z, pos.y) * InputTextureScale;
+
+                    float3 tX = UnpackNormal(InputNormalMap.SampleLevel(sampler_InputNormalMap, uvX, 0));
+                    float3 tY = UnpackNormal(InputNormalMap.SampleLevel(sampler_InputNormalMap, uvY, 0));
+                    float3 tZ = UnpackNormal(InputNormalMap.SampleLevel(sampler_InputNormalMap, uvZ, 0));
+
+                    float3 nX = float3(tX.z * signN.x, tX.y, -tX.x * signN.x);
+                    float3 nY = float3(tY.x, tY.z * signN.y, -tY.y * signN.y);
+                    float3 nZ = float3(tZ.x * signN.z, tZ.y, tZ.z * signN.z);
+
+                    float3 blendedOSNormal = normalize(nX * weights.x + nY * weights.y + nZ * weights.z);
+                    float3 triplanarTSNormal = normalize(float3(dot(tangent, blendedOSNormal), dot(bitangent, blendedOSNormal), dot(norm, blendedOSNormal)));
+
+                    if (hasProceduralNormal)
+                        finalTSNormal = BlendNormalsRNM(tsProceduralNormal, triplanarTSNormal);
+                    else
+                        finalTSNormal = triplanarTSNormal;
+                }
+                else
+                {
+                    if (hasProceduralNormal)
+                        finalTSNormal = tsProceduralNormal;
+                }
+
+                if (UseMicroDetail == 1)
+                {
+                    float4 microDeriv = GetSimplex3D_Deriv(evalPos, MicroDetailFreq, Seed + 777);
+                    float3 mGrad = microDeriv.xyz;
+                    mGrad = mGrad - norm * dot(mGrad, norm);
+                    float3 perturbedMicro = normalize(norm - mGrad * MicroDetailStrength);
+                    float3 tsMicro = normalize(float3(dot(tangent, perturbedMicro), dot(bitangent, perturbedMicro), dot(norm, perturbedMicro)));
+                    finalTSNormal = BlendNormalsRNM(finalTSNormal, tsMicro);
+                }
+
+                finalTSNormal.xy *= NormalMapStrength;
+                finalTSNormal = normalize(finalTSNormal);
+                finalTSNormal = finalTSNormal * 0.5 + 0.5;
+                
+                float ao = saturate(1.0 - (rawCavity * AOStrength * 2.0));
+                float smoothVal = saturate(BaseSmoothness * ao);
+                float metallicVal = 0.0;
+                
+                if (MetallicStyle != 0)
+                {
+                    float metalMask = 0.0;
+                    
+                    if (MetallicStyle == 1)
+                    {
+                        float warpAmp = 1.0 / max(OreFrequency, 0.001);
+                        float3 warpVec = float3(
+                            GetSimplex3D(evalPos, OreFrequency * 1.5, Seed + 111),
+                            GetSimplex3D(evalPos, OreFrequency * 1.5, Seed + 222),
+                            GetSimplex3D(evalPos, OreFrequency * 1.5, Seed + 333)
+                        ) * warpAmp * 0.4;
+                        
+                        float edgeDist = GetVoronoiEdge3D(evalPos + warpVec, OreFrequency, Seed + 444);
+                        float vein = saturate(1.0 - (edgeDist * 3.0));
+                        vein = pow(vein, 4.0);
+                        
+                        float cutoff = lerp(1.0, 0.0, OreCoverage);
+                        metalMask = smoothstep(cutoff, cutoff + 0.1, vein);
+                        
+                        float n2 = GetSimplex3D(evalPos, OreFrequency * 3.0, Seed + 999);
+                        metalMask *= saturate(n2 * 0.5 + 0.7);
+                    }
+                    else if (MetallicStyle == 2)
+                    {
+                        float boostedCavity = saturate(rawCavity * 10.0);
+                        float noise = GetSimplex3D(evalPos, OreFrequency * 3.0, Seed + 555) * 0.5 + 0.5;
+                        float cavitySignal = boostedCavity * noise;
+                        
+                        float cutoff = lerp(1.0, 0.0, OreCoverage);
+                        metalMask = smoothstep(cutoff, cutoff + 0.2, cavitySignal);
+                    }
+                    else if (MetallicStyle == 3)
+                    {
+                        float warpAmp = 1.0 / max(OreFrequency, 0.001);
+                        float3 warpVec = float3(
+                            GetSimplex3D(evalPos, OreFrequency * 2.0, Seed + 111),
+                            GetSimplex3D(evalPos, OreFrequency * 2.0, Seed + 222),
+                            GetSimplex3D(evalPos, OreFrequency * 2.0, Seed + 333)
+                        ) * warpAmp * 0.8;
+                        
+                        float vF1 = GetVoronoiF1_3D(evalPos + warpVec, OreFrequency, Seed + 888);
+                        
+                        float edgeNoise = GetSimplex3D(evalPos, OreFrequency * 5.0, Seed + 777) * 0.3;
+                        
+                        float nodule = saturate(1.0 - (vF1 + edgeNoise) * 2.5);
+                        nodule = pow(nodule, 2.0);
+                        
+                        float cutoff = lerp(1.0, 0.0, OreCoverage);
+                        metalMask = smoothstep(cutoff, cutoff + 0.1, nodule);
+                    }
+                    
+                    baseColor = lerp(baseColor, OreColor, metalMask);
+                    metallicVal = metalMask * OreMetallic;
+                    smoothVal = lerp(smoothVal, OreSmoothness, metalMask);
+                }
+                else
+                {
+                    smoothVal = saturate(BaseSmoothness * ao);
+                }
+
+                int2 pixelPos = int2(x, y);
+                float3 finalN = saturate(finalTSNormal.xyz);
+                
+                // Set alpha = 1.0 to mark pixel as a valid surface for JFA
+                OutputAlbedo[pixelPos] = float4(saturate(baseColor.rgb), 1.0);
+                OutputNormal[pixelPos] = float4(finalN, finalN.x);
+                OutputExtra[pixelPos] = float4(metallicVal, ao, heightMapVal, smoothVal);
+            }
+        }
+    }
+}
+
+[numthreads(8, 8, 1)]
+void CSJFAInit(uint3 id : SV_DispatchThreadID)
+{
+    // Hardened Bit-Shift Abort
+    if ((int) id.x >= Width || (int) id.y >= Height || id.x >= (1u << 10) || id.y >= (1u << 10))
+        return;
+    
+    if (OutputAlbedo[id.xy].a > 0.5)
+    {
+        JFAMapWrite[id.xy] = float2(id.x, id.y);
+    }
+    else
+    {
+        JFAMapWrite[id.xy] = float2(-1.0, -1.0);
+    }
+}
+
+[numthreads(8, 8, 1)]
+void CSJFAStep(uint3 id : SV_DispatchThreadID)
+{
+    // Hardened Bit-Shift Abort
+    if ((int) id.x >= Width || (int) id.y >= Height || id.x >= (1u << 10) || id.y >= (1u << 10))
+        return;
+
+    float2 bestCoord = float2(-1.0, -1.0);
+    float bestDistSq = 99999999.0;
+
+    float2 selfCoord = JFAMapRead[id.xy];
+    if (selfCoord.x >= 0.0)
+    {
+        bestCoord = selfCoord;
+        float2 diff = selfCoord - float2(id.xy);
+        bestDistSq = dot(diff, diff);
+    }
+
+    for (int y = -1; y <= 1; y++)
+    {
+        for (int x = -1; x <= 1; x++)
+        {
+            if (x == 0 && y == 0)
+                continue;
+
+            int2 samplePos = (int2) id.xy + int2(x, y) * StepWidth;
+            
+            if (samplePos.x >= 0 && samplePos.x < Width && samplePos.y >= 0 && samplePos.y < Height)
+            {
+                float2 targetCoord = JFAMapRead[samplePos];
+                if (targetCoord.x >= 0.0)
+                {
+                    float2 diff = targetCoord - float2(id.xy);
+                    float distSq = dot(diff, diff);
+                    if (distSq < bestDistSq)
+                    {
+                        bestDistSq = distSq;
+                        bestCoord = targetCoord;
+                    }
+                }
+            }
+        }
+    }
+    
+    JFAMapWrite[id.xy] = bestCoord;
+}
+
+[numthreads(8, 8, 1)]
+void CSJFAApply(uint3 id : SV_DispatchThreadID)
+{
+    // Hardened Bit-Shift Abort
+    if ((int) id.x >= Width || (int) id.y >= Height || id.x >= (1u << 10) || id.y >= (1u << 10))
+        return;
+
+    if (OutputAlbedo[id.xy].a < 0.5)
+    {
+        int2 nearest = (int2) JFAMapRead[id.xy];
+        if (nearest.x >= 0)
+        {
+            OutputAlbedo[id.xy] = float4(OutputAlbedo[nearest].rgb, 1.0);
+            OutputNormal[id.xy] = OutputNormal[nearest];
+            OutputExtra[id.xy] = OutputExtra[nearest];
+        }
+    }
+}

@@ -1,0 +1,20 @@
+{
+    "name": "Veridian.RockGenLite.Demo.Editor",
+    "rootNamespace": "",
+    "references": [
+        "GUID:e9ce7dd8a21591949aeb06ccb9e4bd98",
+        "GUID:660aae9d67409e042b8c3e58ada44df2",
+        "GUID:540c5df6c3f5ad045abefde0a29d37cb"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
