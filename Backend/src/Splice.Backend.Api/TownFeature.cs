@@ -26,9 +26,12 @@ public sealed class GarrisonMonsterView
 }
 public sealed class BaseLayoutView
 {
-    public int Version { get; set; } = 1;
+    public int Version { get; set; } = 2;
     public string OwnerAccountId { get; set; } = string.Empty;
     public string FactionId { get; set; } = string.Empty;
+    public string MapTemplateId { get; set; } = "town-default-v1";
+    public int MapVersion { get; set; } = 1;
+    public List<string> UnlockedRegionIds { get; set; } = [];
     public List<PlacedTowerView> Towers { get; set; } = [];
     public List<GarrisonMonsterView> Garrison { get; set; } = [];
     public List<string> MinerCardIds { get; set; } = [];
@@ -40,9 +43,18 @@ public sealed record BackendAck(bool Success = true);
 public sealed record SnapshotCommitView(bool Success, string Error, TownDefenseSnapshotView? Snapshot);
 public sealed record SnapshotBatchRequest(IReadOnlyList<string>? FactionIds);
 public sealed record SnapshotBatchView(IReadOnlyList<TownDefenseSnapshotView> Snapshots);
+public sealed record TownExpansionView(
+    string FactionId, string MapTemplateId, int MapVersion, long Revision,
+    IReadOnlyList<string> UnlockedRegionIds, IReadOnlyList<TownRegionOfferView> AvailableRegions);
+public sealed record TownRegionOfferView(
+    string RegionId, string DisplayName, long GoldCost, int AdditionalDefenseCapacity,
+    IReadOnlyList<string> PrerequisiteRegionIds);
+public sealed record PurchaseTownRegionRequest(string RegionId);
+public sealed record TownExpansionMutationView(bool Success, string Error, TownExpansionView? Expansion);
 public sealed record TownDefenseSnapshotView(
     int SchemaVersion, string SnapshotId, string DeploymentId, int Revision, string CommittedUtc,
-    string OwnerAccountId, string FactionId, int BaseLevel, long BasePowerRating,
+    string OwnerAccountId, string FactionId, string MapTemplateId, int MapVersion,
+    IReadOnlyList<string> UnlockedRegionIds, int BaseLevel, long BasePowerRating,
     int UsedCapacity, int MaxCapacity, bool MatchmakingEligible,
     string ValidationVersion, IReadOnlyList<string> ValidationWarnings,
     IReadOnlyList<CombatUnitAuthorityView> DefenseUnits, BaseLayoutView Layout,
@@ -50,22 +62,117 @@ public sealed record TownDefenseSnapshotView(
 
 public static partial class TownFeature
 {
-    private const string ValidatorVersion = "server-town-c4c2-v1";
+    private const string ValidatorVersion = "server-town-regions-v2";
     private const string ContentVersion = LoadoutFeature.ContentVersion;
     private const int MaxCitySlots = 3;
     private const int MaxDefensePieces = 200;
     private const int MaxPayloadBytes = 512 * 1024;
+    private const string TownMapTemplateId = "town-default-v1";
+    private const int TownMapVersion = 1;
+    private const string CoreRegionId = "core";
     private static readonly Regex FactionPattern = FactionRegex();
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly IReadOnlyDictionary<string, TownRegionRule> TownRegions =
+        new Dictionary<string, TownRegionRule>(StringComparer.Ordinal)
+        {
+            [CoreRegionId] = new(CoreRegionId, "Town Core", 0, 0, true, 0, 0, 40, 40, []),
+            ["north"] = new("north", "North Ridge", 500, 20, false, 0, 40, 40, 40, [CoreRegionId]),
+            ["east"] = new("east", "East Quarter", 500, 20, false, 40, 0, 40, 40, [CoreRegionId]),
+            ["south"] = new("south", "South Gate", 700, 25, false, 0, -40, 40, 40, [CoreRegionId]),
+            ["west"] = new("west", "West Quarter", 700, 25, false, -40, 0, 40, 40, [CoreRegionId]),
+            ["outer-north"] = new("outer-north", "Outer North", 1200, 30, false, 0, 80, 40, 40, ["north"]),
+        };
 
     public static void MapTownEndpoints(this WebApplication app)
     {
         app.MapGet("/v1/towns/{factionId}/draft", GetDraftAsync);
+        app.MapGet("/v1/towns/{factionId}/expansion", GetExpansionAsync);
+        app.MapPost("/v1/towns/{factionId}/regions", PurchaseRegionAsync);
         app.MapPut("/v1/towns/{factionId}/draft", PutDraftAsync);
         app.MapPost("/v1/towns/{factionId}/deployments", DeployAsync);
         app.MapGet("/v1/towns/{factionId}/snapshots/latest", GetLatestAsync);
         app.MapPost("/v1/town-snapshots/latest/query", QueryLatestAsync);
         app.MapGet("/v1/town-snapshots/{snapshotId:guid}", GetByIdAsync);
+    }
+
+    private static async Task<IResult> GetExpansionAsync(HttpContext context, string factionId,
+        NpgsqlDataSource dataSource)
+    {
+        if (!ValidFaction(factionId))
+            return IdempotencyExecutor.ToResult(ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
+                "FACTION_ID_INVALID", "Faction ID is invalid."));
+        await using var connection = await dataSource.OpenConnectionAsync(context.RequestAborted);
+        var state = await ReadExpansionAsync(connection, null,
+            RequestIdentityMiddleware.PlayerId(context), factionId, context.RequestAborted);
+        return Results.Ok(state);
+    }
+
+    private static async Task<IResult> PurchaseRegionAsync(HttpContext context, string factionId,
+        PurchaseTownRegionRequest request, IdempotencyExecutor idempotency)
+    {
+        var playerId = RequestIdentityMiddleware.PlayerId(context);
+        return await idempotency.ExecuteAsync(context, playerId, request,
+            async (connection, transaction, cancellationToken) =>
+            {
+                if (!ValidFaction(factionId))
+                    return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
+                        "FACTION_ID_INVALID", "Faction ID is invalid.");
+                if (request is null || !TownRegions.TryGetValue(request.RegionId ?? string.Empty, out var region) ||
+                    region.Initial)
+                    return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
+                        "TOWN_REGION_INVALID", "Town region cannot be purchased.");
+
+                var town = await GetOrCreateTownAsync(connection, transaction, playerId, factionId,
+                    context, cancellationToken);
+                if (town.Error is not null) return town.Error;
+                var owned = await ReadOwnedRegionsAsync(connection, transaction, town.Id, cancellationToken);
+                owned.Add(CoreRegionId);
+                if (owned.Contains(region.Id))
+                    return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                        "TOWN_REGION_ALREADY_UNLOCKED", "Town region is already unlocked.");
+                if (region.Prerequisites.Any(required => !owned.Contains(required)))
+                    return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                        "TOWN_REGION_PREREQUISITE", "A prerequisite town region is still locked.");
+
+                var goldAccountId = await PlayerAccountAsync(connection, transaction, playerId,
+                    "GOLD", cancellationToken);
+                var systemGoldId = Guid.Parse("00000000-0000-0000-0000-000000000102");
+                var purchaseId = Guid.NewGuid();
+                Guid ledgerTransactionId;
+                try
+                {
+                    ledgerTransactionId = await PostLedgerAsync(connection, transaction,
+                        $"town-region:{town.Id:D}:{region.Id}", "TOWN_REGION_PURCHASE", purchaseId,
+                        Postings(goldAccountId, -region.GoldCost, systemGoldId, region.GoldCost),
+                        cancellationToken);
+                }
+                catch (PostgresException exception) when (exception.SqlState == "P0001")
+                {
+                    return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                        "INSUFFICIENT_GOLD", "Not enough Gold to unlock this town region.");
+                }
+
+                await using (var insert = new NpgsqlCommand("""
+                    INSERT INTO splice.town_region_unlocks (
+                        town_id, region_id, map_template_id, map_version, gold_cost,
+                        purchase_transaction_id)
+                    VALUES (@town, @region, @map, @version, @cost, @transaction)
+                    """, connection, transaction))
+                {
+                    insert.Parameters.AddWithValue("town", town.Id);
+                    insert.Parameters.AddWithValue("region", region.Id);
+                    insert.Parameters.AddWithValue("map", TownMapTemplateId);
+                    insert.Parameters.AddWithValue("version", TownMapVersion);
+                    insert.Parameters.AddWithValue("cost", region.GoldCost);
+                    insert.Parameters.AddWithValue("transaction", ledgerTransactionId);
+                    await insert.ExecuteNonQueryAsync(cancellationToken);
+                }
+
+                var expansion = await ReadExpansionAsync(connection, transaction, playerId, factionId,
+                    cancellationToken);
+                return new ApiReply(StatusCodes.Status201Created,
+                    new TownExpansionMutationView(true, string.Empty, expansion));
+            });
     }
 
     private static async Task<IResult> GetDraftAsync(HttpContext context, string factionId,
@@ -230,8 +337,9 @@ public static partial class TownFeature
                 var townEscrow = await GetOrFundTownEscrowAsync(connection, transaction,
                     town.Value.Id, playerId, deploymentId, town.Value.BaseLevel, cancellationToken);
                 var snapshot = new TownDefenseSnapshotView(
-                    2, snapshotId.ToString("D"), deploymentId.ToString("D"), revision, committedAt.ToString("O"),
-                    layout.OwnerAccountId, factionId, town.Value.BaseLevel, validation.BasePower,
+                    3, snapshotId.ToString("D"), deploymentId.ToString("D"), revision, committedAt.ToString("O"),
+                    layout.OwnerAccountId, factionId, layout.MapTemplateId, layout.MapVersion,
+                    layout.UnlockedRegionIds, town.Value.BaseLevel, validation.BasePower,
                     validation.UsedCapacity, validation.MaxCapacity, true, ValidatorVersion,
                     validation.Warnings, validation.DefenseUnits, layout, string.Empty, string.Empty);
                 var snapshotJson = JsonSerializer.Serialize(snapshot, JsonOptions);
@@ -385,7 +493,7 @@ public static partial class TownFeature
         if (layout is null)
             return ApiErrors.Reply(context, StatusCodes.Status400BadRequest,
                 "DRAFT_REQUIRED", "Town layout is required.");
-        if (layout.Version != 1)
+        if (layout.Version is < 1 or > 2)
             return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
                 "LAYOUT_VERSION_UNSUPPORTED", "Town layout version is not supported.");
         if (!Guid.TryParse(layout.OwnerAccountId, out var ownerId) || ownerId != playerId)
@@ -394,6 +502,11 @@ public static partial class TownFeature
         if (!string.Equals(layout.FactionId, factionId, StringComparison.Ordinal))
             return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
                 "TOWN_FACTION_MISMATCH", "Route and layout faction IDs must match.");
+        if (layout.Version >= 2 &&
+            (!string.Equals(layout.MapTemplateId, TownMapTemplateId, StringComparison.Ordinal) ||
+             layout.MapVersion != TownMapVersion))
+            return ApiErrors.Reply(context, StatusCodes.Status409Conflict,
+                "TOWN_MAP_VERSION_UNSUPPORTED", "Town map identity or version is not supported.");
         return null;
     }
 
@@ -404,11 +517,28 @@ public static partial class TownFeature
         layout.Towers ??= [];
         layout.Garrison ??= [];
         layout.MinerCardIds ??= [];
+        layout.UnlockedRegionIds ??= [];
         var result = new LayoutValidation();
         var pieceCount = layout.Towers.Count + layout.Garrison.Count;
         if (requireDefense && pieceCount == 0) result.Errors.Add("Place at least one tower or garrison unit.");
         if (pieceCount > MaxDefensePieces) result.Errors.Add("Town contains too many defense pieces.");
         if (layout.StoredGold < 0) result.Errors.Add("Stored Gold cannot be negative.");
+
+        HashSet<string>? authoritativeRegions = null;
+        if (layout.Version >= 2)
+        {
+            var playerId = Guid.TryParse(layout.OwnerAccountId, out var parsedOwner)
+                ? parsedOwner : Guid.Empty;
+            authoritativeRegions = await ReadOwnedRegionsForPlayerAsync(connection, transaction,
+                playerId, layout.FactionId, cancellationToken);
+            authoritativeRegions.Add(CoreRegionId);
+            var claimed = layout.UnlockedRegionIds
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .ToHashSet(StringComparer.Ordinal);
+            claimed.Add(CoreRegionId);
+            if (!claimed.SetEquals(authoritativeRegions))
+                result.Errors.Add("Unlocked town regions do not match server authority.");
+        }
 
         var ids = layout.Towers.Select(t => t.TowerId)
             .Concat(layout.Garrison.Select(g => g.CardId))
@@ -443,6 +573,9 @@ public static partial class TownFeature
             var tower = layout.Towers[towerIndex];
             if (!ValidPosition(tower.Position) || !occupied.Add(PositionKey(tower.Position)))
                 result.Errors.Add("Tower position is invalid or overlaps another defense piece.");
+            if (authoritativeRegions is not null &&
+                !WithinUnlockedRegion(tower.Position, authoritativeRegions))
+                result.Errors.Add("Tower is outside the player's unlocked town regions.");
             if (!definitions.TryGetValue((tower.TowerId ?? string.Empty, "TOWER"), out var definition) ||
                 definition.Kind != "TOWER" || definition.Faction != layout.FactionId)
             {
@@ -470,6 +603,9 @@ public static partial class TownFeature
             var unit = layout.Garrison[unitIndex];
             if (!ValidPosition(unit.Position) || !occupied.Add(PositionKey(unit.Position)))
                 result.Errors.Add("Garrison position is invalid or overlaps another defense piece.");
+            if (authoritativeRegions is not null &&
+                !WithinUnlockedRegion(unit.Position, authoritativeRegions))
+                result.Errors.Add("Garrison is outside the player's unlocked town regions.");
             if (!definitions.TryGetValue((unit.CardId ?? string.Empty, "GARRISON"), out var definition) ||
                 definition.Kind != "GARRISON" || definition.Faction != layout.FactionId)
             {
@@ -508,7 +644,9 @@ public static partial class TownFeature
             }
         }
 
-        result.MaxCapacity = Math.Max(1, baseLevel) * 100;
+        var expansionCapacity = authoritativeRegions?.Sum(id =>
+            TownRegions.TryGetValue(id, out var region) ? region.AdditionalCapacity : 0) ?? 0;
+        result.MaxCapacity = Math.Max(1, baseLevel) * 100 + expansionCapacity;
         result.BasePower += result.UsedCapacity * 25L + Math.Max(1, baseLevel) * 100L + layout.StoredGold / 100;
         if (claimedUsed is not null && claimedUsed != result.UsedCapacity)
             result.Errors.Add($"Used capacity must be {result.UsedCapacity}, not {claimedUsed}.");
@@ -766,6 +904,80 @@ public static partial class TownFeature
             new { account_id = credit, amount = creditAmount },
         }, JsonOptions);
 
+    private static async Task<TownExpansionView> ReadExpansionAsync(NpgsqlConnection connection,
+        NpgsqlTransaction? transaction, Guid playerId, string factionId,
+        CancellationToken cancellationToken)
+    {
+        Guid? townId = null;
+        await using (var town = new NpgsqlCommand("""
+            SELECT id FROM splice.towns
+             WHERE owner_player_id = @player AND faction_id = @faction
+            """, connection, transaction))
+        {
+            town.Parameters.AddWithValue("player", playerId);
+            town.Parameters.AddWithValue("faction", factionId);
+            var value = await town.ExecuteScalarAsync(cancellationToken);
+            if (value is Guid id) townId = id;
+        }
+
+        var owned = townId is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : await ReadOwnedRegionsAsync(connection, transaction, townId.Value, cancellationToken);
+        owned.Add(CoreRegionId);
+        var available = TownRegions.Values
+            .Where(region => !region.Initial && !owned.Contains(region.Id))
+            .Select(region => new TownRegionOfferView(region.Id, region.DisplayName, region.GoldCost,
+                region.AdditionalCapacity, region.Prerequisites))
+            .OrderBy(region => region.GoldCost).ThenBy(region => region.RegionId, StringComparer.Ordinal)
+            .ToArray();
+        return new TownExpansionView(factionId, TownMapTemplateId, TownMapVersion,
+            Math.Max(0, owned.Count - 1), owned.OrderBy(id => id, StringComparer.Ordinal).ToArray(), available);
+    }
+
+    private static async Task<HashSet<string>> ReadOwnedRegionsForPlayerAsync(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, Guid playerId, string factionId,
+        CancellationToken cancellationToken)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        if (playerId == Guid.Empty || string.IsNullOrWhiteSpace(factionId)) return result;
+        await using var command = new NpgsqlCommand("""
+            SELECT u.region_id
+              FROM splice.towns t
+              JOIN splice.town_region_unlocks u ON u.town_id = t.id
+             WHERE t.owner_player_id = @player AND t.faction_id = @faction
+            """, connection, transaction);
+        command.Parameters.AddWithValue("player", playerId);
+        command.Parameters.AddWithValue("faction", factionId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) result.Add(reader.GetString(0));
+        return result;
+    }
+
+    private static async Task<HashSet<string>> ReadOwnedRegionsAsync(NpgsqlConnection connection,
+        NpgsqlTransaction? transaction, Guid townId, CancellationToken cancellationToken)
+    {
+        var result = new HashSet<string>(StringComparer.Ordinal);
+        await using var command = new NpgsqlCommand("""
+            SELECT region_id FROM splice.town_region_unlocks WHERE town_id = @town
+            """, connection, transaction);
+        command.Parameters.AddWithValue("town", townId);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken)) result.Add(reader.GetString(0));
+        return result;
+    }
+
+    private static bool WithinUnlockedRegion(Vector3View position, IReadOnlySet<string> unlocked)
+    {
+        foreach (var id in unlocked)
+        {
+            if (!TownRegions.TryGetValue(id, out var region)) continue;
+            if (Math.Abs(position.X - region.CenterX) <= region.SizeX * 0.5f + 0.001f &&
+                Math.Abs(position.Z - region.CenterZ) <= region.SizeZ * 0.5f + 0.001f)
+                return true;
+        }
+        return false;
+    }
+
     private static ApiReply ValidationError(HttpContext context, IReadOnlyList<string> errors) =>
         ApiErrors.Reply(context, StatusCodes.Status422UnprocessableEntity,
             "CONTENT_VALIDATION_FAILED", string.Join(" ", errors));
@@ -789,6 +1001,10 @@ public static partial class TownFeature
         $"{Math.Round(position.Z * 100, MidpointRounding.AwayFromZero)}";
     private static long TownStake(int baseLevel) => baseLevel >= 10 ? 600 : baseLevel >= 5 ? 300 : 100;
     private static string StakeBand(int baseLevel) => baseLevel >= 10 ? "HIGH" : baseLevel >= 5 ? "RISKY" : "FAIR";
+
+    private sealed record TownRegionRule(
+        string Id, string DisplayName, long GoldCost, int AdditionalCapacity, bool Initial,
+        float CenterX, float CenterZ, float SizeX, float SizeZ, string[] Prerequisites);
 
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$", RegexOptions.CultureInvariant)]
     private static partial Regex FactionRegex();

@@ -19,6 +19,10 @@ namespace Splice.Backend
             "/v1/towns/" + Segment(factionId) + "/draft";
         public static string TownDeployments(string factionId) =>
             "/v1/towns/" + Segment(factionId) + "/deployments";
+        public static string TownExpansion(string factionId) =>
+            "/v1/towns/" + Segment(factionId) + "/expansion";
+        public static string TownRegions(string factionId) =>
+            "/v1/towns/" + Segment(factionId) + "/regions";
         public static string LatestTownSnapshot(string factionId) =>
             "/v1/towns/" + Segment(factionId) + "/snapshots/latest";
         public static string SnapshotById(string snapshotId) =>
@@ -130,6 +134,26 @@ namespace Splice.Backend
         internal static string Format(BackendServiceException exception) =>
             exception.Code + ": " + exception.Message +
             (string.IsNullOrWhiteSpace(exception.RequestId) ? string.Empty : " [" + exception.RequestId + "]");
+    }
+
+    public sealed class RemoteTownExpansionService : ITownExpansionService
+    {
+        private readonly BackendApiClient client;
+
+        public RemoteTownExpansionService(BackendApiClient client) =>
+            this.client = client ?? throw new ArgumentNullException(nameof(client));
+
+        public Task<TownExpansionView> GetAsync(string factionId,
+            CancellationToken cancellationToken) =>
+            client.GetAsync<TownExpansionView>(BackendRoutes.TownExpansion(factionId),
+                cancellationToken);
+
+        public Task<TownExpansionMutationResult> PurchaseAsync(string factionId, string regionId,
+            string idempotencyKey, CancellationToken cancellationToken) =>
+            client.SendAsync<PurchaseTownRegionRequest, TownExpansionMutationResult>(
+                BackendHttpMethods.Post, BackendRoutes.TownRegions(factionId),
+                new PurchaseTownRegionRequest { regionId = regionId }, idempotencyKey, true,
+                cancellationToken);
     }
 
     public sealed class RemoteTownSnapshotService : ITownSnapshotService

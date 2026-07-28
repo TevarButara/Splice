@@ -19,6 +19,9 @@ namespace Splice.Base
     public class RaidSnapshotLoader : NetworkBehaviour
     {
         [SerializeField] private FactionRegistrySO registry;
+        [Header("Immutable map contract")]
+        [SerializeField] private string supportedMapTemplateId = "town-default-v1";
+        [Min(1), SerializeField] private int supportedMapVersion = 1;
         [SerializeField] private RaidSide defendSide = RaidSide.Defender;
         [Tooltip("faction ของเมืองที่จะโหลดมาตั้งรับ (local test) — เว้นว่าง = ActiveFactionId. raid จริง (5.4) ส่ง layout เป้าหมายผ่าน LoadIntoMatch แทน")]
         [SerializeField] private string targetFactionId;
@@ -59,6 +62,7 @@ namespace Splice.Base
             if (RaidContext.HasTarget)
             {
                 BaseLayout selectedLayout;
+                TownDefenseSnapshot selectedSnapshot = null;
                 if (RaidContext.Target.IsSnapshotBacked)
                 {
                     var snapshotTask = SpliceServiceHub.TownSnapshots.GetByIdAsync(
@@ -71,7 +75,8 @@ namespace Splice.Base
                         loadQueued = false;
                         yield break;
                     }
-                    selectedLayout = snapshotTask.Result?.layout;
+                    selectedSnapshot = snapshotTask.Result;
+                    selectedLayout = selectedSnapshot?.layout;
                 }
                 else
                 {
@@ -80,6 +85,23 @@ namespace Splice.Base
                 if (selectedLayout == null)
                 {
                     Debug.LogError("[RaidSnapshotLoader] selected target could not resolve an immutable layout.");
+                    loadQueued = false;
+                    yield break;
+                }
+                if (selectedSnapshot != null &&
+                    !TownSnapshotValidator.IsMapCompatible(selectedSnapshot, supportedMapTemplateId,
+                        supportedMapVersion, out var compatibilityError))
+                {
+                    Debug.LogError("[RaidSnapshotLoader] " + compatibilityError);
+                    loadQueued = false;
+                    yield break;
+                }
+                if (selectedSnapshot == null && selectedLayout.version >= 2 &&
+                    (!string.Equals(selectedLayout.mapTemplateId, supportedMapTemplateId,
+                         StringComparison.Ordinal) || selectedLayout.mapVersion != supportedMapVersion))
+                {
+                    Debug.LogError($"[RaidSnapshotLoader] layout map mismatch: " +
+                                   $"{selectedLayout.mapTemplateId}@{selectedLayout.mapVersion}");
                     loadQueued = false;
                     yield break;
                 }
@@ -158,6 +180,9 @@ namespace Splice.Base
                 loadQueued = false;
                 return;
             }
+            layout.towers ??= new System.Collections.Generic.List<PlacedTowerData>();
+            layout.garrison ??= new System.Collections.Generic.List<GarrisonMonsterData>();
+            layout.minerCardIds ??= new System.Collections.Generic.List<string>();
 
             var towers = 0;
             foreach (var data in layout.towers)

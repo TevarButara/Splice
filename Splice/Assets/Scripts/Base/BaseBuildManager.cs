@@ -17,6 +17,8 @@ namespace Splice.Base
     public class BaseBuildManager : MonoBehaviour
     {
         [SerializeField] private FactionRegistrySO registry;
+        [Tooltip("กติกา region ของเมือง; เว้นว่างจะใช้ floor bounds แบบ legacy")]
+        [SerializeField] private TownMapDefinitionSO townMap;
         [Tooltip("faction ของเมืองที่กำลังจัด — เว้นว่าง = ใช้ PlayerProfile.ActiveFactionId")]
         [SerializeField] private string factionId;
         [Tooltip("กติกา grid — ใช้ gridOrigin (จุดกลาง+ผิวเมือง) เป็นหลัก; cellSize เป็นแค่ค่า fallback ถ้าไม่มีชิ้น armed")]
@@ -45,6 +47,7 @@ namespace Splice.Base
         private int pendingRefund;
         private bool hasUnsavedChanges;
         private Vector2 floorHalfExtent = new(-1f, -1f); // world half-size ของพื้นที่เมือง (set โดย FitGridToFloor)
+        private TownExpansionState expansionState;
 
         public BuildGrid Grid => grid;
         public FactionRegistrySO Registry => registry;
@@ -56,6 +59,8 @@ namespace Splice.Base
         public bool WantsPreview => HasArmed || selected != null;
         public bool HasUnsavedChanges => hasUnsavedChanges;
         public Vector3 GridOrigin => grid.gridOrigin;
+        public TownMapDefinitionSO TownMap => townMap;
+        public TownExpansionState ExpansionState => expansionState;
 
         public float PreviewRange =>
             armedTower != null ? armedTower.attackRange
@@ -108,8 +113,13 @@ namespace Splice.Base
         private void Start()
         {
             if (floor != null) FitGridToFloor();
+            expansionState = TownExpansionStore.Load(CityFactionId, townMap);
             var layout = PlayerBaseStore.LoadLayout(CityFactionId);
-            if (layout != null) LoadCommitted(layout);
+            if (layout != null)
+            {
+                MigrateLayoutMapState(layout);
+                LoadCommitted(layout);
+            }
             hasUnsavedChanges = false;
         }
 
@@ -147,9 +157,42 @@ namespace Splice.Base
         // อยู่ในพื้นที่เมือง (สี่เหลี่ยมตาม floor) ไหม
         public bool IsWithinBuildArea(Vector3 cell, float foot)
         {
+            if (townMap != null)
+            {
+                expansionState ??= TownExpansionStore.Load(CityFactionId, townMap);
+                return townMap.ContainsUnlocked(cell, grid.gridOrigin, foot,
+                    expansionState.unlockedRegionIds);
+            }
             var he = BuildHalfExtent;
             return Mathf.Abs(cell.x - grid.gridOrigin.x) <= he.x
                 && Mathf.Abs(cell.z - grid.gridOrigin.z) <= he.y;
+        }
+
+        public bool TryPurchaseRegionLocal(string regionId, out string error)
+        {
+            if (SpliceServiceHub.IsRemoteMeta)
+            {
+                error = "Remote town expansion must be purchased through the server service.";
+                return false;
+            }
+            if (!TownExpansionStore.TryPurchaseLocal(CityFactionId, townMap, regionId,
+                    out expansionState, out error)) return false;
+            hasUnsavedChanges = true;
+            return true;
+        }
+
+        public Bounds CurrentUnlockedBounds
+        {
+            get
+            {
+                if (townMap == null)
+                {
+                    var extent = BuildHalfExtent;
+                    return new Bounds(grid.gridOrigin, new Vector3(extent.x * 2f, 1f, extent.y * 2f));
+                }
+                expansionState ??= TownExpansionStore.Load(CityFactionId, townMap);
+                return townMap.CalculateUnlockedBounds(grid.gridOrigin, expansionState.unlockedRegionIds);
+            }
         }
 
         // ทับกับชิ้นที่วางแล้วไหม (AABB ตาม footprint สองชิ้น) — ไม่นับ ignore
@@ -359,6 +402,11 @@ namespace Splice.Base
                 : JsonUtility.FromJson<BaseLayout>(JsonUtility.ToJson(previous));
             layout.factionId = fid;
             layout.ownerAccountId = PlayerProfile.AccountId;
+            layout.version = 2;
+            expansionState ??= TownExpansionStore.Load(fid, townMap);
+            layout.mapTemplateId = townMap != null ? townMap.MapId : expansionState.mapTemplateId;
+            layout.mapVersion = townMap != null ? townMap.MapVersion : Mathf.Max(1, expansionState.mapVersion);
+            layout.unlockedRegionIds = new List<string>(expansionState.unlockedRegionIds);
             layout.towers.Clear();
             layout.garrison.Clear();
             foreach (var piece in placed)
@@ -368,6 +416,20 @@ namespace Splice.Base
                 else if (piece.Kind == BuildPieceKind.Garrison && piece.GarrisonData != null) layout.garrison.Add(piece.GarrisonData);
             }
             return layout;
+        }
+
+        private void MigrateLayoutMapState(BaseLayout layout)
+        {
+            layout.unlockedRegionIds ??= new List<string>();
+            expansionState ??= TownExpansionStore.Load(CityFactionId, townMap);
+            if (layout.version < 2)
+            {
+                layout.version = 2;
+                layout.mapTemplateId = townMap != null ? townMap.MapId : expansionState.mapTemplateId;
+                layout.mapVersion = townMap != null ? townMap.MapVersion : expansionState.mapVersion;
+            }
+            foreach (var id in expansionState.unlockedRegionIds)
+                if (!layout.unlockedRegionIds.Contains(id)) layout.unlockedRegionIds.Add(id);
         }
 
         // ---------- load / spawn ----------

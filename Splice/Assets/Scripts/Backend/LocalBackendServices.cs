@@ -248,6 +248,76 @@ namespace Splice.Backend
         };
     }
 
+    public sealed class LocalTownExpansionService : ITownExpansionService
+    {
+        private readonly Dictionary<string, TownExpansionMutationResult> idempotent = new();
+        private readonly Dictionary<string, string> hashes = new();
+
+        public Task<TownExpansionView> GetAsync(string factionId,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(ToView(TownExpansionStore.Load(factionId)));
+        }
+
+        public Task<TownExpansionMutationResult> PurchaseAsync(string factionId, string regionId,
+            string idempotencyKey, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(idempotencyKey))
+                return Task.FromResult(Failed("Idempotency key is required."));
+            var hash = BackendPayloadHash.ComputeObject(new PurchaseTownRegionRequest { regionId = regionId });
+            if (idempotent.TryGetValue(idempotencyKey, out var replay))
+                return Task.FromResult(hashes[idempotencyKey] == hash
+                    ? replay : Failed(BackendErrorCodes.IdempotencyKeyReused));
+            var success = TownExpansionStore.TryPurchaseLocal(factionId, regionId,
+                out var state, out var error);
+            var result = success
+                ? new TownExpansionMutationResult
+                {
+                    success = true,
+                    error = string.Empty,
+                    expansion = ToView(state),
+                }
+                : Failed(error);
+            hashes[idempotencyKey] = hash;
+            idempotent[idempotencyKey] = result;
+            return Task.FromResult(result);
+        }
+
+        private static TownExpansionView ToView(TownExpansionState state)
+        {
+            var view = new TownExpansionView
+            {
+                factionId = state.factionId,
+                mapTemplateId = state.mapTemplateId,
+                mapVersion = state.mapVersion,
+                revision = state.revision,
+                unlockedRegionIds = new List<string>(state.unlockedRegionIds),
+            };
+            foreach (var pair in TownExpansionPrototypeCatalog.Regions)
+            {
+                var rule = pair.Value;
+                if (rule.goldCost <= 0 || state.unlockedRegionIds.Contains(rule.regionId)) continue;
+                view.availableRegions.Add(new TownRegionOfferDto
+                {
+                    regionId = rule.regionId,
+                    displayName = rule.displayName,
+                    goldCost = rule.goldCost,
+                    additionalDefenseCapacity = rule.additionalDefenseCapacity,
+                    prerequisiteRegionIds = new List<string>(rule.prerequisites),
+                });
+            }
+            return view;
+        }
+
+        private static TownExpansionMutationResult Failed(string error) => new()
+        {
+            success = false,
+            error = error,
+        };
+    }
+
     public sealed class LocalRaidContractService : IRaidContractService
     {
         private static readonly TimeSpan QuoteLifetime = TimeSpan.FromMinutes(2);
@@ -595,12 +665,14 @@ namespace Splice.Backend
     {
         private static IWalletService wallet;
         private static ITownSnapshotService townSnapshots;
+        private static ITownExpansionService townExpansion;
         private static IRaidContractService raidContracts;
         private static IRaidReportService raidReports;
         private static IRaidSettlementService raidSettlement;
 
         public static IWalletService Wallet => wallet ??= new LocalWalletService();
         public static ITownSnapshotService TownSnapshots => townSnapshots ??= new LocalTownSnapshotService();
+        public static ITownExpansionService TownExpansion => townExpansion ??= new LocalTownExpansionService();
         public static IRaidContractService RaidContracts => raidContracts ??= new LocalRaidContractService(Wallet);
         public static IRaidReportService RaidReports => raidReports ??= new LocalRaidReportService();
         public static IRaidSettlementService RaidSettlement =>
@@ -631,10 +703,12 @@ namespace Splice.Backend
 
         public static void Configure(IWalletService walletService, ITownSnapshotService townSnapshotService,
             IRaidContractService raidContractService, IRaidReportService raidReportService = null,
-            IRaidSettlementService raidSettlementService = null)
+            IRaidSettlementService raidSettlementService = null,
+            ITownExpansionService townExpansionService = null)
         {
             wallet = walletService ?? throw new ArgumentNullException(nameof(walletService));
             townSnapshots = townSnapshotService ?? throw new ArgumentNullException(nameof(townSnapshotService));
+            townExpansion = townExpansionService ?? new LocalTownExpansionService();
             raidContracts = raidContractService ?? throw new ArgumentNullException(nameof(raidContractService));
             raidReports = raidReportService ?? new LocalRaidReportService();
             raidSettlement = raidSettlementService ?? new LocalRaidSettlementService(raidReports);
@@ -646,6 +720,7 @@ namespace Splice.Backend
             var client = new BackendApiClient(transport, serializer);
             wallet = new RemoteWalletService(client);
             townSnapshots = new RemoteTownSnapshotService(client);
+            townExpansion = new RemoteTownExpansionService(client);
             raidContracts = new RemoteRaidContractService(client);
             raidReports = new RemoteRaidReportService(client);
             raidSettlement = new ClientAuthorityGuardRaidSettlementService();
@@ -655,6 +730,7 @@ namespace Splice.Backend
         {
             wallet = null;
             townSnapshots = null;
+            townExpansion = null;
             raidContracts = null;
             raidReports = null;
             raidSettlement = null;

@@ -9,13 +9,16 @@ namespace Splice.Base
     [Serializable]
     public class TownDefenseSnapshot
     {
-        public int schemaVersion = 1;
+        public int schemaVersion = 3;
         public string snapshotId;
         public string deploymentId;
         public int revision;
         public string committedUtc;
         public string ownerAccountId;
         public string factionId;
+        public string mapTemplateId;
+        public int mapVersion;
+        public List<string> unlockedRegionIds = new();
         public int baseLevel;
         public int basePowerRating;
         public int usedCapacity;
@@ -40,7 +43,7 @@ namespace Splice.Base
 
     public static class TownSnapshotValidator
     {
-        public const string RulesVersion = "prototype-b.6a.v1";
+        public const string RulesVersion = "prototype-town-regions.v2";
 
         public static TownSnapshotValidationReport Validate(BaseLayout layout, int usedCapacity, int maxCapacity)
         {
@@ -54,9 +57,24 @@ namespace Splice.Base
             layout.towers ??= new List<PlacedTowerData>();
             layout.garrison ??= new List<GarrisonMonsterData>();
             layout.minerCardIds ??= new List<string>();
+            layout.unlockedRegionIds ??= new List<string>();
 
             if (string.IsNullOrWhiteSpace(layout.ownerAccountId)) report.errors.Add("Town owner is missing.");
             if (string.IsNullOrWhiteSpace(layout.factionId)) report.errors.Add("Town faction is missing.");
+            if (layout.version >= 2)
+            {
+                if (string.IsNullOrWhiteSpace(layout.mapTemplateId))
+                    report.errors.Add("Town map template ID is missing.");
+                if (layout.mapVersion < 1) report.errors.Add("Town map version is invalid.");
+                var regionIds = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var regionId in layout.unlockedRegionIds)
+                {
+                    if (string.IsNullOrWhiteSpace(regionId))
+                        report.errors.Add("Town contains an empty unlocked region ID.");
+                    else if (!regionIds.Add(regionId))
+                        report.errors.Add($"Town region '{regionId}' is duplicated.");
+                }
+            }
             if (layout.towers.Count + layout.garrison.Count == 0)
                 report.errors.Add("Place at least one tower or garrison unit before deployment.");
             if (usedCapacity < 0 || maxCapacity < 0 || usedCapacity > maxCapacity)
@@ -64,6 +82,11 @@ namespace Splice.Base
             if (layout.storedGold < 0) report.errors.Add("Stored Gold cannot be negative.");
 
             var occupied = new HashSet<string>();
+            var authoritativeRegionIds = new HashSet<string>(
+                layout.unlockedRegionIds, StringComparer.Ordinal)
+            {
+                TownExpansionPrototypeCatalog.CoreRegionId,
+            };
             for (var i = 0; i < layout.towers.Count; i++)
             {
                 var tower = layout.towers[i];
@@ -71,6 +94,11 @@ namespace Splice.Base
                     report.errors.Add($"Tower slot {i + 1} has no content ID.");
                 else if (!occupied.Add(PositionKey(tower.position)))
                     report.errors.Add($"Tower slot {i + 1} overlaps another saved defense position.");
+                if (layout.version >= 2 &&
+                    string.Equals(layout.mapTemplateId, TownExpansionPrototypeCatalog.MapTemplateId,
+                        StringComparison.Ordinal) &&
+                    !TownExpansionPrototypeCatalog.Contains(tower.position, authoritativeRegionIds))
+                    report.errors.Add($"Tower slot {i + 1} is outside unlocked town regions.");
             }
 
             for (var i = 0; i < layout.garrison.Count; i++)
@@ -80,12 +108,40 @@ namespace Splice.Base
                     report.errors.Add($"Garrison slot {i + 1} has no content ID.");
                 else if (!occupied.Add(PositionKey(unit.position)))
                     report.errors.Add($"Garrison slot {i + 1} overlaps another saved defense position.");
+                if (layout.version >= 2 &&
+                    string.Equals(layout.mapTemplateId, TownExpansionPrototypeCatalog.MapTemplateId,
+                        StringComparison.Ordinal) &&
+                    !TownExpansionPrototypeCatalog.Contains(unit.position, authoritativeRegionIds))
+                    report.errors.Add($"Garrison slot {i + 1} is outside unlocked town regions.");
             }
 
             if (layout.towers.Count == 0) report.warnings.Add("No tower deployed: fast raiders may rush the Core.");
             if (layout.garrison.Count == 0) report.warnings.Add("No garrison deployed: the town has no mobile defense.");
             report.warnings.Add("Core, breach entries and path reachability remain scene contracts until Step 6B server validation.");
             return report;
+        }
+
+        public static bool IsMapCompatible(TownDefenseSnapshot snapshot, string mapTemplateId,
+            int mapVersion, out string error)
+        {
+            if (snapshot?.layout == null)
+            {
+                error = "Town snapshot has no layout.";
+                return false;
+            }
+            var snapshotMapId = string.IsNullOrWhiteSpace(snapshot.mapTemplateId)
+                ? snapshot.layout.mapTemplateId : snapshot.mapTemplateId;
+            var snapshotMapVersion = snapshot.mapVersion > 0
+                ? snapshot.mapVersion : snapshot.layout.mapVersion;
+            if (!string.Equals(snapshotMapId, mapTemplateId, StringComparison.Ordinal) ||
+                snapshotMapVersion != mapVersion)
+            {
+                error = $"Raid map mismatch: snapshot uses {snapshotMapId}@{snapshotMapVersion}, " +
+                        $"scene supports {mapTemplateId}@{mapVersion}.";
+                return false;
+            }
+            error = string.Empty;
+            return true;
         }
 
         public static int CalculateBasePower(BaseLayout layout, int usedCapacity, int baseLevel)
@@ -147,6 +203,9 @@ namespace Splice.Base
                 committedUtc = DateTime.UtcNow.ToString("O"),
                 ownerAccountId = layout.ownerAccountId,
                 factionId = layout.factionId,
+                mapTemplateId = layout.mapTemplateId,
+                mapVersion = layout.mapVersion,
+                unlockedRegionIds = new List<string>(layout.unlockedRegionIds),
                 baseLevel = PlayerProfile.BaseLevel(layout.factionId),
                 usedCapacity = Mathf.Max(0, usedCapacity),
                 maxCapacity = Mathf.Max(0, maxCapacity),

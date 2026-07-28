@@ -37,11 +37,16 @@ namespace Splice.Base
     [System.Serializable]
     public class BaseLayout
     {
-        public int version = 1;  // เผื่อ migrate โครง save ในอนาคต
+        public int version = 2;  // v2 = immutable map identity + unlocked town regions
         [Tooltip("เจ้าของเมือง (PlayerProfile.AccountId) — server เช็ค attacker≠defender กัน self-farming (architecture §5.10)")]
         public string ownerAccountId;
         [Tooltip("faction ของเมืองนี้ (1 เมือง/faction — โมเดล B). ใช้เป็น key เก็บ/โหลดใน PlayerBaseStore")]
         public string factionId;
+        [Tooltip("content identity ของแผนที่เมืองที่ใช้สร้าง snapshot")]
+        public string mapTemplateId = "town-default-v1";
+        [Min(1)] public int mapVersion = 1;
+        [Tooltip("region ที่ server ยืนยันว่าซื้อแล้ว; region เริ่มต้นอาจไม่อยู่ใน list นี้")]
+        public List<string> unlockedRegionIds = new();
         public List<PlacedTowerData> towers = new();
         public List<GarrisonMonsterData> garrison = new();
         public List<string> minerCardIds = new();  // miner ที่ฐานนี้มี (composite card id ต่อตัว)

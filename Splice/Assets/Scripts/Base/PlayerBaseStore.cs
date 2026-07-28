@@ -22,7 +22,19 @@ namespace Splice.Base
         public static BaseLayout LoadLayout(string factionId)
         {
             if (string.IsNullOrEmpty(factionId) || !PlayerPrefs.HasKey(LayoutKey(factionId))) return null;
-            return JsonUtility.FromJson<BaseLayout>(PlayerPrefs.GetString(LayoutKey(factionId)));
+            var layout = JsonUtility.FromJson<BaseLayout>(PlayerPrefs.GetString(LayoutKey(factionId)));
+            if (layout == null) return null;
+            layout.towers ??= new System.Collections.Generic.List<PlacedTowerData>();
+            layout.garrison ??= new System.Collections.Generic.List<GarrisonMonsterData>();
+            layout.minerCardIds ??= new System.Collections.Generic.List<string>();
+            layout.unlockedRegionIds ??= new System.Collections.Generic.List<string>();
+            if (layout.version < 2)
+            {
+                layout.version = 2;
+                if (string.IsNullOrWhiteSpace(layout.mapTemplateId)) layout.mapTemplateId = "town-default-v1";
+                if (layout.mapVersion < 1) layout.mapVersion = 1;
+            }
+            return layout;
         }
 
         // เก็บด้วย key = layout.factionId (แต่ละเมืองรู้ faction ตัวเอง) — ต้อง stamp factionId ก่อนเรียก

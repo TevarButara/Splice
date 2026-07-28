@@ -58,6 +58,51 @@ namespace Splice.Backend
     }
 
     [Serializable]
+    public sealed class TownRegionOfferDto
+    {
+        public string regionId;
+        public string displayName;
+        public int goldCost;
+        public int additionalDefenseCapacity;
+        public List<string> prerequisiteRegionIds = new();
+    }
+
+    [Serializable]
+    public sealed class TownExpansionView
+    {
+        public string factionId;
+        public string mapTemplateId;
+        public int mapVersion;
+        public long revision;
+        public List<string> unlockedRegionIds = new();
+        public List<TownRegionOfferDto> availableRegions = new();
+
+        public TownExpansionState ToState() => new()
+        {
+            factionId = factionId,
+            mapTemplateId = mapTemplateId,
+            mapVersion = mapVersion,
+            revision = revision,
+            unlockedRegionIds = unlockedRegionIds == null
+                ? new List<string>() : new List<string>(unlockedRegionIds),
+        };
+    }
+
+    [Serializable]
+    public sealed class PurchaseTownRegionRequest
+    {
+        public string regionId;
+    }
+
+    [Serializable]
+    public sealed class TownExpansionMutationResult
+    {
+        public bool success;
+        public string error;
+        public TownExpansionView expansion;
+    }
+
+    [Serializable]
     public sealed class RaidReportWriteResult
     {
         public bool success;
@@ -292,6 +337,13 @@ namespace Splice.Backend
         Task<IReadOnlyList<TownDefenseSnapshot>> GetLatestManyAsync(
             IReadOnlyList<string> factionIds, CancellationToken cancellationToken);
         Task<TownDefenseSnapshot> GetByIdAsync(string snapshotId, CancellationToken cancellationToken);
+    }
+
+    public interface ITownExpansionService
+    {
+        Task<TownExpansionView> GetAsync(string factionId, CancellationToken cancellationToken);
+        Task<TownExpansionMutationResult> PurchaseAsync(string factionId, string regionId,
+            string idempotencyKey, CancellationToken cancellationToken);
     }
 
     public interface IRaidContractService
