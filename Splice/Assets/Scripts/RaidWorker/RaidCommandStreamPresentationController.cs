@@ -455,7 +455,7 @@ namespace Splice.RaidWorker
             if (!HasEditorAuthoredReplayUi)
             {
                 Debug.LogError(
-                    "[RaidReplay] Replay HUD is not serialized. Use Splice > UI > Bake All Scene UI in Edit Mode.",
+                    "[RaidReplay] Replay HUD is not serialized. Use Splice > UI > Repair Missing UI References (Safe) in Edit Mode.",
                     this);
                 return false;
             }

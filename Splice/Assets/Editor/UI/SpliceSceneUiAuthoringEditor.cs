@@ -23,42 +23,13 @@ namespace Splice.Editor.UI
         public const string RaidArenaPath = "Assets/=======SCENES/RaidArena.unity";
         public static readonly Vector2 ReferenceResolution = new(1920f, 1080f);
 
-        [MenuItem(MenuPath)]
-        public static void BakeFromMenu()
-        {
-            if (EditorApplication.isPlaying)
-            {
-                Debug.LogError("[Scene UI] Exit Play Mode before baking UI.");
-                return;
-            }
-            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
-            BakeAllAndSave();
-        }
+        [System.Obsolete("Use SpliceSceneUiMaintenanceEditor.RepairFromMenu instead.")]
+        public static void BakeFromMenu() => SpliceSceneUiMaintenanceEditor.RepairFromMenu();
 
-        // Stable entry point for Unity MCP and tests.
-        public static void BakeAllAndSave()
-        {
-            EditorSceneManager.SaveOpenScenes();
-            var setup = EditorSceneManager.GetSceneManagerSetup();
-            try
-            {
-                var buildZone = EditorSceneManager.OpenScene(BuildZonePath, OpenSceneMode.Single);
-                BakeBuildZone(buildZone);
-                EditorSceneManager.MarkSceneDirty(buildZone);
-                EditorSceneManager.SaveScene(buildZone);
+        // Backward-compatible safe entry point for Unity MCP and tests.
+        [System.Obsolete("Use SpliceSceneUiMaintenanceEditor.RepairAllAndSave instead.")]
+        public static void BakeAllAndSave() => SpliceSceneUiMaintenanceEditor.RepairAllAndSave();
 
-                var raidArena = EditorSceneManager.OpenScene(RaidArenaPath, OpenSceneMode.Single);
-                BakeRaidArena(raidArena);
-                EditorSceneManager.MarkSceneDirty(raidArena);
-                EditorSceneManager.SaveScene(raidArena);
-                AssetDatabase.SaveAssets();
-            }
-            finally
-            {
-                EditorSceneManager.RestoreSceneManagerSetup(setup);
-            }
-            Debug.Log("[Scene UI] All runtime-owned UI migrated into scenes; responsive canvas contract saved.");
-        }
 
         private static void BakeBuildZone(Scene scene)
         {
@@ -142,10 +113,10 @@ namespace Splice.Editor.UI
             BaseBuildCheckoutController checkout)
         {
             if (checkout == null) throw new System.ArgumentNullException(nameof(checkout));
-            // Bake is a migration/validation command. Once the complete hierarchy exists,
-            // the scene is designer-owned and its transforms, sprites, colors and fonts
-            // must never be restyled by a subsequent bake.
-            if (!checkout.HasEditorAuthoredUi) checkout.RebuildEditorUi();
+            // Legacy callers are routed through reference-only repair. Existing hierarchy,
+            // RectTransforms and styling remain designer-owned in every state.
+            if (!checkout.HasEditorAuthoredUi)
+                SpliceSceneUiMaintenanceEditor.RepairSceneReferences(checkout.gameObject.scene, true);
         }
 
         private static void ConfigureRootScreenCanvases(Scene scene)

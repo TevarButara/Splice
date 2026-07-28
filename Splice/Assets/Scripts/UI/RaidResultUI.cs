@@ -36,7 +36,7 @@ namespace Splice.UI
             }
             else if (enabled)
                 Debug.LogError(
-                    "[RaidResultUI] Return button is not serialized. Use Splice > UI > Bake All Scene UI in Edit Mode.",
+                    "[RaidResultUI] Return button is not serialized. Use Splice > UI > Repair Missing UI References (Safe) in Edit Mode.",
                     this);
         }
 

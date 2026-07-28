@@ -81,7 +81,7 @@ namespace Splice.Base
             if (!HasEditorAuthoredStatusUi)
             {
                 Debug.LogError(
-                    "[IncomingRaid] Status UI is not serialized. Use Splice > UI > Bake All Scene UI in Edit Mode.",
+                    "[IncomingRaid] Status UI is not serialized. Use Splice > UI > Repair Missing UI References (Safe) in Edit Mode.",
                     this);
                 enabled = false;
                 yield break;
