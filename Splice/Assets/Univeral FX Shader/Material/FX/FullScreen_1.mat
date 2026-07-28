@@ -54,7 +54,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: FullScreen_1
-  m_Shader: {fileID: 4800000, guid: 286fdc62f561eab429e64c8e60e6f363, type: 3}
+  m_Shader: {fileID: 4800000, guid: 2cffc59a17c894656bd031c5230c7697, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
@@ -71,8 +71,7 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: 3000
-  stringTagMap:
-    RenderType: Transparent
+  stringTagMap: {}
   disabledShaderPasses: []
   m_LockedProperties: _TintColor
   m_SavedProperties:

@@ -8,7 +8,9 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Ring_Portal
-  m_Shader: {fileID: 4800000, guid: d3f306ad4d22e3f4083015825f60b786, type: 3}
+  m_Shader: {fileID: 4800000, guid: 767ad929c22d74f79aed0c918bc91912, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
   m_InvalidKeywords:
   - _USESOFTPARTICLES_ON
@@ -19,6 +21,7 @@ Material:
   m_CustomRenderQueue: 3000
   stringTagMap: {}
   disabledShaderPasses: []
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -84,3 +87,4 @@ Material:
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _TintColor: {r: 0.33490568, g: 0.7287459, b: 1, a: 1}
   m_BuildTextureStacks: []
+  m_AllowLocking: 1

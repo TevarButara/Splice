@@ -10,10 +10,8 @@ Texture2D:
   m_ImageContentsHash:
     serializedVersion: 2
     Hash: 00000000000000000000000000000000
-  m_ForcedFallbackFormat: 4
-  m_DownscaleFallback: 0
   m_IsAlphaChannelOptional: 0
-  serializedVersion: 2
+  serializedVersion: 4
   m_Width: 256
   m_Height: 1
   m_CompleteImageSize: 1024
@@ -22,7 +20,8 @@ Texture2D:
   m_MipCount: 1
   m_IsReadable: 1
   m_IsPreProcessed: 0
-  m_IgnoreMasterTextureLimit: 0
+  m_IgnoreMipmapLimit: 0
+  m_MipmapLimitGroupName: 
   m_StreamingMipmaps: 0
   m_StreamingMipmapsPriority: 0
   m_VTOnly: 0
@@ -55,7 +54,9 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Fog 1
-  m_Shader: {fileID: 4800000, guid: 286fdc62f561eab429e64c8e60e6f363, type: 3}
+  m_Shader: {fileID: 4800000, guid: 2cffc59a17c894656bd031c5230c7697, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
   - ALPHA_FROM_GRAYSCALE
   - ENABLE_DISSOLVE
@@ -64,7 +65,6 @@ Material:
   - ENABLE_MASK_FLOW
   - ENABLE_SOFTPARTICLES
   - ENABLE_UV_NOISE
-  - SOFTPARTICLES_ON
   m_InvalidKeywords:
   - DISABLE_SORTING
   - ENABLE_COLOR_RAMP
@@ -74,6 +74,7 @@ Material:
   - ENABLE_FOG
   - ENABLE_MAIN_TEXTURE
   - ENABLE_SECOND_LAYER
+  - SOFTPARTICLES_ON
   - _ALPHASOURCE_DEFAULT
   - _ALPHASOURCE_MAIN
   - _ALPHA_BLEND
@@ -84,9 +85,9 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: 3000
-  stringTagMap:
-    RenderType: Transparent
+  stringTagMap: {}
   disabledShaderPasses: []
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -116,6 +117,10 @@ Material:
         m_Offset: {x: 0, y: 0}
     - _DissolveTex:
         m_Texture: {fileID: 2800000, guid: 5a8ee1f12eb6754478d20fa934949aec, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DistortionTex:
+        m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _EmissionMap:
@@ -199,6 +204,7 @@ Material:
     - _DissolveRemapMax: 1
     - _DissolveRemapMin: 0
     - _DissolveSmoothness: 0.492
+    - _DistortionIntensity: 0.5
     - _DstBlend: 10
     - _DualColorsEnabled: 1
     - _DualColorsState: 0
@@ -271,6 +277,7 @@ Material:
     - _ColorB: {r: 1, g: 0.2826364, b: 0, a: 1}
     - _DissloveOutlineColor: {r: 2, g: 1.5048354, b: 0, a: 1}
     - _DissolveOutlineColor: {r: 1, g: 1, b: 1, a: 1}
+    - _DistortionSpeed: {r: 0.1, g: 0.1, b: 0, a: 0}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _GlowColor: {r: 1, g: 0, b: 0, a: 1}
     - _GlowSpeed: {r: 0, g: 0, b: 0, a: 0}
@@ -287,6 +294,7 @@ Material:
     - _TintColor: {r: 0.7830189, g: 0.29516938, b: 0, a: 1}
     - _UVNoiseSpeed: {r: 0, g: 0, b: 0.1, a: 0.2}
   m_BuildTextureStacks: []
+  m_AllowLocking: 1
 --- !u!114 &7186413734808421020
 MonoBehaviour:
   m_ObjectHideFlags: 1

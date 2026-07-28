@@ -8,7 +8,9 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: FullScreen_Glow
-  m_Shader: {fileID: 4800000, guid: 286fdc62f561eab429e64c8e60e6f363, type: 3}
+  m_Shader: {fileID: 4800000, guid: 2cffc59a17c894656bd031c5230c7697, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
   m_ValidKeywords:
   - ENABLE_MASK
   - ENABLE_MASK_FLOW
@@ -20,9 +22,9 @@ Material:
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: 3000
-  stringTagMap:
-    RenderType: Transparent
+  stringTagMap: {}
   disabledShaderPasses: []
+  m_LockedProperties: 
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -234,3 +236,4 @@ Material:
     - _TintColor2: {r: 1, g: 1, b: 1, a: 1}
     - _UVNoiseSpeed: {r: 0, g: 0, b: 0, a: 0.5}
   m_BuildTextureStacks: []
+  m_AllowLocking: 1
