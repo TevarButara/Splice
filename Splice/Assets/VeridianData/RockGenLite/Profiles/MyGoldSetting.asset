@@ -1,0 +1,101 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9a4bda60180bf514c9700302b8d515cd, type: 3}
+  m_Name: MyGoldSetting
+  m_EditorClassIdentifier: Veridian.RockGenLite.Runtime::Veridian.RockGenLite.RockSettings
+  saveFolderPath: Assets/VeridianData/RockGenerator/Gold
+  exportName: Gold-cen2
+  baseShape: 0
+  rockType: 3
+  seed: 760195
+  targetDiameter: 2
+  prefabScale: 1
+  randomizeProportions: 1
+  minRandomProportions: {x: 0.5, y: 0.5, z: 0.5}
+  maxRandomProportions: {x: 1.7, y: 1.7, z: 1.7}
+  baseProportions: {x: 1, y: 1, z: 1}
+  colorizationMethod: 1
+  colorPattern: 1
+  textureResolution: 512
+  primaryColor: {r: 0.20754719, g: 0.18723303, b: 0.1262905, a: 1}
+  secondaryColor: {r: 0.20754719, g: 0.20754719, b: 0.20754719, a: 1}
+  tertiaryColor: {r: 0.31132078, g: 0.28811282, b: 0.26579747, a: 1}
+  cavityColor: {r: 0.1981132, g: 0.17848878, b: 0.17848878, a: 1}
+  slopeMode: 0
+  slopeThreshold: 0.559
+  slopeSmoothness: 0.2
+  texturingNoiseFrequency: 0.36231884
+  texturingNoiseBlend: 0.5
+  cavityStrength: 0.8
+  strataWarpFrequency: 2
+  strataWarpStrength: 0.5
+  patchFrequency: 1
+  useNormalPerturbation: 1
+  normalNoiseFrequency: 3.4708962
+  normalNoiseStrength: 0.099
+  normalMapStrength: 1.53
+  useMicroDetail: 0
+  microDetailFrequency: 50
+  microDetailStrength: 0.4
+  normalMapResolution: 1
+  auxiliaryMapResolution: 1
+  textureExportMode: 0
+  generateAO: 0
+  aoStrength: 0.554
+  generateHeight: 0
+  generateSmoothness: 0
+  baseSmoothness: 0.906
+  metallicStyle: 3
+  oreColor: {r: 0.8773585, g: 0.69051397, b: 0.053800307, a: 1}
+  oreFrequency: 0.16207455
+  oreCoverage: 1
+  oreMetallic: 0.465
+  oreSmoothness: 0.484
+  uvScale: 5.89
+  uvBlendSharpness: 2.35
+  lodLevels:
+  - subdivisionLevel: 2
+    resolution: 20
+    screenRelativeTransitionHeight: 0.6
+  - subdivisionLevel: 1
+    resolution: 10
+    screenRelativeTransitionHeight: 0.3
+  - subdivisionLevel: 0
+    resolution: 5
+    screenRelativeTransitionHeight: 0.02
+  colliderType: 3
+  colliderLODIndex: 1
+  inputAlbedo: {fileID: 0}
+  inputNormal: {fileID: 0}
+  inputTextureScale: 5
+  useMacroNoise: 1
+  useDomainWarping: 1
+  useVoronoi: 0
+  useTerracing: 0
+  macroFractalType: 3
+  detailFractalType: 2
+  voronoiOutputType: 2
+  voronoiMetric: 0
+  macroNoiseFrequency: 0.6891827
+  macroNoiseStrength: 0.4
+  macroNoiseOctaves: 3
+  noiseFrequency: 0.10384216
+  noiseStrength: 0.28
+  octaves: 4
+  lacunarity: 3.63
+  persistence: 0.789
+  warpStrength: 1.62
+  warpFrequency: 0.46511626
+  voronoiFrequency: 3
+  voronoiIntensity: 0.5
+  terraceCount: 10
+  terraceIntensity: 0.7
