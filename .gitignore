@@ -40,12 +40,6 @@ ExportedObj/
 [Aa]ssets/[Aa]ssetStoreTools*
 Assets/Plugins/Editor/JetBrains*
 
-# Local vendor evaluation asset (currently not referenced by tracked game content).
-# Remove these two rules and commit the complete vendor folder before using it
-# in production content, so every development machine receives identical GUIDs.
-Splice/Assets/Plugins/AllIn1SpriteShader/
-Splice/Assets/Plugins/AllIn1SpriteShader.meta
-
 # Android build (regenerated)
 .gradle/
 
