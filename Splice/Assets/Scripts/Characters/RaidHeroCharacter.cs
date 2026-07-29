@@ -1299,6 +1299,16 @@ namespace Splice.Characters
             var ability = GetAbility(slot);
             if (ability == null) return;
             PlayActionState(ResolveAbilityAnimationState(slot, ability));
+            if (ability.HasStagedVfx)
+            {
+                HeroAbilityVfxSequencePlayer.Play(
+                    ability,
+                    transform,
+                    abilityEffectAnchor,
+                    targetPoint,
+                    originPoint);
+                return;
+            }
             if (ability.castEffectPrefab == null) return;
             var effectLifetime = ability.damageMode == HeroAbilityDamageMode.DamageOverTime
                 ? Mathf.Max(ability.castEffectLifetime, ability.damageDurationSeconds)
@@ -1365,10 +1375,12 @@ namespace Splice.Characters
                 : "Attack";
             PlayActionState(stateName);
             if (definition != null && definition.normalAttackEffectPrefab != null)
-                OneShotEffect.SpawnAttached(
+                VfxPoolService.Spawn(
                     definition.normalAttackEffectPrefab,
-                    transform,
-                    definition.normalAttackEffectLifetime);
+                    transform.position,
+                    transform.rotation,
+                    definition.normalAttackEffectLifetime,
+                    transform);
         }
 
         private string ResolveAbilityAnimationState(

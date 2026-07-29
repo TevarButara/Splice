@@ -30,6 +30,7 @@ namespace Splice.Editor.Validation
                 LoadAll<FactionRegistrySO>(), LoadAll<HeroRegistrySO>());
             RaidSceneArchitectureValidator.Validate(report);
             WorldPrototypeValidator.Validate(report);
+            RowanVfxVerticalSliceValidator.Validate(report);
             BackendBoundaryValidator.Validate(report);
             Splice.Editor.UI.SpliceSceneUiAuthoringValidator.Validate(report);
             LiveContentAddressablesConfigurator.Validate(report);

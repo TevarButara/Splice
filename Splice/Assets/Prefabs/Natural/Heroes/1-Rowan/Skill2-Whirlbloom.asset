@@ -34,4 +34,64 @@ MonoBehaviour:
   castEffectLifetime: 2
   effectPlacement: 2
   effectLocalOffset: {x: 0, y: 0, z: 0}
+  castVfx:
+    enabled: 1
+    prefab: {fileID: 2415396524142131283, guid: c7358fac6d43345baac36c012a1dc0e0, type: 3}
+    delaySeconds: 0
+    lifetimeSeconds: 1.1
+    placement: 2
+    localOffset: {x: 0, y: 0, z: 0}
+    groundOffset: 0.05
+    orientToCastDirection: 1
+    travelDurationSeconds: 0.25
+  launchVfx:
+    enabled: 1
+    prefab: {fileID: 0}
+    delaySeconds: 0
+    lifetimeSeconds: 1
+    placement: 3
+    localOffset: {x: 0, y: 0, z: 0}
+    groundOffset: 0.05
+    orientToCastDirection: 1
+    travelDurationSeconds: 0.25
+  travelVfx:
+    enabled: 1
+    prefab: {fileID: 0}
+    delaySeconds: 0
+    lifetimeSeconds: 1
+    placement: 3
+    localOffset: {x: 0, y: 0, z: 0}
+    groundOffset: 0.05
+    orientToCastDirection: 1
+    travelDurationSeconds: 0.25
+  impactVfx:
+    enabled: 1
+    prefab: {fileID: 0}
+    delaySeconds: 0
+    lifetimeSeconds: 1
+    placement: 3
+    localOffset: {x: 0, y: 0, z: 0}
+    groundOffset: 0.05
+    orientToCastDirection: 1
+    travelDurationSeconds: 0.25
+  persistentVfx:
+    enabled: 1
+    prefab: {fileID: 7765213575566126718, guid: 6bdae18fad9bb4732857b5f21a8959d6, type: 3}
+    delaySeconds: 0
+    lifetimeSeconds: 1.1
+    placement: 1
+    localOffset: {x: 0, y: 0, z: 0}
+    groundOffset: 0.05
+    orientToCastDirection: 1
+    travelDurationSeconds: 0.25
+  endVfx:
+    enabled: 1
+    prefab: {fileID: 5324161750830100144, guid: c6c516377543548c4a09be81ce563d99, type: 3}
+    delaySeconds: 0
+    lifetimeSeconds: 0.7
+    placement: 1
+    localOffset: {x: 0, y: 0, z: 0}
+    groundOffset: 0.05
+    orientToCastDirection: 1
+    travelDurationSeconds: 0.25
   groundEffectOffset: 0.05

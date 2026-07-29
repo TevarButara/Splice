@@ -87,6 +87,23 @@ namespace Splice.Data
         [Tooltip("Ground skills snap to the terrain. Self effects follow the Hero. Hero Effect Anchor uses the optional socket on RaidHeroCharacter.")]
         public HeroAbilityEffectPlacement effectPlacement = HeroAbilityEffectPlacement.GroundSurface;
         public Vector3 effectLocalOffset;
+        [Header("Staged VFX Presentation")]
+        [Tooltip("Optional staged presentation. When any cue is assigned, the legacy single castEffectPrefab is skipped.")]
+        public HeroAbilityVfxCue castVfx = new();
+        public HeroAbilityVfxCue launchVfx = new();
+        public HeroAbilityVfxCue travelVfx = new();
+        public HeroAbilityVfxCue impactVfx = new();
+        public HeroAbilityVfxCue persistentVfx = new();
+        public HeroAbilityVfxCue endVfx = new();
+
+        public bool HasStagedVfx =>
+            castVfx?.IsConfigured == true ||
+            launchVfx?.IsConfigured == true ||
+            travelVfx?.IsConfigured == true ||
+            impactVfx?.IsConfigured == true ||
+            persistentVfx?.IsConfigured == true ||
+            endVfx?.IsConfigured == true;
+
         [Min(0f)] public float groundEffectOffset = 0.05f;
 
         public int DamageTickCount =>
