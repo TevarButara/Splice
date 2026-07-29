@@ -4,6 +4,7 @@ using Splice.Combat;
 using Splice.Data;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.VFX;
 
 namespace Splice.Editor.Vfx
@@ -14,6 +15,16 @@ namespace Splice.Editor.Vfx
         private const string VfxRoot = Root + "/VFX";
         private const string PrefabRoot = VfxRoot + "/Prefabs/Ultimate";
         private const string MaterialRoot = VfxRoot + "/Materials/Ultimate";
+        private const string GeneratedTextureRoot =
+            VfxRoot + "/Textures/UltimateGenerated";
+        private const string RuneCircleTexture =
+            GeneratedTextureRoot + "/Rowan_Ultimate_RuneCircle.png";
+        private const string SwordTexture =
+            GeneratedTextureRoot + "/Rowan_Ultimate_Sword.png";
+        private const string ImpactTexture =
+            GeneratedTextureRoot + "/Rowan_Ultimate_ImpactX.png";
+        private const string TrailTexture =
+            GeneratedTextureRoot + "/Rowan_Ultimate_Trail.png";
         private const string ExecutionPath =
             Root + "/Rowan_Ultimate_MultiDash_Execution.asset";
         private const string AbilityPath = Root + "/Skill3-Wildblade Frenzy.asset";
@@ -23,6 +34,7 @@ namespace Splice.Editor.Vfx
         private const string TrailGraph = VfxRoot + "/Graphs/Rowan_GPU_Trail.vfx";
         private const string BurstGraph = VfxRoot + "/Graphs/Rowan_GPU_Burst.vfx";
         private const string AdditiveShader = "Splice/VFX/URP Additive Intensify";
+        private const string AlphaGlowShader = "Splice/VFX/URP Alpha Glow";
         private const string FlareTexture =
             "Assets/VFX/VFXPACK_IMPACT_WALLCOEUR_FreeVersion/03_Texture/Flare.png";
         private const float UltimateCastRange = 24f;
@@ -44,6 +56,11 @@ namespace Splice.Editor.Vfx
         {
             EnsureFolder(PrefabRoot);
             EnsureFolder(MaterialRoot);
+            AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
+            ConfigureGeneratedTexture(RuneCircleTexture);
+            ConfigureGeneratedTexture(SwordTexture);
+            ConfigureGeneratedTexture(ImpactTexture);
+            ConfigureGeneratedTexture(TrailTexture);
 
             RequireGraph(UserImpactGraph);
             var loopGraph = RequireGraph(LoopGraph);
@@ -80,13 +97,63 @@ namespace Splice.Editor.Vfx
                 new Color(1f, 0.018f, 0.003f, 0.96f),
                 2f,
                 false);
+            var runeDetail = CreateGeneratedMaterial(
+                "Rowan_Ultimate_RuneCircle_Detail",
+                RuneCircleTexture,
+                false,
+                new Color(1f, 0.62f, 0.24f, 0.78f),
+                1.35f,
+                0.82f);
+            var runeGlow = CreateGeneratedMaterial(
+                "Rowan_Ultimate_RuneCircle_Glow",
+                RuneCircleTexture,
+                true,
+                new Color(1f, 0.18f, 0.015f, 0.34f),
+                1.4f,
+                0.34f);
+            var swordDetail = CreateGeneratedMaterial(
+                "Rowan_Ultimate_Sword_Detail",
+                SwordTexture,
+                false,
+                new Color(1f, 0.68f, 0.3f, 0.9f),
+                1.45f,
+                0.9f);
+            var swordGlow = CreateGeneratedMaterial(
+                "Rowan_Ultimate_Sword_Glow",
+                SwordTexture,
+                true,
+                new Color(1f, 0.16f, 0.01f, 0.45f),
+                1.45f,
+                0.45f);
+            var impactDetail = CreateGeneratedMaterial(
+                "Rowan_Ultimate_ImpactX_Detail",
+                ImpactTexture,
+                false,
+                new Color(1f, 0.58f, 0.2f, 0.92f),
+                1.7f,
+                0.92f);
+            var impactGlow = CreateGeneratedMaterial(
+                "Rowan_Ultimate_ImpactX_Glow",
+                ImpactTexture,
+                true,
+                new Color(1f, 0.08f, 0.005f, 0.7f),
+                1.8f,
+                0.7f);
+            var trailRibbon = CreateGeneratedMaterial(
+                "Rowan_Ultimate_Trail_Ribbon",
+                TrailTexture,
+                true,
+                new Color(1f, 0.3f, 0.035f, 0.86f),
+                1.7f,
+                0.86f);
 
             var cast = BuildQualityPrefab(
                 "Rowan_Ultimate_Cast_Ring",
                 UltimateVfxMotionMode.Cast,
                 5f,
                 (parent, tier) => BuildCastVariant(
-                    parent, tier, loopGraph, orangeLine, yellowLine, orange));
+                    parent, tier, loopGraph, runeDetail, runeGlow,
+                    swordDetail, swordGlow, orange));
             var launch = BuildQualityPrefab(
                 "Rowan_Ultimate_Launch",
                 UltimateVfxMotionMode.Launch,
@@ -98,19 +165,20 @@ namespace Splice.Editor.Vfx
                 UltimateVfxMotionMode.Travel,
                 5f,
                 (parent, tier) => BuildTravelVariant(
-                    parent, tier, trailGraph, orangeLine, yellowLine));
+                    parent, tier, trailGraph, trailRibbon, yellowLine));
             var impact = BuildQualityPrefab(
                 "Rowan_Ultimate_Impact_Cross",
                 UltimateVfxMotionMode.Impact,
                 0.5f,
                 (parent, tier) => BuildImpactVariant(
-                    parent, tier, burstGraph, redLine, orange, yellowLine));
+                    parent, tier, burstGraph, impactDetail,
+                    impactGlow, orange));
             var end = BuildQualityPrefab(
                 "Rowan_Ultimate_End_Return",
                 UltimateVfxMotionMode.End,
                 0.8f,
                 (parent, tier) => BuildEndVariant(
-                    parent, tier, burstGraph, orangeLine, yellowLine, orange));
+                    parent, tier, burstGraph, runeGlow, orange));
 
             var execution = CreateOrUpdateExecution();
             AssignAbility(execution, cast, launch, travel, impact, end);
@@ -172,19 +240,29 @@ namespace Splice.Editor.Vfx
             Transform parent,
             VfxQualityTier tier,
             VisualEffectAsset loopGraph,
-            Material orangeLine,
-            Material yellowLine,
+            Material runeDetail,
+            Material runeGlow,
+            Material swordDetail,
+            Material swordGlow,
             Material orangeParticle)
         {
-            CreateCircle(parent, "Outer Magic Circle", orangeLine, 1f,
-                Width(tier, 0.04f));
-            CreateCircle(parent, "Inner Magic Circle", yellowLine, 0.74f,
-                Width(tier, 0.025f));
-            CreateCircle(parent, "Core Magic Circle", orangeLine, 0.46f,
-                Width(tier, 0.016f));
-            CreatePentagram(parent, yellowLine, Width(tier, 0.022f));
-            CreateRuneTicks(parent, tier, orangeLine, yellowLine);
-            CreateFiveBlades(parent, tier, yellowLine, orangeLine);
+            CreateGroundQuad(
+                parent,
+                "Generated Rune Circle Detail",
+                runeDetail,
+                2f,
+                0.035f,
+                0);
+            if (tier != VfxQualityTier.Low)
+                CreateGroundQuad(
+                    parent,
+                    "Generated Rune Circle Glow",
+                    runeGlow,
+                    tier == VfxQualityTier.High ? 2.08f : 2.04f,
+                    0.05f,
+                    1);
+            CreateFiveTexturedBlades(
+                parent, tier, swordDetail, swordGlow);
             CreateParticleBurst(
                 parent,
                 "Orbit Sparks",
@@ -228,10 +306,10 @@ namespace Splice.Editor.Vfx
             Transform parent,
             VfxQualityTier tier,
             VisualEffectAsset trailGraph,
-            Material orangeLine,
+            Material trailRibbon,
             Material yellowLine)
         {
-            CreateTrail(parent, "Orange Fury Trail", orangeLine,
+            CreateTrail(parent, "Generated Fury Trail", trailRibbon,
                 tier == VfxQualityTier.High ? 0.95f :
                 tier == VfxQualityTier.Medium ? 0.7f : 0.45f,
                 tier == VfxQualityTier.High ? 0.42f : 0.3f);
@@ -247,16 +325,26 @@ namespace Splice.Editor.Vfx
             Transform parent,
             VfxQualityTier tier,
             VisualEffectAsset impactGraph,
-            Material redLine,
+            Material impactDetail,
+            Material impactGlow,
             Material orangeParticle,
-            Material yellowLine)
+            Material unused = null)
         {
-            CreateCross(parent, "Red Orange Cross", redLine,
-                tier == VfxQualityTier.Low ? 0.75f : 1.15f,
-                Width(tier, 0.16f));
-            CreateCross(parent, "Yellow Cross Core", yellowLine,
-                tier == VfxQualityTier.High ? 0.78f : 0.6f,
-                Width(tier, 0.07f));
+            CreateGroundQuad(
+                parent,
+                "Generated Impact X Detail",
+                impactDetail,
+                tier == VfxQualityTier.Low ? 1.55f : 2.1f,
+                0.13f,
+                8);
+            if (tier != VfxQualityTier.Low)
+                CreateGroundQuad(
+                    parent,
+                    "Generated Impact X Glow",
+                    impactGlow,
+                    tier == VfxQualityTier.High ? 2.24f : 2.16f,
+                    0.15f,
+                    9);
             CreateParticleBurst(
                 parent,
                 "Impact Sparks",
@@ -276,14 +364,16 @@ namespace Splice.Editor.Vfx
             Transform parent,
             VfxQualityTier tier,
             VisualEffectAsset burstGraph,
-            Material orangeLine,
-            Material yellowLine,
+            Material runeGlow,
             Material orangeParticle)
         {
-            CreateCircle(parent, "Contracting Outer Circle", orangeLine,
-                1f, Width(tier, 0.055f));
-            CreateCircle(parent, "Contracting Core Circle", yellowLine,
-                0.6f, Width(tier, 0.03f));
+            CreateGroundQuad(
+                parent,
+                "Return Rune Flash",
+                runeGlow,
+                tier == VfxQualityTier.Low ? 1.1f : 1.35f,
+                0.08f,
+                4);
             CreateParticleBurst(
                 parent,
                 "Return Embers",
@@ -296,6 +386,80 @@ namespace Splice.Editor.Vfx
                 0.08f);
             if (tier == VfxQualityTier.High)
                 CreateGraph(parent, "GPU Return Burst", burstGraph, 1f);
+        }
+
+        private static void CreateGroundQuad(
+            Transform parent,
+            string name,
+            Material material,
+            float size,
+            float height,
+            int sortingOrder)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(0f, height, 0f);
+            go.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            go.transform.localScale = new Vector3(size, size, 1f);
+            UnityEngine.Object.DestroyImmediate(go.GetComponent<Collider>());
+            var renderer = go.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sortingOrder = sortingOrder;
+        }
+
+        private static void CreateFiveTexturedBlades(
+            Transform parent,
+            VfxQualityTier tier,
+            Material detail,
+            Material glow)
+        {
+            for (var i = 0; i < 5; i++)
+            {
+                var angle = i * Mathf.PI * 2f / 5f;
+                var anchor = new GameObject("Generated Rune Sword " + (i + 1));
+                anchor.transform.SetParent(parent, false);
+                anchor.transform.localPosition =
+                    new Vector3(Mathf.Cos(angle), 0.02f, Mathf.Sin(angle)) * 0.78f;
+                anchor.transform.localRotation =
+                    Quaternion.Euler(0f, -angle * Mathf.Rad2Deg + 90f, 0f);
+                CreateSwordPlane(anchor.transform, "Sword Face A", detail, 0f, 2);
+                if (tier != VfxQualityTier.Low)
+                    CreateSwordPlane(
+                        anchor.transform, "Sword Face B", detail, 90f, 2);
+                if (tier == VfxQualityTier.High)
+                {
+                    CreateSwordPlane(
+                        anchor.transform, "Sword Glow A", glow, 0f, 3, 1.08f);
+                    CreateSwordPlane(
+                        anchor.transform, "Sword Glow B", glow, 90f, 3, 1.08f);
+                }
+            }
+        }
+
+        private static void CreateSwordPlane(
+            Transform parent,
+            string name,
+            Material material,
+            float yaw,
+            int sortingOrder,
+            float scale = 1f)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            go.name = name;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(0f, 0.22f, 0f);
+            go.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+            go.transform.localScale =
+                new Vector3(0.22f, 0.44f, 1f) * scale;
+            UnityEngine.Object.DestroyImmediate(go.GetComponent<Collider>());
+            var renderer = go.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sortingOrder = sortingOrder;
         }
 
         private static void CreateFiveBlades(
@@ -694,6 +858,87 @@ namespace Splice.Editor.Vfx
                 material.SetTexture("_MainTex", texture);
             EditorUtility.SetDirty(material);
             return material;
+        }
+
+        private static Material CreateGeneratedMaterial(
+            string name,
+            string texturePath,
+            bool additive,
+            Color tint,
+            float brightness,
+            float opacity)
+        {
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(texturePath);
+            if (texture == null)
+                throw new InvalidOperationException(
+                    "Generated Rowan Ultimate texture is missing: " + texturePath);
+            var shaderName = additive ? AdditiveShader : AlphaGlowShader;
+            var shader = Shader.Find(shaderName);
+            if (shader == null)
+                throw new InvalidOperationException("Missing shader: " + shaderName);
+            var path = MaterialRoot + "/" + name + ".mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(shader) { name = name };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            else
+            {
+                material.shader = shader;
+            }
+
+            material.SetTexture("_MainTex", texture);
+            material.SetColor("_TintColor", tint);
+            if (additive)
+            {
+                material.SetFloat("_Glow", brightness);
+                material.SetFloat("_UseSoftParticles", 0f);
+            }
+            else
+            {
+                material.SetFloat("_Brightness", brightness);
+                material.SetFloat("_Opacity", opacity);
+                material.SetFloat("_PulseSpeed", 4.2f);
+                material.SetFloat("_PulseAmount", 0.08f);
+            }
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        private static void ConfigureGeneratedTexture(string path)
+        {
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null)
+                throw new InvalidOperationException(
+                    "Generated Rowan Ultimate texture failed to import: " + path);
+            importer.textureType = TextureImporterType.Default;
+            importer.alphaSource = TextureImporterAlphaSource.FromInput;
+            importer.alphaIsTransparency = true;
+            importer.sRGBTexture = true;
+            importer.mipmapEnabled = false;
+            importer.wrapMode = TextureWrapMode.Clamp;
+            importer.filterMode = FilterMode.Bilinear;
+            importer.npotScale = TextureImporterNPOTScale.None;
+            importer.maxTextureSize = 1024;
+            importer.textureCompression = TextureImporterCompression.CompressedHQ;
+
+            ConfigureMobileTexture(importer, "Android");
+            ConfigureMobileTexture(importer, "iPhone");
+            importer.SaveAndReimport();
+        }
+
+        private static void ConfigureMobileTexture(
+            TextureImporter importer,
+            string platform)
+        {
+            var settings = importer.GetPlatformTextureSettings(platform);
+            settings.name = platform;
+            settings.overridden = true;
+            settings.maxTextureSize = 1024;
+            settings.format = TextureImporterFormat.ASTC_6x6;
+            settings.compressionQuality = 100;
+            importer.SetPlatformTextureSettings(settings);
         }
 
         private static float Width(VfxQualityTier tier, float high)

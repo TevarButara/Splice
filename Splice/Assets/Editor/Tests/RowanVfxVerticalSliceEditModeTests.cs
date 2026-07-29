@@ -103,26 +103,28 @@ namespace Splice.Tests.EditMode
         }
 
         [Test]
-        public void RowanUltimate_CastRingUsesVisibleColoredLinesWithoutWhiteFlash()
+        public void RowanUltimate_UsesGeneratedAlphaArtWithoutWhiteFlash()
         {
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
                 Root +
                 "/VFX/Prefabs/Ultimate/Rowan_Ultimate_Cast_Ring.prefab");
             Assert.That(prefab, Is.Not.Null);
-            var outer = prefab.GetComponentsInChildren<LineRenderer>(true)
-                .FirstOrDefault(line => line.name == "Outer Magic Circle");
-            Assert.That(outer, Is.Not.Null);
-            Assert.That(outer.sharedMaterial, Is.Not.Null);
-            Assert.That(outer.sharedMaterial.GetFloat("_UseSoftParticles"),
-                Is.Zero,
-                "Ground rings must not disappear into the terrain depth.");
-            Assert.That(outer.sharedMaterial.mainTexture,
-                Is.Null.Or.SameAs(Texture2D.whiteTexture),
-                "Line VFX need the shader's continuous white default, not a sparse flare texture.");
+            var generatedRing = prefab
+                .GetComponentsInChildren<MeshRenderer>(true)
+                .FirstOrDefault(renderer =>
+                    renderer.name == "Generated Rune Circle Detail");
+            Assert.That(generatedRing, Is.Not.Null);
+            Assert.That(generatedRing.sharedMaterial, Is.Not.Null);
+            Assert.That(generatedRing.sharedMaterial.shader.name,
+                Is.EqualTo("Splice/VFX/URP Alpha Glow"));
+            Assert.That(generatedRing.sharedMaterial.mainTexture, Is.Not.Null);
+            Assert.That(generatedRing.sharedMaterial.mainTexture.name,
+                Is.EqualTo("Rowan_Ultimate_RuneCircle"));
             Assert.That(
-                prefab.GetComponentsInChildren<LineRenderer>(true)
-                    .Any(line => line.name == "Wildblade Pentagram"),
-                Is.True);
+                prefab.GetComponentsInChildren<Transform>(true)
+                    .Count(tf => tf.name.StartsWith("Generated Rune Sword ")),
+                Is.EqualTo(15),
+                "Every quality tier must own five generated sword anchors.");
 
             var sparks = prefab.GetComponentsInChildren<ParticleSystem>(true)
                 .FirstOrDefault(particle => particle.name == "Orbit Sparks");
@@ -132,6 +134,30 @@ namespace Splice.Tests.EditMode
             Assert.That(firstColor,
                 Is.Not.EqualTo(Color.white),
                 "The first particle frame must be hot orange, not a white flash.");
+        }
+
+        [Test]
+        public void RowanUltimate_GeneratedTexturesAreAlphaCompressedAndClampWrapped()
+        {
+            foreach (var textureName in new[]
+                     { "RuneCircle", "Sword", "ImpactX", "Trail" })
+            {
+                var path = Root +
+                           "/VFX/Textures/UltimateGenerated/Rowan_Ultimate_" +
+                           textureName + ".png";
+                var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                Assert.That(texture, Is.Not.Null, path);
+                var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+                Assert.That(importer, Is.Not.Null, path);
+                Assert.That(importer.alphaSource,
+                    Is.EqualTo(TextureImporterAlphaSource.FromInput), path);
+                Assert.That(importer.alphaIsTransparency, Is.True, path);
+                Assert.That(importer.wrapMode,
+                    Is.EqualTo(TextureWrapMode.Clamp), path);
+                Assert.That(importer.mipmapEnabled, Is.False, path);
+                Assert.That(importer.maxTextureSize,
+                    Is.LessThanOrEqualTo(1024), path);
+            }
         }
 
         private static void AssertCue(HeroAbilityDefinitionSO ability, string label,

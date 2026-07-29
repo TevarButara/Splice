@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Splice.Data;
 using Splice.Placement;
 using UnityEngine;
@@ -6,6 +7,17 @@ namespace Splice.Combat
 {
     public static class HeroAbilityVfxSequencePlayer
     {
+        private const float UltimateCollapseSeconds = 0.16f;
+        private const float UltimateSafetyLifetimeSeconds = 30f;
+        private static readonly Dictionary<EntityId, GameObject>
+            ActiveUltimateCastRings = new();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetStatics()
+        {
+            ActiveUltimateCastRings.Clear();
+        }
+
         public static void PlayExecutionStage(
             HeroAbilityDefinitionSO ability,
             HeroAbilityVfxStage stage,
@@ -16,6 +28,8 @@ namespace Splice.Combat
             float lifetimeOverride)
         {
             if (ability == null) return;
+            if (stage == HeroAbilityVfxStage.End)
+                CollapseUltimateCastRing(ability, heroRoot);
             var cue = CueForStage(ability, stage);
             if (cue?.IsConfigured != true) return;
 
@@ -28,6 +42,10 @@ namespace Splice.Combat
             var lifetime = lifetimeOverride > 0f
                 ? lifetimeOverride
                 : Lifetime(cue, ability);
+            if (stage == HeroAbilityVfxStage.Cast &&
+                ability.execution is MultiDashHeroAbilityExecutionSO)
+                lifetime = Mathf.Max(
+                    lifetime, UltimateSafetyLifetimeSeconds);
             var heroScaleFactor =
                 GroundPlacementProfile.ResolveScaleFactor(heroRoot);
             var point = stage is HeroAbilityVfxStage.Cast or
@@ -91,6 +109,34 @@ namespace Splice.Combat
                     scale,
                     lifetime,
                     stage == HeroAbilityVfxStage.End);
+            if (stage == HeroAbilityVfxStage.Cast &&
+                ability.execution is MultiDashHeroAbilityExecutionSO &&
+                heroRoot != null)
+            {
+                var key = heroRoot.GetEntityId();
+                if (ActiveUltimateCastRings.TryGetValue(
+                        key, out var previous) &&
+                    previous != instance)
+                    VfxPoolService.ReleaseAfter(previous);
+                ActiveUltimateCastRings[key] = instance;
+            }
+        }
+
+        private static void CollapseUltimateCastRing(
+            HeroAbilityDefinitionSO ability,
+            Transform heroRoot)
+        {
+            if (heroRoot == null ||
+                ability.execution is not MultiDashHeroAbilityExecutionSO)
+                return;
+            var key = heroRoot.GetEntityId();
+            if (!ActiveUltimateCastRings.Remove(key, out var ring) ||
+                ring == null)
+                return;
+            foreach (var motion in
+                     ring.GetComponentsInChildren<UltimateVfxMotion>(true))
+                motion.CollapseNow(UltimateCollapseSeconds);
+            VfxPoolService.ReleaseAfter(ring, UltimateCollapseSeconds);
         }
 
         public static void Play(HeroAbilityDefinitionSO ability, Transform heroRoot,

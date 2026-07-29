@@ -63,5 +63,47 @@ namespace Splice.Tests.PlayMode
             }
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator RequestedEarlyRelease_ReturnsEffectAfterCollapseWindow()
+        {
+            var service = Type.GetType("Splice.Combat.VfxPoolService, Assembly-CSharp");
+            Assert.That(service, Is.Not.Null);
+            var spawn = service.GetMethod("Spawn", BindingFlags.Public | BindingFlags.Static);
+            var releaseAfter = service.GetMethod(
+                "ReleaseAfter", BindingFlags.Public | BindingFlags.Static);
+            var releaseAll = service.GetMethod("ReleaseAllForTests",
+                BindingFlags.Public | BindingFlags.Static);
+            var active = service.GetProperty("ActiveCount",
+                BindingFlags.Public | BindingFlags.Static);
+            Assert.That(spawn, Is.Not.Null);
+            Assert.That(releaseAfter, Is.Not.Null);
+            releaseAll.Invoke(null, null);
+
+            var source = new GameObject("VfxEarlyReleaseSource");
+            source.SetActive(false);
+            try
+            {
+                var instance = spawn.Invoke(null, new object[]
+                {
+                    source, Vector3.zero, Quaternion.identity, 30f, null,
+                    Vector3.zero, 1f
+                }) as GameObject;
+                Assert.That(instance, Is.Not.Null);
+                Assert.That((bool)releaseAfter.Invoke(
+                    null, new object[] { instance, 0.05f }), Is.True);
+                Assert.That((int)active.GetValue(null), Is.EqualTo(1));
+                yield return new WaitForSeconds(0.08f);
+                Assert.That((int)active.GetValue(null), Is.Zero);
+            }
+            finally
+            {
+                releaseAll?.Invoke(null, null);
+                UnityEngine.Object.Destroy(source);
+                var pool = GameObject.Find("[Splice VFX Pool]");
+                if (pool != null) UnityEngine.Object.Destroy(pool);
+            }
+            yield return null;
+        }
     }
 }

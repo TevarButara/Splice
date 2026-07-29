@@ -80,6 +80,13 @@ namespace Splice.Combat
             if (host != null) host.ReleaseAll();
         }
 
+        public static bool ReleaseAfter(GameObject instance, float delaySeconds = 0f)
+        {
+            return instance != null &&
+                   host != null &&
+                   host.ReleaseAfter(instance, delaySeconds);
+        }
+
         private static VfxPoolHost Host
         {
             get
@@ -196,6 +203,21 @@ namespace Splice.Combat
                     request = request,
                     executeAt = Time.time + request.delaySeconds
                 });
+            }
+
+            public bool ReleaseAfter(GameObject instance, float delaySeconds)
+            {
+                if (instance == null) return false;
+                for (var i = 0; i < active.Count; i++)
+                {
+                    var entry = active[i];
+                    if (entry.instance != instance) continue;
+                    entry.releaseAt = Mathf.Min(
+                        entry.releaseAt,
+                        Time.time + Mathf.Max(0f, delaySeconds));
+                    return true;
+                }
+                return false;
             }
 
             private void Update()

@@ -154,5 +154,130 @@ namespace Splice.Tests.PlayMode
             }
             yield return null;
         }
+
+        [UnityTest]
+        public IEnumerator UltimateEnd_CollapsesPersistentCastRingAndReturnsItToPool()
+        {
+            var abilityType = Type.GetType(
+                "Splice.Data.HeroAbilityDefinitionSO, Assembly-CSharp");
+            var cueType = Type.GetType(
+                "Splice.Data.HeroAbilityVfxCue, Assembly-CSharp");
+            var placementType = Type.GetType(
+                "Splice.Data.HeroAbilityEffectPlacement, Assembly-CSharp");
+            var stageType = Type.GetType(
+                "Splice.Data.HeroAbilityVfxStage, Assembly-CSharp");
+            var executionType = Type.GetType(
+                "Splice.Combat.MultiDashHeroAbilityExecutionSO, Assembly-CSharp");
+            var playerType = Type.GetType(
+                "Splice.Combat.HeroAbilityVfxSequencePlayer, Assembly-CSharp");
+            var poolType = Type.GetType(
+                "Splice.Combat.VfxPoolService, Assembly-CSharp");
+            var runtimeScaleType = Type.GetType(
+                "Splice.Combat.VfxRuntimeScale, Assembly-CSharp");
+            var motionType = Type.GetType(
+                "Splice.Combat.UltimateVfxMotion, Assembly-CSharp");
+            var motionModeType = Type.GetType(
+                "Splice.Combat.UltimateVfxMotionMode, Assembly-CSharp");
+            Assert.That(abilityType, Is.Not.Null);
+            Assert.That(cueType, Is.Not.Null);
+            Assert.That(placementType, Is.Not.Null);
+            Assert.That(stageType, Is.Not.Null);
+            Assert.That(executionType, Is.Not.Null);
+            Assert.That(playerType, Is.Not.Null);
+            Assert.That(poolType, Is.Not.Null);
+            Assert.That(runtimeScaleType, Is.Not.Null);
+            Assert.That(motionType, Is.Not.Null);
+            Assert.That(motionModeType, Is.Not.Null);
+
+            var hero = new GameObject("Ultimate Collapse Hero");
+            var effectAnchor = new GameObject("EffectAnchor");
+            effectAnchor.transform.SetParent(hero.transform, false);
+            var vfxPrefab = new GameObject("Persistent Ultimate Ring");
+            vfxPrefab.AddComponent(runtimeScaleType);
+            var variant = new GameObject("High");
+            variant.transform.SetParent(vfxPrefab.transform, false);
+            var sourceMotion = variant.AddComponent(motionType);
+            motionType.GetMethod("ConfigureEditor").Invoke(
+                sourceMotion,
+                new[]
+                {
+                    Enum.Parse(motionModeType, "Cast"),
+                    (object)5f,
+                    28f
+                });
+            vfxPrefab.SetActive(false);
+            var ability = ScriptableObject.CreateInstance(abilityType);
+            var execution = ScriptableObject.CreateInstance(executionType);
+            abilityType.GetField("castRange").SetValue(ability, 5f);
+            abilityType.GetField("execution").SetValue(ability, execution);
+            var cue = Activator.CreateInstance(cueType);
+            cueType.GetField("enabled").SetValue(cue, true);
+            cueType.GetField("prefab").SetValue(cue, vfxPrefab);
+            cueType.GetField("lifetimeSeconds").SetValue(cue, 5f);
+            cueType.GetField("placement").SetValue(
+                cue, Enum.Parse(placementType, "WorldPoint"));
+            abilityType.GetField("castVfx").SetValue(ability, cue);
+            var playStage = playerType.GetMethod(
+                "PlayExecutionStage",
+                BindingFlags.Public | BindingFlags.Static);
+
+            try
+            {
+                playStage.Invoke(null, new[]
+                {
+                    ability,
+                    Enum.Parse(stageType, "Cast"),
+                    hero.transform,
+                    effectAnchor.transform,
+                    (object)Vector3.zero,
+                    Vector3.zero,
+                    0f
+                });
+                yield return null;
+
+                GameObject pooled = null;
+                foreach (var candidate in UnityEngine.Object.FindObjectsByType<GameObject>(
+                             FindObjectsSortMode.None))
+                    if (candidate.name == "Persistent Ultimate Ring [Pooled]")
+                    {
+                        pooled = candidate;
+                        break;
+                    }
+                Assert.That(pooled, Is.Not.Null);
+                var pooledMotion = pooled.GetComponentInChildren(motionType, true);
+                Assert.That(pooledMotion, Is.Not.Null);
+
+                playStage.Invoke(null, new[]
+                {
+                    ability,
+                    Enum.Parse(stageType, "End"),
+                    hero.transform,
+                    effectAnchor.transform,
+                    (object)Vector3.zero,
+                    Vector3.zero,
+                    0.8f
+                });
+                yield return null;
+                Assert.That(
+                    (bool)motionType.GetProperty("IsCollapsing")
+                        .GetValue(pooledMotion),
+                    Is.True,
+                    "End must contract the original persistent Cast ring.");
+                yield return new WaitForSeconds(0.2f);
+                Assert.That(pooled.activeSelf, Is.False);
+            }
+            finally
+            {
+                poolType.GetMethod(
+                        "ReleaseAllForTests",
+                        BindingFlags.Public | BindingFlags.Static)
+                    .Invoke(null, null);
+                UnityEngine.Object.Destroy(execution);
+                UnityEngine.Object.Destroy(ability);
+                UnityEngine.Object.Destroy(vfxPrefab);
+                UnityEngine.Object.Destroy(hero);
+            }
+            yield return null;
+        }
     }
 }

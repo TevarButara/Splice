@@ -23,10 +23,15 @@ namespace Splice.Combat
 
         private Vector3 authoredScale = Vector3.one;
         private Quaternion authoredRotation = Quaternion.identity;
+        private Vector3 collapseStartScale = Vector3.one;
         private float startedAt;
+        private float collapseStartedAt;
+        private float collapseDuration;
         private bool captured;
+        private bool collapsing;
 
         public UltimateVfxMotionMode Mode => mode;
+        public bool IsCollapsing => collapsing;
 
         public void ConfigureEditor(
             UltimateVfxMotionMode valueMode,
@@ -44,6 +49,7 @@ namespace Splice.Combat
         private void OnEnable()
         {
             CaptureAuthoredTransform();
+            collapsing = false;
             startedAt = Time.time;
             Apply(0f);
         }
@@ -51,14 +57,44 @@ namespace Splice.Combat
         private void OnDisable()
         {
             if (!captured) return;
+            collapsing = false;
             transform.localScale = authoredScale;
             transform.localRotation = authoredRotation;
         }
 
         private void Update()
         {
+            if (collapsing)
+            {
+                ApplyCollapse();
+                return;
+            }
             var elapsed = Mathf.Max(0f, Time.time - startedAt);
             Apply(Mathf.Clamp01(elapsed / lifetimeSeconds));
+        }
+
+        /// <summary>
+        /// Immediately begins the authored return contraction. The pool owns the
+        /// final release so all quality variants can collapse in lockstep.
+        /// </summary>
+        public void CollapseNow(float durationSeconds)
+        {
+            if (!gameObject.activeInHierarchy) return;
+            collapseStartScale = transform.localScale;
+            collapseStartedAt = Time.time;
+            collapseDuration = Mathf.Max(0.05f, durationSeconds);
+            collapsing = true;
+        }
+
+        private void ApplyCollapse()
+        {
+            var t = Mathf.Clamp01(
+                (Time.time - collapseStartedAt) / collapseDuration);
+            var eased = Smooth01(t);
+            transform.localScale = Vector3.Lerp(
+                collapseStartScale, authoredScale * 0.01f, eased);
+            transform.localRotation *= Quaternion.Euler(
+                0f, -180f * Time.deltaTime, 0f);
         }
 
         private void Apply(float normalizedTime)
