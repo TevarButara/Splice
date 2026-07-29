@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using System.Linq;
 using NUnit.Framework;
 using Splice.Combat;
 using Splice.Data;
@@ -94,7 +95,43 @@ namespace Splice.Tests.EditMode
                 Assert.That(quality.Low, Is.Not.Null, path);
                 Assert.That(quality.Medium, Is.Not.Null, path);
                 Assert.That(quality.High, Is.Not.Null, path);
+                Assert.That(
+                    prefab.GetComponentsInChildren<UltimateVfxMotion>(true),
+                    Has.Length.EqualTo(3),
+                    path + " must animate every quality variant.");
             }
+        }
+
+        [Test]
+        public void RowanUltimate_CastRingUsesVisibleColoredLinesWithoutWhiteFlash()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                Root +
+                "/VFX/Prefabs/Ultimate/Rowan_Ultimate_Cast_Ring.prefab");
+            Assert.That(prefab, Is.Not.Null);
+            var outer = prefab.GetComponentsInChildren<LineRenderer>(true)
+                .FirstOrDefault(line => line.name == "Outer Magic Circle");
+            Assert.That(outer, Is.Not.Null);
+            Assert.That(outer.sharedMaterial, Is.Not.Null);
+            Assert.That(outer.sharedMaterial.GetFloat("_UseSoftParticles"),
+                Is.Zero,
+                "Ground rings must not disappear into the terrain depth.");
+            Assert.That(outer.sharedMaterial.mainTexture,
+                Is.Null.Or.SameAs(Texture2D.whiteTexture),
+                "Line VFX need the shader's continuous white default, not a sparse flare texture.");
+            Assert.That(
+                prefab.GetComponentsInChildren<LineRenderer>(true)
+                    .Any(line => line.name == "Wildblade Pentagram"),
+                Is.True);
+
+            var sparks = prefab.GetComponentsInChildren<ParticleSystem>(true)
+                .FirstOrDefault(particle => particle.name == "Orbit Sparks");
+            Assert.That(sparks, Is.Not.Null);
+            var firstColor =
+                sparks.colorOverLifetime.color.gradient.colorKeys[0].color;
+            Assert.That(firstColor,
+                Is.Not.EqualTo(Color.white),
+                "The first particle frame must be hot orange, not a white flash.");
         }
 
         private static void AssertCue(HeroAbilityDefinitionSO ability, string label,

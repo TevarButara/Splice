@@ -45,44 +45,72 @@ namespace Splice.Editor.Vfx
             EnsureFolder(PrefabRoot);
             EnsureFolder(MaterialRoot);
 
-            var impactGraph = RequireGraph(UserImpactGraph);
+            RequireGraph(UserImpactGraph);
             var loopGraph = RequireGraph(LoopGraph);
             var trailGraph = RequireGraph(TrailGraph);
             var burstGraph = RequireGraph(BurstGraph);
 
             var orange = CreateMaterial(
                 "Rowan_Ultimate_Orange",
-                new Color(1f, 0.34f, 0.025f, 0.96f),
-                2.5f);
+                new Color(1f, 0.16f, 0.015f, 0.92f),
+                1.8f,
+                true);
             var yellow = CreateMaterial(
                 "Rowan_Ultimate_Yellow",
-                new Color(1f, 0.9f, 0.18f, 0.98f),
-                2.8f);
+                new Color(1f, 0.58f, 0.07f, 0.94f),
+                1.8f,
+                true);
             var red = CreateMaterial(
                 "Rowan_Ultimate_Red",
-                new Color(1f, 0.08f, 0.015f, 0.96f),
-                2.7f);
+                new Color(1f, 0.025f, 0.005f, 0.92f),
+                2f,
+                true);
+            var orangeLine = CreateMaterial(
+                "Rowan_Ultimate_Orange_Line",
+                new Color(1f, 0.12f, 0.01f, 0.96f),
+                1.8f,
+                false);
+            var yellowLine = CreateMaterial(
+                "Rowan_Ultimate_Yellow_Line",
+                new Color(1f, 0.3f, 0.03f, 0.98f),
+                1.5f,
+                false);
+            var redLine = CreateMaterial(
+                "Rowan_Ultimate_Red_Line",
+                new Color(1f, 0.018f, 0.003f, 0.96f),
+                2f,
+                false);
 
             var cast = BuildQualityPrefab(
                 "Rowan_Ultimate_Cast_Ring",
+                UltimateVfxMotionMode.Cast,
+                5f,
                 (parent, tier) => BuildCastVariant(
-                    parent, tier, loopGraph, orange, yellow));
+                    parent, tier, loopGraph, orangeLine, yellowLine, orange));
             var launch = BuildQualityPrefab(
                 "Rowan_Ultimate_Launch",
+                UltimateVfxMotionMode.Launch,
+                0.35f,
                 (parent, tier) => BuildLaunchVariant(
-                    parent, tier, burstGraph, orange, yellow));
+                    parent, tier, burstGraph, orange, yellowLine));
             var travel = BuildQualityPrefab(
                 "Rowan_Ultimate_Travel_Trail",
+                UltimateVfxMotionMode.Travel,
+                5f,
                 (parent, tier) => BuildTravelVariant(
-                    parent, tier, trailGraph, orange, yellow));
+                    parent, tier, trailGraph, orangeLine, yellowLine));
             var impact = BuildQualityPrefab(
                 "Rowan_Ultimate_Impact_Cross",
+                UltimateVfxMotionMode.Impact,
+                0.5f,
                 (parent, tier) => BuildImpactVariant(
-                    parent, tier, impactGraph, red, orange, yellow));
+                    parent, tier, burstGraph, redLine, orange, yellowLine));
             var end = BuildQualityPrefab(
                 "Rowan_Ultimate_End_Return",
+                UltimateVfxMotionMode.End,
+                0.8f,
                 (parent, tier) => BuildEndVariant(
-                    parent, tier, burstGraph, orange, yellow));
+                    parent, tier, burstGraph, orangeLine, yellowLine, orange));
 
             var execution = CreateOrUpdateExecution();
             AssignAbility(execution, cast, launch, travel, impact, end);
@@ -93,16 +121,21 @@ namespace Splice.Editor.Vfx
 
         private static GameObject BuildQualityPrefab(
             string name,
+            UltimateVfxMotionMode motionMode,
+            float lifetimeSeconds,
             Action<Transform, VfxQualityTier> buildVariant)
         {
             var root = new GameObject(name);
             try
             {
                 root.AddComponent<VfxRuntimeScale>();
-                var low = CreateVariant(root.transform, "Low", VfxQualityTier.Low, buildVariant);
+                var low = CreateVariant(root.transform, "Low", VfxQualityTier.Low,
+                    motionMode, lifetimeSeconds, buildVariant);
                 var medium = CreateVariant(
-                    root.transform, "Medium", VfxQualityTier.Medium, buildVariant);
-                var high = CreateVariant(root.transform, "High", VfxQualityTier.High, buildVariant);
+                    root.transform, "Medium", VfxQualityTier.Medium,
+                    motionMode, lifetimeSeconds, buildVariant);
+                var high = CreateVariant(root.transform, "High", VfxQualityTier.High,
+                    motionMode, lifetimeSeconds, buildVariant);
                 root.AddComponent<VfxQualityTierController>().Configure(low, medium, high);
                 root.SetActive(false);
                 var path = PrefabRoot + "/" + name + ".prefab";
@@ -121,11 +154,17 @@ namespace Splice.Editor.Vfx
             Transform parent,
             string name,
             VfxQualityTier tier,
+            UltimateVfxMotionMode motionMode,
+            float lifetimeSeconds,
             Action<Transform, VfxQualityTier> build)
         {
             var variant = new GameObject(name);
             variant.transform.SetParent(parent, false);
             build(variant.transform, tier);
+            variant.AddComponent<UltimateVfxMotion>().ConfigureEditor(
+                motionMode,
+                lifetimeSeconds,
+                motionMode == UltimateVfxMotionMode.End ? -36f : 28f);
             return variant;
         }
 
@@ -133,18 +172,25 @@ namespace Splice.Editor.Vfx
             Transform parent,
             VfxQualityTier tier,
             VisualEffectAsset loopGraph,
-            Material orange,
-            Material yellow)
+            Material orangeLine,
+            Material yellowLine,
+            Material orangeParticle)
         {
-            CreateCircle(parent, "Outer Magic Circle", orange, 1f, Width(tier, 0.04f));
-            CreateCircle(parent, "Inner Magic Circle", yellow, 0.74f, Width(tier, 0.025f));
-            CreateFiveBlades(parent, tier, yellow, orange);
+            CreateCircle(parent, "Outer Magic Circle", orangeLine, 1f,
+                Width(tier, 0.04f));
+            CreateCircle(parent, "Inner Magic Circle", yellowLine, 0.74f,
+                Width(tier, 0.025f));
+            CreateCircle(parent, "Core Magic Circle", orangeLine, 0.46f,
+                Width(tier, 0.016f));
+            CreatePentagram(parent, yellowLine, Width(tier, 0.022f));
+            CreateRuneTicks(parent, tier, orangeLine, yellowLine);
+            CreateFiveBlades(parent, tier, yellowLine, orangeLine);
             CreateParticleBurst(
                 parent,
                 "Orbit Sparks",
                 tier == VfxQualityTier.High ? 88 :
                 tier == VfxQualityTier.Medium ? 42 : 18,
-                orange,
+                orangeParticle,
                 true,
                 1f,
                 0.55f,
@@ -158,20 +204,20 @@ namespace Splice.Editor.Vfx
             Transform parent,
             VfxQualityTier tier,
             VisualEffectAsset burstGraph,
-            Material orange,
-            Material yellow)
+            Material orangeParticle,
+            Material yellowLine)
         {
             CreateParticleBurst(
                 parent,
                 "Launch Sparks",
                 tier == VfxQualityTier.High ? 58 :
                 tier == VfxQualityTier.Medium ? 30 : 12,
-                orange,
+                orangeParticle,
                 false,
                 0.3f,
                 5.5f,
                 0.12f);
-            CreateCross(parent, "Launch Flash", yellow,
+            CreateCross(parent, "Launch Flash", yellowLine,
                 tier == VfxQualityTier.Low ? 0.65f : 0.95f,
                 Width(tier, 0.12f));
             if (tier == VfxQualityTier.High)
@@ -182,15 +228,15 @@ namespace Splice.Editor.Vfx
             Transform parent,
             VfxQualityTier tier,
             VisualEffectAsset trailGraph,
-            Material orange,
-            Material yellow)
+            Material orangeLine,
+            Material yellowLine)
         {
-            CreateTrail(parent, "Orange Fury Trail", orange,
+            CreateTrail(parent, "Orange Fury Trail", orangeLine,
                 tier == VfxQualityTier.High ? 0.95f :
                 tier == VfxQualityTier.Medium ? 0.7f : 0.45f,
                 tier == VfxQualityTier.High ? 0.42f : 0.3f);
             if (tier != VfxQualityTier.Low)
-                CreateTrail(parent, "Yellow Core Trail", yellow,
+                CreateTrail(parent, "Yellow Core Trail", yellowLine,
                     tier == VfxQualityTier.High ? 0.38f : 0.24f,
                     0.2f);
             if (tier == VfxQualityTier.High)
@@ -201,14 +247,14 @@ namespace Splice.Editor.Vfx
             Transform parent,
             VfxQualityTier tier,
             VisualEffectAsset impactGraph,
-            Material red,
-            Material orange,
-            Material yellow)
+            Material redLine,
+            Material orangeParticle,
+            Material yellowLine)
         {
-            CreateCross(parent, "Red Orange Cross", red,
+            CreateCross(parent, "Red Orange Cross", redLine,
                 tier == VfxQualityTier.Low ? 0.75f : 1.15f,
                 Width(tier, 0.16f));
-            CreateCross(parent, "Yellow Cross Core", yellow,
+            CreateCross(parent, "Yellow Cross Core", yellowLine,
                 tier == VfxQualityTier.High ? 0.78f : 0.6f,
                 Width(tier, 0.07f));
             CreateParticleBurst(
@@ -216,7 +262,7 @@ namespace Splice.Editor.Vfx
                 "Impact Sparks",
                 tier == VfxQualityTier.High ? 68 :
                 tier == VfxQualityTier.Medium ? 34 : 14,
-                orange,
+                orangeParticle,
                 false,
                 0.45f,
                 7.5f,
@@ -230,19 +276,20 @@ namespace Splice.Editor.Vfx
             Transform parent,
             VfxQualityTier tier,
             VisualEffectAsset burstGraph,
-            Material orange,
-            Material yellow)
+            Material orangeLine,
+            Material yellowLine,
+            Material orangeParticle)
         {
-            CreateCircle(parent, "Contracting Outer Circle", orange,
+            CreateCircle(parent, "Contracting Outer Circle", orangeLine,
                 1f, Width(tier, 0.055f));
-            CreateCircle(parent, "Contracting Core Circle", yellow,
+            CreateCircle(parent, "Contracting Core Circle", yellowLine,
                 0.6f, Width(tier, 0.03f));
             CreateParticleBurst(
                 parent,
                 "Return Embers",
                 tier == VfxQualityTier.High ? 64 :
                 tier == VfxQualityTier.Medium ? 32 : 14,
-                orange,
+                orangeParticle,
                 false,
                 0.7f,
                 2.2f,
@@ -271,6 +318,13 @@ namespace Splice.Editor.Vfx
                     Width(tier, 0.11f),
                     new Vector3(0f, 0f, 0f),
                     new Vector3(0f, 0.58f, 0f));
+                var crossguard = new GameObject("Crossguard");
+                crossguard.transform.SetParent(blade.transform, false);
+                var guardLine = crossguard.AddComponent<LineRenderer>();
+                ConfigureLine(guardLine, core,
+                    Width(tier, 0.045f),
+                    new Vector3(-0.15f, 0.13f, 0f),
+                    new Vector3(0.15f, 0.13f, 0f));
                 if (tier == VfxQualityTier.Low) continue;
                 var coreObject = new GameObject("Blade Core");
                 coreObject.transform.SetParent(blade.transform, false);
@@ -279,6 +333,57 @@ namespace Splice.Editor.Vfx
                     Width(tier, 0.035f),
                     new Vector3(0f, 0f, 0f),
                     new Vector3(0f, 0.62f, 0f));
+            }
+        }
+
+        private static void CreatePentagram(
+            Transform parent,
+            Material material,
+            float width)
+        {
+            var go = new GameObject("Wildblade Pentagram");
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(0f, 0.045f, 0f);
+            var line = go.AddComponent<LineRenderer>();
+            line.sharedMaterial = material;
+            line.useWorldSpace = false;
+            line.loop = true;
+            line.positionCount = 5;
+            line.widthMultiplier = width;
+            line.numCornerVertices = 2;
+            for (var i = 0; i < 5; i++)
+            {
+                var point = i * 2 % 5;
+                var angle = point * Mathf.PI * 2f / 5f - Mathf.PI * 0.5f;
+                line.SetPosition(i,
+                    new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * 0.52f);
+            }
+        }
+
+        private static void CreateRuneTicks(
+            Transform parent,
+            VfxQualityTier tier,
+            Material orange,
+            Material yellow)
+        {
+            var count = tier == VfxQualityTier.Low ? 10 :
+                tier == VfxQualityTier.Medium ? 15 : 20;
+            for (var i = 0; i < count; i++)
+            {
+                var angle = i * Mathf.PI * 2f / count;
+                var go = new GameObject("Rune Tick " + (i + 1));
+                go.transform.SetParent(parent, false);
+                go.transform.localPosition = new Vector3(0f, 0.043f, 0f);
+                var line = go.AddComponent<LineRenderer>();
+                line.sharedMaterial = i % 2 == 0 ? orange : yellow;
+                line.useWorldSpace = false;
+                line.positionCount = 2;
+                line.widthMultiplier = Width(tier, 0.012f);
+                var direction = new Vector3(
+                    Mathf.Cos(angle), 0f, Mathf.Sin(angle));
+                line.SetPosition(0, direction * 0.82f);
+                line.SetPosition(1, direction *
+                    (i % 5 == 0 ? 0.97f : 0.9f));
             }
         }
 
@@ -374,7 +479,8 @@ namespace Splice.Editor.Vfx
             {
                 colorKeys = new[]
                 {
-                    new GradientColorKey(Color.white, 0f),
+                    new GradientColorKey(
+                        new Color(1f, 0.68f, 0.12f), 0f),
                     new GradientColorKey(material.GetColor("_TintColor"), 0.3f),
                     new GradientColorKey(material.GetColor("_TintColor"), 1f)
                 },
@@ -431,7 +537,8 @@ namespace Splice.Editor.Vfx
             {
                 colorKeys = new[]
                 {
-                    new GradientColorKey(Color.white, 0f),
+                    new GradientColorKey(
+                        new Color(1f, 0.68f, 0.12f), 0f),
                     new GradientColorKey(material.GetColor("_TintColor"), 0.35f),
                     new GradientColorKey(material.GetColor("_TintColor"), 1f)
                 },
@@ -559,7 +666,8 @@ namespace Splice.Editor.Vfx
         private static Material CreateMaterial(
             string name,
             Color color,
-            float glow)
+            float glow,
+            bool useFlareTexture)
         {
             var path = MaterialRoot + "/" + name + ".mat";
             var material = AssetDatabase.LoadAssetAtPath<Material>(path);
@@ -578,8 +686,12 @@ namespace Splice.Editor.Vfx
             }
             material.SetColor("_TintColor", color);
             material.SetFloat("_Glow", glow);
-            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(FlareTexture);
-            if (texture != null) material.SetTexture("_MainTex", texture);
+            material.SetFloat("_UseSoftParticles", useFlareTexture ? 1f : 0f);
+            var texture = useFlareTexture
+                ? AssetDatabase.LoadAssetAtPath<Texture2D>(FlareTexture)
+                : Texture2D.whiteTexture;
+            if (texture != null)
+                material.SetTexture("_MainTex", texture);
             EditorUtility.SetDirty(material);
             return material;
         }

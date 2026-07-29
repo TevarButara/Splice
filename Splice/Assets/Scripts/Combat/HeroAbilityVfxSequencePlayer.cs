@@ -77,7 +77,14 @@ namespace Splice.Combat
                 HeroAbilityVfxStage.Impact => Mathf.Max(1f, ability.effectRadius * 0.55f),
                 _ => 1f
             };
-            if (follow == null) scale *= heroScaleFactor;
+            // Cast/End rings visualize the actual authored combat radius. Multiplying
+            // that radius by Hero scale pushed Rowan's 24-unit ring to 200 units and
+            // moved every visible edge outside the camera. Hero-relative stages such
+            // as impacts still grow with the character.
+            if (follow == null &&
+                stage is not HeroAbilityVfxStage.Cast and
+                    not HeroAbilityVfxStage.End)
+                scale *= heroScaleFactor;
             var runtimeScale = instance.GetComponent<VfxRuntimeScale>();
             if (runtimeScale != null)
                 runtimeScale.Configure(

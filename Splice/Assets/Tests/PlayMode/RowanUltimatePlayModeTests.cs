@@ -49,7 +49,7 @@ namespace Splice.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator UltimateGroundVfx_MultipliesWorldScaleWithHeroSize()
+        public IEnumerator UltimateCastRing_UsesAuthoredCombatRadiusInsteadOfDoubleScaling()
         {
             var profileType = Type.GetType(
                 "Splice.Placement.GroundPlacementProfile, Assembly-CSharp");
@@ -139,8 +139,8 @@ namespace Splice.Tests.PlayMode
 
                 Assert.That(pooled, Is.Not.Null);
                 Assert.That(pooled.transform.lossyScale.x,
-                    Is.EqualTo(10f).Within(.01f),
-                    "5-unit authored radius at 2x Hero size must render at 10x world scale.");
+                    Is.EqualTo(5f).Within(.01f),
+                    "A 5-unit combat-radius ring must remain 5 units when Hero presentation scale changes.");
             }
             finally
             {
