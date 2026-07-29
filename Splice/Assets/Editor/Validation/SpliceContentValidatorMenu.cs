@@ -29,6 +29,7 @@ namespace Splice.Editor.Validation
             var report = SpliceContentValidationCore.Validate(
                 LoadAll<FactionRegistrySO>(), LoadAll<HeroRegistrySO>());
             RaidSceneArchitectureValidator.Validate(report);
+            RaidNavMeshAlignmentValidator.Validate(report);
             WorldPrototypeValidator.Validate(report);
             RowanVfxVerticalSliceValidator.Validate(report);
             BackendBoundaryValidator.Validate(report);
