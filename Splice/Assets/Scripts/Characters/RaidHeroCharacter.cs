@@ -897,8 +897,18 @@ namespace Splice.Characters
             CharacterBase preferredTarget)
         {
             var origin = transform.position;
+            var range = Mathf.Max(0.1f, ability.castRange);
+            if (preferredTarget != null &&
+                IsValidFocusTarget(preferredTarget) &&
+                HorizontalSqrDistance(origin, preferredTarget.transform.position) >
+                range * range)
+            {
+                PublishFeedback(HeroFeedback.AbilityOutOfRange);
+                return;
+            }
+
             var initialTargets = CollectExecutionTargets(
-                origin, Mathf.Max(0.1f, ability.castRange));
+                origin, range);
             if (preferredTarget != null &&
                 !initialTargets.Contains(preferredTarget))
                 preferredTarget = null;

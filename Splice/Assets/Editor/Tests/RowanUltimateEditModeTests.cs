@@ -53,6 +53,31 @@ namespace Splice.Tests.EditMode
         }
 
         [Test]
+        public void RowanUltimate_CastRangeClearsNaturalTowerThreatEnvelope()
+        {
+            var hero = AssetDatabase.LoadAssetAtPath<HeroDefinitionSO>(
+                Root + "/Rowan_Definition.asset");
+            Assert.That(hero, Is.Not.Null);
+            Assert.That(hero.skill3, Is.Not.Null);
+
+            var maxTowerRange = 0f;
+            var towerGuids = AssetDatabase.FindAssets(
+                "t:TowerDefinitionSO",
+                new[] { "Assets/Prefabs/Natural/Tower" });
+            Assert.That(towerGuids, Is.Not.Empty);
+            for (var i = 0; i < towerGuids.Length; i++)
+            {
+                var tower = AssetDatabase.LoadAssetAtPath<TowerDefinitionSO>(
+                    AssetDatabase.GUIDToAssetPath(towerGuids[i]));
+                if (tower != null)
+                    maxTowerRange = Mathf.Max(maxTowerRange, tower.attackRange);
+            }
+
+            Assert.That(hero.skill3.castRange, Is.GreaterThan(maxTowerRange),
+                "Rowan Ultimate must become usable before Rowan has to walk through a tower's full threat envelope.");
+        }
+
+        [Test]
         public void MultiDashExecution_EmitsSevenImpactsAndExactDamageThenEnds()
         {
             var heroObject = new GameObject("Rowan Ultimate Test Hero");

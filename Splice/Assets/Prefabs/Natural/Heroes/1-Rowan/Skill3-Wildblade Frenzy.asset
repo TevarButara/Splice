@@ -18,7 +18,7 @@ MonoBehaviour:
   icon: {fileID: 0}
   castType: 2
   targeting: 0
-  castRange: 6
+  castRange: 24
   effectRadius: 4
   effect: 0
   damageMode: 0

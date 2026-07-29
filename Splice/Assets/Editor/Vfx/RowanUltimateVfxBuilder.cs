@@ -25,6 +25,7 @@ namespace Splice.Editor.Vfx
         private const string AdditiveShader = "Splice/VFX/URP Additive Intensify";
         private const string FlareTexture =
             "Assets/VFX/VFXPACK_IMPACT_WALLCOEUR_FreeVersion/03_Texture/Flare.png";
+        private const float UltimateCastRange = 24f;
 
         [MenuItem("Splice/VFX/Rebuild Rowan Ultimate v1...", priority = 1801)]
         public static void BuildFromMenu()
@@ -502,6 +503,7 @@ namespace Splice.Editor.Vfx
                 (int)HeroAbilityTargeting.TargetPoint;
             so.FindProperty("damageMode").enumValueIndex =
                 (int)HeroAbilityDamageMode.Instant;
+            so.FindProperty("castRange").floatValue = UltimateCastRange;
             so.FindProperty("execution").objectReferenceValue = execution;
             so.FindProperty("animationState").stringValue = "Skill3";
             AssignCue(so.FindProperty("castVfx"), cast,

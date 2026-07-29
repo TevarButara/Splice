@@ -287,7 +287,7 @@ namespace Splice.UI
                 HeroFeedback.AbilityCast => $"{abilityName} HIT {value} TARGET(S)",
                 HeroFeedback.AbilityCooldown => $"{abilityName} COOLDOWN {value}s",
                 HeroFeedback.AbilityNoMana => $"NEED {value} MORE MANA",
-                HeroFeedback.AbilityOutOfRange => "TARGET OUT OF RANGE",
+                HeroFeedback.AbilityOutOfRange => $"{abilityName} • MOVE CLOSER",
                 HeroFeedback.AbilityNoTargets => $"{abilityName} HAS NO VALID TARGET",
                 HeroFeedback.AbilityUnavailable => $"{abilityName} UNAVAILABLE",
                 HeroFeedback.AbilityHealed => $"HEAL RESTORED +{value} HP",
