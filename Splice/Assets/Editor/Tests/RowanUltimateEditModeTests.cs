@@ -6,6 +6,7 @@ using NUnit.Framework;
 using Splice.Characters;
 using Splice.Combat;
 using Splice.Data;
+using Splice.Placement;
 using UnityEditor;
 using UnityEngine;
 
@@ -26,6 +27,36 @@ namespace Splice.Tests.EditMode
                     sum += MultiDashHeroAbilityExecutionSO.SplitDamage(
                         total, 7, strike);
                 Assert.That(sum, Is.EqualTo(total), "total=" + total);
+            }
+        }
+
+        [Test]
+        public void MultiDash_DistancesAndSpeedFollowHeroScaleWithoutSlowingSequence()
+        {
+            var execution =
+                ScriptableObject.CreateInstance<MultiDashHeroAbilityExecutionSO>();
+            try
+            {
+                execution.targetOvershootDistance = 1.6f;
+                execution.dashSpeed = 28f;
+                execution.returnSpeed = 32f;
+
+                Assert.That(execution.ScaledOvershootDistance(2f),
+                    Is.EqualTo(3.2f).Within(.001f));
+                Assert.That(execution.ScaledDashSpeed(2f),
+                    Is.EqualTo(56f).Within(.001f));
+                Assert.That(execution.ScaledOvershootDistance(.5f),
+                    Is.EqualTo(.8f).Within(.001f));
+                Assert.That(execution.ScaledDashSpeed(.5f),
+                    Is.EqualTo(14f).Within(.001f));
+                Assert.That(execution.EstimatedDuration(24f, 2f),
+                    Is.EqualTo(execution.EstimatedDuration(24f, 1f))
+                        .Within(.001f),
+                    "Scaling distance and speed together must preserve Ultimate pacing.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(execution);
             }
         }
 
@@ -59,6 +90,12 @@ namespace Splice.Tests.EditMode
                 Root + "/Rowan_Definition.asset");
             Assert.That(hero, Is.Not.Null);
             Assert.That(hero.skill3, Is.Not.Null);
+            var placeable = AssetDatabase.LoadAssetAtPath<GameObject>(
+                Root + "/nat-Rowan11000_Placeable.prefab");
+            Assert.That(placeable, Is.Not.Null);
+            var placementProfile =
+                placeable.GetComponent<GroundPlacementProfile>();
+            Assert.That(placementProfile, Is.Not.Null);
 
             var maxTowerRange = 0f;
             var towerGuids = AssetDatabase.FindAssets(
@@ -73,7 +110,9 @@ namespace Splice.Tests.EditMode
                     maxTowerRange = Mathf.Max(maxTowerRange, tower.attackRange);
             }
 
-            Assert.That(hero.skill3.castRange, Is.GreaterThan(maxTowerRange),
+            var worldCastRange = hero.skill3.castRange *
+                                 placementProfile.UniformVisualScaleFactor;
+            Assert.That(worldCastRange, Is.GreaterThan(maxTowerRange),
                 "Rowan Ultimate must become usable before Rowan has to walk through a tower's full threat envelope.");
         }
 

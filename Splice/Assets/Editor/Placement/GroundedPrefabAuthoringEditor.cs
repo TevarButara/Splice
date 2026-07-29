@@ -138,6 +138,7 @@ namespace Splice.Editor.Placement
                     throw new MissingReferenceException(
                         $"'{assetPath}' has no Renderer under VisualRoot.");
                 FitProfileToWorldFootprint(profile, targetWorldFootprint, before);
+                profile.ConfigureEditorScaleReference();
                 EditorUtility.SetDirty(profile);
                 var saved = PrefabUtility.SaveAsPrefabAsset(wrapper, assetPath);
                 if (saved == null)
@@ -233,6 +234,7 @@ namespace Splice.Editor.Placement
                         throw new MissingReferenceException(
                             $"Gameplay prefab '{source.name}' has no Renderer bounds.");
                     FitProfileToWorldFootprint(profile, targetWorldFootprint, bounds);
+                    profile.ConfigureEditorScaleReference();
 
                     var saved = PrefabUtility.SaveAsPrefabAsset(root, assetPath);
                     if (saved == null)
@@ -287,6 +289,7 @@ namespace Splice.Editor.Placement
                 rootTransform, groundAnchor, cameraFocus, effectAnchor,
                 AssetDatabase.AssetPathToGUID(sourcePath));
             NormalizeVisualAndAnchors(profile);
+            profile.ConfigureEditorScaleReference();
 
             // The gameplay component normally resolves this at runtime. Persisting the reference
             // also makes Prefab Mode previews deterministic and guards against another Animator
@@ -374,6 +377,7 @@ namespace Splice.Editor.Placement
                 profile.ConfigureEditorReferences(
                     visualRoot, groundAnchor, cameraFocus, effectAnchor,
                     AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(source)));
+                profile.ConfigureEditorScaleReference();
 
                 var saved = PrefabUtility.SaveAsPrefabAsset(wrapper, assetPath);
                 if (saved == null) throw new System.InvalidOperationException(
@@ -401,6 +405,7 @@ namespace Splice.Editor.Placement
                 profile.VisualRoot.localRotation = visualRotation;
                 profile.VisualRoot.localScale = visualScale;
                 NormalizeVisualAndAnchors(profile);
+                profile.ConfigureEditorScaleReference();
                 PrefabUtility.SaveAsPrefabAsset(wrapper, assetPath);
             }
             finally

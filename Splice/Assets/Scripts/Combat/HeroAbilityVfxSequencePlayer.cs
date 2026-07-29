@@ -1,4 +1,5 @@
 using Splice.Data;
+using Splice.Placement;
 using UnityEngine;
 
 namespace Splice.Combat
@@ -27,6 +28,8 @@ namespace Splice.Combat
             var lifetime = lifetimeOverride > 0f
                 ? lifetimeOverride
                 : Lifetime(cue, ability);
+            var heroScaleFactor =
+                GroundPlacementProfile.ResolveScaleFactor(heroRoot);
             var point = stage is HeroAbilityVfxStage.Cast or
                 HeroAbilityVfxStage.Launch or
                 HeroAbilityVfxStage.Travel
@@ -74,6 +77,7 @@ namespace Splice.Combat
                 HeroAbilityVfxStage.Impact => Mathf.Max(1f, ability.effectRadius * 0.55f),
                 _ => 1f
             };
+            if (follow == null) scale *= heroScaleFactor;
             var runtimeScale = instance.GetComponent<VfxRuntimeScale>();
             if (runtimeScale != null)
                 runtimeScale.Configure(
@@ -91,34 +95,40 @@ namespace Splice.Combat
             var rotation = direction.sqrMagnitude > 0.001f
                 ? Quaternion.LookRotation(direction.normalized)
                 : heroRoot != null ? heroRoot.rotation : Quaternion.identity;
+            var heroScaleFactor =
+                GroundPlacementProfile.ResolveScaleFactor(heroRoot);
 
             var travelDelay = CueDelay(ability.travelVfx, 0f);
             var travelDuration = ability.travelVfx != null
                 ? Mathf.Max(0.01f, ability.travelVfx.travelDurationSeconds)
                 : 0f;
             Schedule(ability.castVfx, HeroAbilityVfxStage.Cast, ability,
-                heroRoot, heroEffectAnchor, originPoint, targetPoint, rotation, 0f);
+                heroRoot, heroEffectAnchor, originPoint, targetPoint, rotation, 0f,
+                heroScaleFactor);
             Schedule(ability.launchVfx, HeroAbilityVfxStage.Launch, ability,
-                heroRoot, heroEffectAnchor, originPoint, targetPoint, rotation, 0f);
+                heroRoot, heroEffectAnchor, originPoint, targetPoint, rotation, 0f,
+                heroScaleFactor);
             Schedule(ability.travelVfx, HeroAbilityVfxStage.Travel, ability,
-                heroRoot, heroEffectAnchor, originPoint, targetPoint, rotation, 0f);
+                heroRoot, heroEffectAnchor, originPoint, targetPoint, rotation, 0f,
+                heroScaleFactor);
             Schedule(ability.impactVfx, HeroAbilityVfxStage.Impact, ability,
                 heroRoot, heroEffectAnchor, originPoint, targetPoint, rotation,
-                travelDelay + travelDuration);
+                travelDelay + travelDuration, heroScaleFactor);
             var persistentDelay = Mathf.Max(travelDelay + travelDuration,
                 CueDelay(ability.impactVfx, 0f));
             Schedule(ability.persistentVfx, HeroAbilityVfxStage.Persistent, ability,
                 heroRoot, heroEffectAnchor, originPoint, targetPoint, rotation,
-                persistentDelay);
+                persistentDelay, heroScaleFactor);
             var persistentLifetime = Lifetime(ability.persistentVfx, ability);
             Schedule(ability.endVfx, HeroAbilityVfxStage.End, ability,
                 heroRoot, heroEffectAnchor, originPoint, targetPoint, rotation,
-                persistentDelay + persistentLifetime);
+                persistentDelay + persistentLifetime, heroScaleFactor);
         }
 
         private static void Schedule(HeroAbilityVfxCue cue, HeroAbilityVfxStage stage,
             HeroAbilityDefinitionSO ability, Transform heroRoot, Transform heroEffectAnchor,
-            Vector3 origin, Vector3 target, Quaternion castRotation, float automaticDelay)
+            Vector3 origin, Vector3 target, Quaternion castRotation, float automaticDelay,
+            float heroScaleFactor)
         {
             if (cue == null || !cue.IsConfigured) return;
             var delay = cue.delaySeconds > 0f ? cue.delaySeconds : automaticDelay;
@@ -128,7 +138,7 @@ namespace Splice.Combat
             {
                 VfxPoolService.ScheduleTravel(cue.prefab, origin + cue.localOffset,
                     target + cue.localOffset, rotation, delay, lifetime,
-                    cue.travelDurationSeconds);
+                    cue.travelDurationSeconds, heroScaleFactor);
                 return;
             }
 
@@ -150,7 +160,8 @@ namespace Splice.Combat
                     break;
             }
             VfxPoolService.Schedule(cue.prefab, point, rotation, delay, lifetime,
-                follow, cue.localOffset);
+                follow, cue.localOffset,
+                follow == null ? heroScaleFactor : 1f);
         }
 
         private static float CueDelay(HeroAbilityVfxCue cue, float fallback) =>

@@ -23,6 +23,8 @@ namespace Splice.Tests.PlayMode
                 BindingFlags.Public | BindingFlags.Static);
             Assert.That(spawn, Is.Not.Null);
             Assert.That(releaseAll, Is.Not.Null);
+            releaseAll.Invoke(null, null);
+            var baselineInactive = (int)inactive.GetValue(null);
 
             var source = new GameObject("VfxPoolRegressionSource");
             source.AddComponent<ParticleSystem>();
@@ -33,17 +35,20 @@ namespace Splice.Tests.PlayMode
             {
                 first = spawn.Invoke(null, new object[]
                 {
-                    source, Vector3.zero, Quaternion.identity, 0.05f, null, Vector3.zero
+                    source, Vector3.zero, Quaternion.identity, 0.05f, null,
+                    Vector3.zero, 1f
                 }) as GameObject;
                 Assert.That(first, Is.Not.Null);
                 Assert.That((int)active.GetValue(null), Is.EqualTo(1));
                 yield return new WaitForSeconds(0.08f);
                 Assert.That((int)active.GetValue(null), Is.Zero);
-                Assert.That((int)inactive.GetValue(null), Is.EqualTo(1));
+                Assert.That((int)inactive.GetValue(null),
+                    Is.EqualTo(baselineInactive + 1));
 
                 second = spawn.Invoke(null, new object[]
                 {
-                    source, Vector3.one, Quaternion.identity, 0.05f, null, Vector3.zero
+                    source, Vector3.one, Quaternion.identity, 0.05f, null,
+                    Vector3.zero, 1f
                 }) as GameObject;
                 Assert.That(second, Is.SameAs(first),
                     "The pool must reuse the expired instance.");

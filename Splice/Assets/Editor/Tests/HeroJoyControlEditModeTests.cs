@@ -322,8 +322,10 @@ namespace Splice.Tests.EditMode
             var placeableBounds = RendererBounds(placeable);
             var sourceFootprint = Mathf.Max(sourceBounds.size.x, sourceBounds.size.z);
             var placeableFootprint = Mathf.Max(placeableBounds.size.x, placeableBounds.size.z);
-            Assert.That(placeableFootprint, Is.EqualTo(sourceFootprint).Within(.05f),
-                "Grounding must not make the Hero larger while attached skill VFX keep source scale.");
+            Assert.That(placeableFootprint,
+                Is.EqualTo(sourceFootprint * profile.UniformVisualScaleFactor)
+                    .Within(.05f),
+                "A designer-scaled Hero must preserve its authored scale factor so movement and VFX can follow it.");
             Assert.That(placeableBounds.min.y, Is.EqualTo(profile.GroundAnchor.position.y)
                 .Within(.02f));
 
@@ -331,6 +333,33 @@ namespace Splice.Tests.EditMode
                 placeable.GetComponent<RaidHeroCharacter>());
             Assert.That(serializedHero.FindProperty("animator").objectReferenceValue,
                 Is.SameAs(placeableAnimator));
+        }
+
+        [Test]
+        public void RowanPlaceable_ReportsScaleRelativeToAuthoredSize()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
+                RowanPlaceablePrefabPath);
+            var instance = Object.Instantiate(prefab);
+            try
+            {
+                var profile = instance.GetComponent<GroundPlacementProfile>();
+                Assert.That(profile, Is.Not.Null);
+                var initialFactor = profile.UniformVisualScaleFactor;
+                Assert.That(initialFactor, Is.GreaterThan(0f));
+
+                instance.transform.localScale *= 2f;
+                Assert.That(profile.UniformVisualScaleFactor,
+                    Is.EqualTo(initialFactor * 2f).Within(.001f));
+
+                instance.transform.localScale *= .25f;
+                Assert.That(profile.UniformVisualScaleFactor,
+                    Is.EqualTo(initialFactor * .5f).Within(.001f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(instance);
+            }
         }
 
         [Test]

@@ -2,6 +2,7 @@ using Splice.Base;
 using Splice.Combat;
 using Splice.Core;
 using Splice.Data;
+using Splice.Placement;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
@@ -164,6 +165,7 @@ namespace Splice.Characters
             public HeroAbilityCastType castType;
             public Vector3 center;
             public CharacterBase lockedTarget;
+            public float effectRadius;
             public int tickIndex;
             public float tickSpacing;
             public float nextTickAt;
@@ -210,6 +212,8 @@ namespace Splice.Characters
             RaidSessionContext.Current?.isIncomingDefense == true;
         public bool CanLocalPlayerControl => CanAcceptControlIntent(IsOwner);
         public bool IsExecutingAbility => abilityExecutionActive.Value;
+        public float VisualScaleFactor =>
+            GroundPlacementProfile.ResolveScaleFactor(transform);
 
         // Network ownership is not gameplay-role authority. In the local incoming-defense simulation the
         // host owns the synthetic attacker for replication, but the local player is only the defender viewer.
@@ -259,7 +263,10 @@ namespace Splice.Characters
             if (ability.castType == HeroAbilityCastType.LockedTarget &&
                 TryGetFocusTarget(out var lockedTarget))
                 return lockedTarget.transform.position;
-            var distance = Mathf.Min(ability.castRange, Mathf.Max(1f, ability.effectRadius * 0.6f));
+            var distance = Mathf.Min(
+                ScaledAbilityDistance(ability.castRange),
+                Mathf.Max(VisualScaleFactor,
+                    ScaledAbilityDistance(ability.effectRadius) * 0.6f));
             return transform.position + transform.forward * distance;
         }
 
@@ -492,7 +499,8 @@ namespace Splice.Characters
             var requiredRange = ability.castType == HeroAbilityCastType.SelfCast
                 ? ability.effectRadius
                 : ability.castRange;
-            return IsWithinHorizontalRange(target, Mathf.Max(0.1f, requiredRange));
+            return IsWithinHorizontalRange(
+                target, ScaledAbilityDistance(requiredRange));
         }
 
         private void ScheduleNextAutoAction(
@@ -879,7 +887,7 @@ namespace Splice.Characters
                     ability.castType,
                     targetPoint,
                     directTarget,
-                    ability.effectRadius,
+                    ScaledAbilityDistance(ability.effectRadius),
                     ability.damage);
 
             ConsumeMana(ability.manaCost);
@@ -897,7 +905,9 @@ namespace Splice.Characters
             CharacterBase preferredTarget)
         {
             var origin = transform.position;
-            var range = Mathf.Max(0.1f, ability.castRange);
+            var worldScaleFactor = VisualScaleFactor;
+            var range = Mathf.Max(
+                0.1f, ability.castRange * worldScaleFactor);
             if (preferredTarget != null &&
                 IsValidFocusTarget(preferredTarget) &&
                 HorizontalSqrDistance(origin, preferredTarget.transform.position) >
@@ -933,6 +943,7 @@ namespace Splice.Characters
                 Ability = ability,
                 Slot = slot,
                 CastOrigin = origin,
+                WorldScaleFactor = worldScaleFactor,
                 PreferredTarget = preferredTarget,
                 ResolveTargets = () => new List<CharacterBase>(capturedTargets),
                 IsValidTarget = target =>
@@ -1088,7 +1099,7 @@ namespace Splice.Characters
 
         private void CastBlink(HeroAbilitySlot slot, HeroAbilityDefinitionSO ability)
         {
-            var distance = Mathf.Max(0f, ability.movementDistance);
+            var distance = ScaledAbilityDistance(ability.movementDistance);
             if (distance <= 0f)
             {
                 PublishFeedback(HeroFeedback.AbilityUnavailable);
@@ -1155,6 +1166,7 @@ namespace Splice.Characters
             if (ability.castType == HeroAbilityCastType.SelfCast) return true;
             if (ability.castType == HeroAbilityCastType.LockedTarget)
             {
+                var castRange = ScaledAbilityDistance(ability.castRange);
                 var hasTarget = lockedTargetOverride != null &&
                                 IsValidFocusTarget(lockedTargetOverride);
                 var lockedTarget = hasTarget ? lockedTargetOverride : null;
@@ -1163,13 +1175,16 @@ namespace Splice.Characters
                 {
                     targetPoint = lockedTarget.transform.position;
                     if (HorizontalSqrDistance(transform.position, targetPoint) <=
-                        ability.castRange * ability.castRange)
+                        castRange * castRange)
                         return true;
                     PublishFeedback(HeroFeedback.AbilityOutOfRange);
                     return false;
                 }
 
-                var distance = Mathf.Min(ability.castRange, Mathf.Max(1f, ability.effectRadius * 0.6f));
+                var distance = Mathf.Min(
+                    castRange,
+                    Mathf.Max(VisualScaleFactor,
+                        ScaledAbilityDistance(ability.effectRadius) * 0.6f));
                 targetPoint += transform.forward * distance;
                 return true;
             }
@@ -1181,7 +1196,9 @@ namespace Splice.Characters
             }
 
             targetPoint = requestedTargetPoint;
-            if (HorizontalSqrDistance(transform.position, targetPoint) <= ability.castRange * ability.castRange)
+            var dragRange = ScaledAbilityDistance(ability.castRange);
+            if (HorizontalSqrDistance(transform.position, targetPoint) <=
+                dragRange * dragRange)
                 return true;
 
             PublishFeedback(HeroFeedback.AbilityOutOfRange);
@@ -1337,14 +1354,18 @@ namespace Splice.Characters
         private bool IsWithinHorizontalRange(CharacterBase target, float range) =>
             target != null && HorizontalSqrDistance(transform.position, target.transform.position) <= range * range;
 
+        private float ScaledAbilityDistance(float authoredDistance) =>
+            Mathf.Max(0f, authoredDistance) * VisualScaleFactor;
+
         private int StartAbilityDot(
             HeroAbilityDefinitionSO ability,
             Vector3 center,
             CharacterBase directTarget)
         {
+            var effectRadius = ScaledAbilityDistance(ability.effectRadius);
             var previewCount = directTarget != null && !directTarget.IsDead
                 ? 1
-                : CollectAreaTargets(center, ability.effectRadius);
+                : CollectAreaTargets(center, effectRadius);
             var tickCount = ability.DamageTickCount;
             pendingAbilityDots.Add(new PendingAbilityDot
             {
@@ -1352,6 +1373,7 @@ namespace Splice.Characters
                 castType = ability.castType,
                 center = center,
                 lockedTarget = directTarget,
+                effectRadius = effectRadius,
                 tickIndex = 0,
                 tickSpacing = Mathf.Max(0.01f, ability.damageDurationSeconds / tickCount),
                 nextTickAt = Time.time + Mathf.Max(0.01f, ability.damageDurationSeconds / tickCount)
@@ -1378,7 +1400,7 @@ namespace Splice.Characters
                             dot.castType,
                             dot.center,
                             dot.lockedTarget,
-                            dot.ability.effectRadius,
+                            dot.effectRadius,
                             damage);
                     dot.tickIndex++;
                     dot.nextTickAt += dot.tickSpacing;
@@ -1524,7 +1546,8 @@ namespace Splice.Characters
                         ability.castEffectPrefab,
                         targetPoint + ability.effectLocalOffset,
                         Quaternion.identity,
-                        effectLifetime);
+                        effectLifetime,
+                        VisualScaleFactor);
                     break;
                 default:
                     GroundSurfaceResolver.TrySnap(
@@ -1536,7 +1559,8 @@ namespace Splice.Characters
                         ability.castEffectPrefab,
                         targetPoint + ability.effectLocalOffset,
                         Quaternion.identity,
-                        effectLifetime);
+                        effectLifetime,
+                        VisualScaleFactor);
                     break;
             }
         }
@@ -1801,7 +1825,7 @@ namespace Splice.Characters
             if (definition.tacticalAbility != null)
                 RangeGizmo.DrawFlatCircle(
                     transform.position,
-                    definition.tacticalAbility.castRange,
+                    ScaledAbilityDistance(definition.tacticalAbility.castRange),
                     new Color(1f, 0.55f, 0.1f));
         }
     }

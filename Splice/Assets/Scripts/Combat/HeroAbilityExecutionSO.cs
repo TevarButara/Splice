@@ -26,6 +26,7 @@ namespace Splice.Combat
         public HeroAbilityDefinitionSO Ability { get; set; }
         public HeroAbilitySlot Slot { get; set; }
         public Vector3 CastOrigin { get; set; }
+        public float WorldScaleFactor { get; set; } = 1f;
         public CharacterBase PreferredTarget { get; set; }
         public Func<List<CharacterBase>> ResolveTargets { get; set; }
         public Func<CharacterBase, bool> IsValidTarget { get; set; }

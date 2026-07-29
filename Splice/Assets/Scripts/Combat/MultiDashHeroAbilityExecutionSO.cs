@@ -71,26 +71,46 @@ namespace Splice.Combat
             return baseDamage + (zeroBasedIndex < remainder ? 1 : 0);
         }
 
-        public float EstimatedDuration(float castRange)
+        public float EstimatedDuration(float castRange) =>
+            EstimatedDuration(castRange, 1f);
+
+        public float EstimatedDuration(float authoredCastRange, float worldScaleFactor)
         {
-            var worstDashDistance = Mathf.Max(0.1f, castRange * 2f +
-                                                     targetOvershootDistance * 2f);
-            var dashSeconds = worstDashDistance / Mathf.Max(1f, dashSpeed);
-            var returnSeconds = Mathf.Max(0.1f, castRange) / Mathf.Max(1f, returnSpeed);
+            var scale = SanitizeScale(worldScaleFactor);
+            var castRange = Mathf.Max(0.1f, authoredCastRange) * scale;
+            var overshoot = targetOvershootDistance * scale;
+            var worstDashDistance = Mathf.Max(0.1f, castRange * 2f + overshoot * 2f);
+            var dashSeconds = worstDashDistance /
+                              Mathf.Max(1f, dashSpeed * scale);
+            var returnSeconds = castRange /
+                                Mathf.Max(1f, returnSpeed * scale);
             return strikeCount * (dashSeconds + Mathf.Max(0f, impactHoldSeconds)) +
                    returnSeconds + 0.35f;
         }
+
+        public float ScaledOvershootDistance(float worldScaleFactor) =>
+            Mathf.Max(0f, targetOvershootDistance) *
+            SanitizeScale(worldScaleFactor);
+
+        public float ScaledDashSpeed(float worldScaleFactor) =>
+            Mathf.Max(1f, dashSpeed) * SanitizeScale(worldScaleFactor);
 
         private IEnumerator Run(HeroAbilityExecutionContext context)
         {
             var origin = context.CastOrigin;
             var hits = 0;
+            var worldScaleFactor = SanitizeScale(context.WorldScaleFactor);
+            var overshootDistance = ScaledOvershootDistance(worldScaleFactor);
+            var worldDashSpeed = ScaledDashSpeed(worldScaleFactor);
+            var worldReturnSpeed =
+                Mathf.Max(1f, returnSpeed) * worldScaleFactor;
             var seed = unchecked(
                 (context.Ability.abilityId?.GetHashCode() ?? 0) ^
                 Mathf.RoundToInt(Time.time * 1000f) ^
                 Mathf.RoundToInt(origin.sqrMagnitude * 997f));
             var random = new System.Random(seed);
-            var presentationLifetime = EstimatedDuration(context.Ability.castRange);
+            var presentationLifetime = EstimatedDuration(
+                context.Ability.castRange, worldScaleFactor);
             context.Present?.Invoke(
                 HeroAbilityVfxStage.Cast, origin, origin, presentationLifetime);
             context.Present?.Invoke(
@@ -121,13 +141,13 @@ namespace Splice.Combat
                         strike * 137.50776f, Vector3.up) * dashDirection;
 
                     var destination = impactPoint +
-                                      dashDirection * Mathf.Max(0f, targetOvershootDistance);
+                                      dashDirection * overshootDistance;
                     if (context.ResolveGroundedDestination != null)
                         destination = context.ResolveGroundedDestination(destination);
                     context.Face?.Invoke(dashDirection);
 
                     yield return MoveTo(
-                        context, destination, Mathf.Max(1f, dashSpeed));
+                        context, destination, worldDashSpeed);
                     if (!context.CanContinue()) break;
                     if (!context.IsValidTarget(target)) continue;
 
@@ -155,7 +175,7 @@ namespace Splice.Combat
                         : origin;
                     context.Face?.Invoke(groundedOrigin - context.HeroTransform.position);
                     yield return MoveTo(
-                        context, groundedOrigin, Mathf.Max(1f, returnSpeed));
+                        context, groundedOrigin, worldReturnSpeed);
                     context.HeroTransform.position = groundedOrigin;
                     context.Present?.Invoke(
                         HeroAbilityVfxStage.End,
@@ -169,6 +189,9 @@ namespace Splice.Combat
                 context.Completed?.Invoke(hits);
             }
         }
+
+        private static float SanitizeScale(float value) =>
+            Mathf.Clamp(value > 0f ? value : 1f, 0.05f, 20f);
 
         private CharacterBase SelectTarget(
             IReadOnlyList<CharacterBase> targets,

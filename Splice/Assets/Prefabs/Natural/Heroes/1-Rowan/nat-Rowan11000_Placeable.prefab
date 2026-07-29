@@ -25,7 +25,7 @@ Transform:
   m_GameObject: {fileID: 14215857503412805}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.051633935, y: 5.8208637, z: 0.1530485}
+  m_LocalPosition: {x: -0.05163362, y: 5.8208637, z: 0.15304855}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -56,7 +56,7 @@ Transform:
   m_GameObject: {fileID: 917846904413677917}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.051633935, y: -0.6380338, z: 0.1530485}
+  m_LocalPosition: {x: -0.05163362, y: -0.6380341, z: 0.15304855}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -227,7 +227,7 @@ Transform:
   m_GameObject: {fileID: 3073654029428541958}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.051633935, y: 4.7443805, z: 0.1530485}
+  m_LocalPosition: {x: -0.05163362, y: 4.7443805, z: 0.15304855}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -676,15 +676,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: fe5dee016c3e46e4493f537bc2e11c97, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.29999986
+      value: 2.5001583
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: fe5dee016c3e46e4493f537bc2e11c97, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.29999986
+      value: 2.5001583
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: fe5dee016c3e46e4493f537bc2e11c97, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.29999986
+      value: 2.5001583
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: fe5dee016c3e46e4493f537bc2e11c97, type: 3}
       propertyPath: m_LocalPosition.x
@@ -894,6 +894,7 @@ MonoBehaviour:
   cameraFocus: {fileID: 7412095390440297473}
   effectAnchor: {fileID: 5661994231656240398}
   sourceAssetGuid: ff63cd6fed862224d9a807c0683ffc3d
+  authoredUniformVisualScale: 0.29999986
 --- !u!4 &1000767459872087107 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: fe5dee016c3e46e4493f537bc2e11c97, type: 3}

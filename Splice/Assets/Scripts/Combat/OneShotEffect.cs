@@ -6,10 +6,13 @@ namespace Splice.Combat
     // คำนวณอายุจาก ParticleSystem + AudioSource ที่อยู่ใน prefab จริง → ไม่ต้องตั้งเลขเอง และไม่รั่วสะสม
     public static class OneShotEffect
     {
-        public static void Spawn(GameObject prefab, Vector3 position, Quaternion rotation, float fallbackLifetime = 3f)
+        public static void Spawn(GameObject prefab, Vector3 position, Quaternion rotation,
+            float fallbackLifetime = 3f, float worldScaleMultiplier = 1f)
         {
             if (prefab == null) return;
             var go = Object.Instantiate(prefab, position, rotation);
+            go.transform.localScale = prefab.transform.localScale *
+                                      Mathf.Clamp(worldScaleMultiplier, 0.05f, 20f);
             Object.Destroy(go, Mathf.Max(0.05f, LifetimeOf(go, fallbackLifetime)));
         }
 

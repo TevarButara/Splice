@@ -19,25 +19,28 @@ namespace Splice.Combat
         }
 
         public static GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation,
-            float lifetimeSeconds, Transform follow = null, Vector3 localOffset = default)
+            float lifetimeSeconds, Transform follow = null, Vector3 localOffset = default,
+            float worldScaleMultiplier = 1f)
         {
             if (prefab == null) return null;
             return Host.Spawn(prefab, position, rotation, lifetimeSeconds, follow, localOffset,
-                false, position, 0f);
+                false, position, 0f, worldScaleMultiplier);
         }
 
         public static GameObject SpawnTravel(GameObject prefab, Vector3 origin, Vector3 target,
-            Quaternion rotation, float lifetimeSeconds, float travelSeconds)
+            Quaternion rotation, float lifetimeSeconds, float travelSeconds,
+            float worldScaleMultiplier = 1f)
         {
             if (prefab == null) return null;
             return Host.Spawn(prefab, origin, rotation,
                 Mathf.Max(lifetimeSeconds, travelSeconds), null, Vector3.zero,
-                true, target, Mathf.Max(0.01f, travelSeconds));
+                true, target, Mathf.Max(0.01f, travelSeconds),
+                worldScaleMultiplier);
         }
 
         public static void Schedule(GameObject prefab, Vector3 position, Quaternion rotation,
             float delaySeconds, float lifetimeSeconds, Transform follow = null,
-            Vector3 localOffset = default)
+            Vector3 localOffset = default, float worldScaleMultiplier = 1f)
         {
             if (prefab == null) return;
             Host.Schedule(new VfxSpawnRequest
@@ -48,12 +51,14 @@ namespace Splice.Combat
                 delaySeconds = Mathf.Max(0f, delaySeconds),
                 lifetimeSeconds = Mathf.Max(0.05f, lifetimeSeconds),
                 follow = follow,
-                localOffset = localOffset
+                localOffset = localOffset,
+                worldScaleMultiplier = worldScaleMultiplier
             });
         }
 
         public static void ScheduleTravel(GameObject prefab, Vector3 origin, Vector3 target,
-            Quaternion rotation, float delaySeconds, float lifetimeSeconds, float travelSeconds)
+            Quaternion rotation, float delaySeconds, float lifetimeSeconds, float travelSeconds,
+            float worldScaleMultiplier = 1f)
         {
             if (prefab == null) return;
             Host.Schedule(new VfxSpawnRequest
@@ -65,7 +70,8 @@ namespace Splice.Combat
                 delaySeconds = Mathf.Max(0f, delaySeconds),
                 lifetimeSeconds = Mathf.Max(lifetimeSeconds, travelSeconds),
                 isTravel = true,
-                travelSeconds = Mathf.Max(0.01f, travelSeconds)
+                travelSeconds = Mathf.Max(0.01f, travelSeconds),
+                worldScaleMultiplier = worldScaleMultiplier
             });
         }
 
@@ -105,6 +111,7 @@ namespace Splice.Combat
             public Vector3 localOffset;
             public bool isTravel;
             public float travelSeconds;
+            public float worldScaleMultiplier = 1f;
         }
 
         private sealed class ActiveVfx
@@ -145,7 +152,7 @@ namespace Splice.Combat
 
             public GameObject Spawn(GameObject prefab, Vector3 position, Quaternion rotation,
                 float lifetimeSeconds, Transform follow, Vector3 localOffset, bool isTravel,
-                Vector3 target, float travelSeconds)
+                Vector3 target, float travelSeconds, float worldScaleMultiplier)
             {
                 var key = prefab.GetEntityId();
                 if (!inactive.TryGetValue(key, out var queue))
@@ -171,7 +178,8 @@ namespace Splice.Combat
                     travelStartedAt = Time.time,
                     travelSeconds = Mathf.Max(0.01f, travelSeconds)
                 };
-                Prepare(instance, position, rotation, follow, localOffset);
+                Prepare(instance, prefab, position, rotation, follow, localOffset,
+                    worldScaleMultiplier);
                 active.Add(entry);
                 return instance;
             }
@@ -232,7 +240,8 @@ namespace Splice.Combat
                     request.position += request.localOffset;
                 Spawn(request.prefab, request.position, request.rotation,
                     request.lifetimeSeconds, request.follow, request.localOffset,
-                    request.isTravel, request.target, request.travelSeconds);
+                    request.isTravel, request.target, request.travelSeconds,
+                    request.worldScaleMultiplier);
             }
 
             private void Release(ActiveVfx entry)
@@ -254,21 +263,29 @@ namespace Splice.Combat
                 active.Clear();
             }
 
-            private static void Prepare(GameObject instance, Vector3 position,
-                Quaternion rotation, Transform follow, Vector3 localOffset)
+            private static void Prepare(GameObject instance, GameObject prefab,
+                Vector3 position, Quaternion rotation, Transform follow,
+                Vector3 localOffset, float worldScaleMultiplier)
             {
                 instance.SetActive(false);
                 var tf = instance.transform;
+                var baseScale = prefab != null
+                    ? prefab.transform.localScale
+                    : Vector3.one;
                 if (follow != null)
                 {
                     tf.SetParent(follow, false);
                     tf.localPosition = localOffset;
                     tf.rotation = rotation;
+                    // Attached FX already inherit the Hero scale from their parent.
+                    tf.localScale = baseScale;
                 }
                 else
                 {
                     tf.SetParent(null, false);
                     tf.SetPositionAndRotation(position, rotation);
+                    tf.localScale = baseScale *
+                                    Mathf.Clamp(worldScaleMultiplier, 0.05f, 20f);
                 }
                 instance.SetActive(true);
                 foreach (var trail in instance.GetComponentsInChildren<TrailRenderer>(true))
