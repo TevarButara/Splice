@@ -17,6 +17,15 @@
       },
       "hash": "c14de1e6dc01ab42d2bb358730cff954bce0ce6b"
     },
+    "com.splice.fxstudio": {
+      "version": "file:com.splice.fxstudio",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.addressables": "3.1.0",
+        "com.unity.visualeffectgraph": "17.5.0"
+      }
+    },
     "com.unity.2d.sprite": {
       "version": "1.0.0",
       "depth": 0,

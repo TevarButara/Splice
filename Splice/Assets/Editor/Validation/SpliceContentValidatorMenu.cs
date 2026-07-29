@@ -32,6 +32,7 @@ namespace Splice.Editor.Validation
             RaidNavMeshAlignmentValidator.Validate(report);
             WorldPrototypeValidator.Validate(report);
             RowanVfxVerticalSliceValidator.Validate(report);
+            SpliceFxStudioValidatorAdapter.Validate(report);
             BackendBoundaryValidator.Validate(report);
             Splice.Editor.UI.SpliceSceneUiAuthoringValidator.Validate(report);
             LiveContentAddressablesConfigurator.Validate(report);

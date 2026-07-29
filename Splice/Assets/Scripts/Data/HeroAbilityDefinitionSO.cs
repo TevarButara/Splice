@@ -1,4 +1,5 @@
 using Splice.Combat;
+using Splice.FxStudio;
 using UnityEngine;
 
 namespace Splice.Data
@@ -93,6 +94,8 @@ namespace Splice.Data
         public HeroAbilityEffectPlacement effectPlacement = HeroAbilityEffectPlacement.GroundSurface;
         public Vector3 effectLocalOffset;
         [Header("Staged VFX Presentation")]
+        [Tooltip("Optional Splice FX Studio package. Exported Studio stages take precedence over the legacy cue for the same stage.")]
+        public SpliceFxSkillPackage fxStudioPackage;
         [Tooltip("Optional staged presentation. When any cue is assigned, the legacy single castEffectPrefab is skipped.")]
         public HeroAbilityVfxCue castVfx = new();
         public HeroAbilityVfxCue launchVfx = new();
@@ -102,6 +105,7 @@ namespace Splice.Data
         public HeroAbilityVfxCue endVfx = new();
 
         public bool HasStagedVfx =>
+            fxStudioPackage?.HasConfiguredStage == true ||
             castVfx?.IsConfigured == true ||
             launchVfx?.IsConfigured == true ||
             travelVfx?.IsConfigured == true ||

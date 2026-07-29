@@ -1,0 +1,15 @@
+{
+  "name": "Splice.FxStudio.Editor",
+  "rootNamespace": "Splice.FxStudio.Editor",
+  "references": [
+    "Splice.FxStudio.Runtime",
+    "Unity.VisualEffectGraph.Runtime",
+    "Unity.Addressables.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "autoReferenced": true,
+  "overrideReferences": false,
+  "noEngineReferences": false
+}

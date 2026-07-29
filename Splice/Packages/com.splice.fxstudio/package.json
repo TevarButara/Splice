@@ -1,0 +1,20 @@
+{
+  "name": "com.splice.fxstudio",
+  "version": "0.1.0",
+  "displayName": "Splice FX Studio",
+  "description": "Preset-driven SubFX authoring, alpha processing, blend sequencing, ability binding, export and mobile validation for Splice.",
+  "unity": "6000.0",
+  "dependencies": {
+    "com.unity.addressables": "3.1.0",
+    "com.unity.visualeffectgraph": "17.5.0"
+  },
+  "keywords": [
+    "vfx",
+    "visual effect graph",
+    "skill",
+    "mobile"
+  ],
+  "author": {
+    "name": "Splice"
+  }
+}

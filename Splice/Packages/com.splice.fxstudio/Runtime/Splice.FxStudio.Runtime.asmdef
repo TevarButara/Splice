@@ -1,0 +1,10 @@
+{
+  "name": "Splice.FxStudio.Runtime",
+  "rootNamespace": "Splice.FxStudio",
+  "references": [
+    "Unity.VisualEffectGraph.Runtime"
+  ],
+  "autoReferenced": true,
+  "overrideReferences": false,
+  "noEngineReferences": false
+}

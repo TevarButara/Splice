@@ -30,6 +30,10 @@ namespace Splice.Combat
             if (ability == null) return;
             if (stage == HeroAbilityVfxStage.End)
                 CollapseUltimateCastRing(ability, heroRoot);
+            if (SpliceFxHeroBridge.PlayExecutionStage(
+                    ability, stage, heroRoot, heroEffectAnchor,
+                    from, to, lifetimeOverride))
+                return;
             var cue = CueForStage(ability, stage);
             if (cue?.IsConfigured != true) return;
 
@@ -143,6 +147,10 @@ namespace Splice.Combat
             Transform heroEffectAnchor, Vector3 targetPoint, Vector3 originPoint)
         {
             if (ability == null || !ability.HasStagedVfx) return;
+            if (SpliceFxHeroBridge.PlayScheduled(
+                    ability, heroRoot, heroEffectAnchor,
+                    targetPoint, originPoint))
+                return;
             var direction = targetPoint - originPoint;
             direction.y = 0f;
             var rotation = direction.sqrMagnitude > 0.001f

@@ -3,7 +3,8 @@
     "rootNamespace": "Splice.Tests.PlayMode",
     "references": [
         "Unity.Addressables",
-        "Unity.ResourceManager"
+        "Unity.ResourceManager",
+        "Splice.FxStudio.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

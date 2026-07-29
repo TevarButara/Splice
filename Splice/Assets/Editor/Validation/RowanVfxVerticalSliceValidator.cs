@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using Splice.Combat;
 using Splice.Data;
+using Splice.FxStudio;
 using Splice.Validation;
 using UnityEditor;
 using UnityEngine;
@@ -83,17 +84,39 @@ namespace Splice.Editor.Validation
             };
             foreach (var field in requiredCueFields)
             {
-                if (!cues.TryGetValue(field, out var cue) || cue?.IsConfigured != true)
+                if (!cues.TryGetValue(field, out var cue) ||
+                    (cue?.IsConfigured != true &&
+                     !HasStudioStage(ability, field)))
                 {
                     report.Error("ROWAN_VFX_REQUIRED_STAGE_MISSING",
                         "Rowan " + label + " is missing required " + field + ".", ability);
                     continue;
                 }
-                if (field == "travelVfx" && cue.travelDurationSeconds <= 0f)
+                if (cue?.IsConfigured == true &&
+                    field == "travelVfx" &&
+                    cue.travelDurationSeconds <= 0f)
                     report.Error("ROWAN_VFX_TRAVEL_DURATION_INVALID",
                         "Rowan " + label + " travel duration must be positive.", ability);
-                ValidatePrefab(cue.prefab, report);
+                if (cue?.IsConfigured == true)
+                    ValidatePrefab(cue.prefab, report);
             }
+        }
+
+        private static bool HasStudioStage(
+            HeroAbilityDefinitionSO ability, string field)
+        {
+            if (ability?.fxStudioPackage == null) return false;
+            var stage = field switch
+            {
+                "castVfx" => SpliceFxStage.Cast,
+                "launchVfx" => SpliceFxStage.Launch,
+                "travelVfx" => SpliceFxStage.Travel,
+                "impactVfx" => SpliceFxStage.Impact,
+                "persistentVfx" => SpliceFxStage.Persistent,
+                "endVfx" => SpliceFxStage.End,
+                _ => SpliceFxStage.Custom
+            };
+            return ability.fxStudioPackage.Find(stage)?.exportedPrefab != null;
         }
 
         private static void ValidatePrefab(GameObject prefab,
