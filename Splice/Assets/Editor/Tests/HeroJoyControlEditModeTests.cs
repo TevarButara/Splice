@@ -7,6 +7,7 @@ using Splice.Characters;
 using Splice.Combat;
 using Splice.Data;
 using Splice.Input;
+using Splice.Placement;
 using TMPro;
 using UnityEditor;
 using UnityEditor.Animations;
@@ -22,6 +23,10 @@ namespace Splice.Tests.EditMode
         private const string RaidArenaPath = "Assets/=======SCENES/RaidArena.unity";
         private const string RowanPath =
             "Assets/Prefabs/Natural/Heroes/1-Rowan/Rowan_Definition.asset";
+        private const string RowanSourcePrefabPath =
+            "Assets/Prefabs/Natural/Heroes/1-Rowan/nat-Rowan11000.prefab";
+        private const string RowanPlaceablePrefabPath =
+            "Assets/Prefabs/Natural/Heroes/1-Rowan/nat-Rowan11000_Placeable.prefab";
         private const string TestHeroPath =
             "Assets/Prefabs/Heroes/Hero_Test_Definition.asset";
 
@@ -285,6 +290,50 @@ namespace Splice.Tests.EditMode
         }
 
         [Test]
+        public void RowanPlaceable_PreservesAnimationBindingsAndSourceFootprint()
+        {
+            var source = AssetDatabase.LoadAssetAtPath<GameObject>(RowanSourcePrefabPath);
+            var placeable = AssetDatabase.LoadAssetAtPath<GameObject>(RowanPlaceablePrefabPath);
+            Assert.That(source, Is.Not.Null);
+            Assert.That(placeable, Is.Not.Null);
+
+            var sourceAnimator = source.GetComponentInChildren<Animator>(true);
+            var placeableAnimator = placeable.GetComponentInChildren<Animator>(true);
+            Assert.That(sourceAnimator, Is.Not.Null);
+            Assert.That(placeableAnimator, Is.Not.Null);
+            Assert.That(placeableAnimator.transform, Is.SameAs(placeable.transform),
+                "The Animator root must not gain a VisualRoot prefix.");
+
+            foreach (var clip in sourceAnimator.runtimeAnimatorController.animationClips)
+            foreach (var binding in AnimationUtility.GetCurveBindings(clip))
+            {
+                if (string.IsNullOrEmpty(binding.path)) continue;
+                Assert.That(placeable.transform.Find(binding.path), Is.Not.Null,
+                    $"{clip.name} cannot resolve animated path '{binding.path}' in Placeable.");
+            }
+
+            var profile = placeable.GetComponent<GroundPlacementProfile>();
+            Assert.That(profile, Is.Not.Null);
+            Assert.That(profile.IsComplete, Is.True);
+            Assert.That(profile.VisualRoot, Is.SameAs(placeable.transform),
+                "Animated gameplay prefabs must preserve their original hierarchy.");
+
+            var sourceBounds = RendererBounds(source);
+            var placeableBounds = RendererBounds(placeable);
+            var sourceFootprint = Mathf.Max(sourceBounds.size.x, sourceBounds.size.z);
+            var placeableFootprint = Mathf.Max(placeableBounds.size.x, placeableBounds.size.z);
+            Assert.That(placeableFootprint, Is.EqualTo(sourceFootprint).Within(.05f),
+                "Grounding must not make the Hero larger while attached skill VFX keep source scale.");
+            Assert.That(placeableBounds.min.y, Is.EqualTo(profile.GroundAnchor.position.y)
+                .Within(.02f));
+
+            var serializedHero = new SerializedObject(
+                placeable.GetComponent<RaidHeroCharacter>());
+            Assert.That(serializedHero.FindProperty("animator").objectReferenceValue,
+                Is.SameAs(placeableAnimator));
+        }
+
+        [Test]
         public void GroundSurfaceResolver_SnapsUnitsAndFxToGroundLayer()
         {
             var surface = GameObject.CreatePrimitive(PrimitiveType.Plane);
@@ -480,6 +529,15 @@ namespace Splice.Tests.EditMode
                 BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(field, Is.Not.Null, $"Missing private field {fieldName}");
             return (T)field.GetValue(target);
+        }
+
+        private static Bounds RendererBounds(GameObject root)
+        {
+            var renderers = root.GetComponentsInChildren<Renderer>(true);
+            Assert.That(renderers, Is.Not.Empty, $"{root.name} has no renderers.");
+            var bounds = renderers[0].bounds;
+            for (var i = 1; i < renderers.Length; i++) bounds.Encapsulate(renderers[i].bounds);
+            return bounds;
         }
     }
 }

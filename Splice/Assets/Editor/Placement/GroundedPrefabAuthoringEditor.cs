@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.IO;
+using System.Linq;
 using Splice.Placement;
 using UnityEditor;
 using UnityEngine;
@@ -166,68 +167,78 @@ namespace Splice.Editor.Placement
             var root = PrefabUtility.LoadPrefabContents(sourcePath);
             try
             {
-                // Character prefabs are commonly authored as a prefab/model instance root with
-                // NetworkObject + NetworkBehaviour overrides. Its children cannot be reparented
-                // until that outermost instance is unpacked. This only affects the new _Placeable
-                // asset; the selected source prefab remains untouched.
-                if (PrefabUtility.IsAnyPrefabInstanceRoot(root))
-                    PrefabUtility.UnpackPrefabInstance(root, PrefabUnpackMode.OutermostRoot,
-                        InteractionMode.AutomatedAction);
-
-                var rootTransform = root.transform;
-                var oldPosition = rootTransform.localPosition;
-                var oldRotation = rootTransform.localRotation;
-                var oldScale = rootTransform.localScale;
-                var children = new Transform[rootTransform.childCount];
-                for (var index = 0; index < children.Length; index++)
-                    children[index] = rootTransform.GetChild(index);
-
-                var rootFilter = root.GetComponent<MeshFilter>();
-                var rootRenderer = root.GetComponent<MeshRenderer>();
-                if ((rootFilter == null) != (rootRenderer == null))
-                    throw new MissingComponentException(
-                        $"Gameplay prefab '{source.name}' has only one of MeshFilter/MeshRenderer " +
-                        "on its root. Keep the pair together before canonical conversion.");
-
-                rootTransform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-                rootTransform.localScale = Vector3.one;
-                root.name = Path.GetFileNameWithoutExtension(assetPath);
-
-                var visualRoot = new GameObject("VisualRoot").transform;
-                visualRoot.SetParent(rootTransform, false);
-                visualRoot.localPosition = oldPosition;
-                visualRoot.localRotation = oldRotation;
-                visualRoot.localScale = oldScale;
-                if (rootFilter != null)
+                if (RequiresAnimationSafeHierarchy(root))
                 {
-                    // Static meshes such as towers keep their root mesh, while skinned characters
-                    // usually have all renderers below the root and only need their children moved.
-                    var visualFilter = visualRoot.gameObject.AddComponent<MeshFilter>();
-                    EditorUtility.CopySerialized(rootFilter, visualFilter);
-                    var visualRenderer = visualRoot.gameObject.AddComponent<MeshRenderer>();
-                    EditorUtility.CopySerialized(rootRenderer, visualRenderer);
-                    Object.DestroyImmediate(rootRenderer);
-                    Object.DestroyImmediate(rootFilter);
+                    ConfigureAnimatedGameplayPrefab(
+                        root, sourcePath, assetPath, targetWorldFootprint);
+                    var animatedSaved = PrefabUtility.SaveAsPrefabAsset(root, assetPath);
+                    if (animatedSaved == null)
+                        throw new System.InvalidOperationException(
+                            $"Unity could not save animated gameplay wrapper '{assetPath}'.");
                 }
-                foreach (var child in children) child.SetParent(visualRoot, false);
+                else
+                {
+                    // Static gameplay prefabs can be unpacked and normalized under VisualRoot.
+                    // Animated prefabs take the branch above because inserting VisualRoot changes
+                    // clip paths such as "SpliceRig/Hips".
+                    if (PrefabUtility.IsAnyPrefabInstanceRoot(root))
+                        PrefabUtility.UnpackPrefabInstance(root, PrefabUnpackMode.OutermostRoot,
+                            InteractionMode.AutomatedAction);
 
-                var groundAnchor = CreateAnchor("GroundAnchor", rootTransform, Vector3.zero);
-                var cameraFocus = CreateAnchor("CameraFocus", rootTransform, Vector3.zero);
-                var effectAnchor = CreateAnchor("EffectAnchor", rootTransform, Vector3.zero);
-                var profile = root.GetComponent<GroundPlacementProfile>() ??
-                              root.AddComponent<GroundPlacementProfile>();
-                profile.ConfigureEditorReferences(
-                    visualRoot, groundAnchor, cameraFocus, effectAnchor,
-                    AssetDatabase.AssetPathToGUID(sourcePath));
-                if (!TryRendererBounds(visualRoot, out var bounds))
-                    throw new MissingReferenceException(
-                        $"Gameplay prefab '{source.name}' has no Renderer bounds.");
-                FitProfileToWorldFootprint(profile, targetWorldFootprint, bounds);
+                    var rootTransform = root.transform;
+                    var oldPosition = rootTransform.localPosition;
+                    var oldRotation = rootTransform.localRotation;
+                    var oldScale = rootTransform.localScale;
+                    var children = new Transform[rootTransform.childCount];
+                    for (var index = 0; index < children.Length; index++)
+                        children[index] = rootTransform.GetChild(index);
 
-                var saved = PrefabUtility.SaveAsPrefabAsset(root, assetPath);
-                if (saved == null)
-                    throw new System.InvalidOperationException(
-                        $"Unity could not save gameplay wrapper '{assetPath}'.");
+                    var rootFilter = root.GetComponent<MeshFilter>();
+                    var rootRenderer = root.GetComponent<MeshRenderer>();
+                    if ((rootFilter == null) != (rootRenderer == null))
+                        throw new MissingComponentException(
+                            $"Gameplay prefab '{source.name}' has only one of MeshFilter/MeshRenderer " +
+                            "on its root. Keep the pair together before canonical conversion.");
+
+                    rootTransform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+                    rootTransform.localScale = Vector3.one;
+                    root.name = Path.GetFileNameWithoutExtension(assetPath);
+
+                    var visualRoot = new GameObject("VisualRoot").transform;
+                    visualRoot.SetParent(rootTransform, false);
+                    visualRoot.localPosition = oldPosition;
+                    visualRoot.localRotation = oldRotation;
+                    visualRoot.localScale = oldScale;
+                    if (rootFilter != null)
+                    {
+                        // Static meshes such as towers keep their root mesh.
+                        var visualFilter = visualRoot.gameObject.AddComponent<MeshFilter>();
+                        EditorUtility.CopySerialized(rootFilter, visualFilter);
+                        var visualRenderer = visualRoot.gameObject.AddComponent<MeshRenderer>();
+                        EditorUtility.CopySerialized(rootRenderer, visualRenderer);
+                        Object.DestroyImmediate(rootRenderer);
+                        Object.DestroyImmediate(rootFilter);
+                    }
+                    foreach (var child in children) child.SetParent(visualRoot, false);
+
+                    var groundAnchor = CreateAnchor("GroundAnchor", rootTransform, Vector3.zero);
+                    var cameraFocus = CreateAnchor("CameraFocus", rootTransform, Vector3.zero);
+                    var effectAnchor = CreateAnchor("EffectAnchor", rootTransform, Vector3.zero);
+                    var profile = root.GetComponent<GroundPlacementProfile>() ??
+                                  root.AddComponent<GroundPlacementProfile>();
+                    profile.ConfigureEditorReferences(
+                        visualRoot, groundAnchor, cameraFocus, effectAnchor,
+                        AssetDatabase.AssetPathToGUID(sourcePath));
+                    if (!TryRendererBounds(visualRoot, out var bounds))
+                        throw new MissingReferenceException(
+                            $"Gameplay prefab '{source.name}' has no Renderer bounds.");
+                    FitProfileToWorldFootprint(profile, targetWorldFootprint, bounds);
+
+                    var saved = PrefabUtility.SaveAsPrefabAsset(root, assetPath);
+                    if (saved == null)
+                        throw new System.InvalidOperationException(
+                            $"Unity could not save gameplay wrapper '{assetPath}'.");
+                }
             }
             finally
             {
@@ -236,9 +247,62 @@ namespace Splice.Editor.Placement
 
             AssetDatabase.SaveAssets();
             var result = AssetDatabase.LoadAssetAtPath<GameObject>(assetPath);
+            ReplaceHeroDefinitionReferences(sourcePath, assetPath, source, result);
             if (replaceNetworkPrefabReferences)
                 ReplaceNetworkPrefabReferences(sourcePath, assetPath, result);
             return result;
+        }
+
+        private static bool RequiresAnimationSafeHierarchy(GameObject root)
+        {
+            if (root == null) return false;
+            var animator = root.GetComponentInChildren<Animator>(true);
+            return animator != null &&
+                   (animator.runtimeAnimatorController != null ||
+                    root.GetComponentInChildren<SkinnedMeshRenderer>(true) != null);
+        }
+
+        private static void ConfigureAnimatedGameplayPrefab(GameObject root,
+            string sourcePath, string assetPath, float targetWorldFootprint)
+        {
+            var rootTransform = root.transform;
+            rootTransform.localPosition = Vector3.zero;
+            root.name = Path.GetFileNameWithoutExtension(assetPath);
+
+            if (!TryRendererBounds(rootTransform, out var bounds))
+                throw new MissingReferenceException(
+                    $"Animated gameplay prefab '{root.name}' has no Renderer bounds.");
+            var currentFootprint = Mathf.Max(bounds.size.x, bounds.size.z);
+            if (currentFootprint <= .0001f)
+                throw new System.InvalidOperationException(
+                    $"Animated gameplay prefab '{root.name}' has a zero-sized renderer footprint.");
+            rootTransform.localScale *= targetWorldFootprint / currentFootprint;
+
+            var groundAnchor = CreateAnchor("GroundAnchor", rootTransform, Vector3.zero);
+            var cameraFocus = CreateAnchor("CameraFocus", rootTransform, Vector3.zero);
+            var effectAnchor = CreateAnchor("EffectAnchor", rootTransform, Vector3.zero);
+            var profile = root.GetComponent<GroundPlacementProfile>() ??
+                          root.AddComponent<GroundPlacementProfile>();
+            profile.ConfigureEditorReferences(
+                rootTransform, groundAnchor, cameraFocus, effectAnchor,
+                AssetDatabase.AssetPathToGUID(sourcePath));
+            NormalizeVisualAndAnchors(profile);
+
+            // The gameplay component normally resolves this at runtime. Persisting the reference
+            // also makes Prefab Mode previews deterministic and guards against another Animator
+            // being added below the Hero later.
+            var hero = root.GetComponent<Splice.Characters.RaidHeroCharacter>();
+            var animator = root.GetComponentInChildren<Animator>(true);
+            if (hero != null && animator != null)
+            {
+                var serializedHero = new SerializedObject(hero);
+                var animatorProperty = serializedHero.FindProperty("animator");
+                if (animatorProperty != null)
+                {
+                    animatorProperty.objectReferenceValue = animator;
+                    serializedHero.ApplyModifiedPropertiesWithoutUndo();
+                }
+            }
         }
 
         public static int EnsureGroundLayer()
@@ -369,6 +433,16 @@ namespace Splice.Editor.Placement
             if (!TryRendererBounds(profile.VisualRoot, out var bounds))
                 throw new MissingReferenceException(
                     $"Grounded wrapper '{profile.name}' has no Renderer under VisualRoot.");
+            if (profile.VisualRoot == profile.transform)
+            {
+                SetAnchorWorldPosition(profile.GroundAnchor,
+                    new Vector3(bounds.center.x, bounds.min.y, bounds.center.z));
+                SetAnchorWorldPosition(profile.CameraFocus, bounds.center);
+                SetAnchorWorldPosition(profile.EffectAnchor,
+                    new Vector3(bounds.center.x,
+                        bounds.min.y + bounds.size.y * .6f, bounds.center.z));
+                return;
+            }
             profile.VisualRoot.position += new Vector3(
                 -bounds.center.x, -bounds.min.y, -bounds.center.z);
             if (!TryRendererBounds(profile.VisualRoot, out var normalizedBounds))
@@ -379,6 +453,11 @@ namespace Splice.Editor.Placement
                 new Vector3(0f, normalizedBounds.size.y * .5f, 0f);
             profile.EffectAnchor.localPosition =
                 new Vector3(0f, normalizedBounds.size.y * .6f, 0f);
+        }
+
+        private static void SetAnchorWorldPosition(Transform anchor, Vector3 worldPosition)
+        {
+            if (anchor != null) anchor.position = worldPosition;
         }
 
         private static void FitProfileToWorldFootprint(GroundPlacementProfile profile,
@@ -402,8 +481,40 @@ namespace Splice.Editor.Placement
                 var list = AssetDatabase.LoadAssetAtPath<Unity.Netcode.NetworkPrefabsList>(path);
                 if (list == null) continue;
                 var source = AssetDatabase.LoadAssetAtPath<GameObject>(sourcePath);
+                var dependedOnRebuiltTarget = AssetDatabase.GetDependencies(path, false)
+                    .Contains(targetPath);
+                if (dependedOnRebuiltTarget)
+                {
+                    // Rebuilding an asset in place can change its root local file ID while keeping
+                    // the GUID. Unity then deserializes the former direct entry as Missing.
+                    foreach (var entry in list.PrefabList)
+                        if (entry != null &&
+                            entry.Override == Unity.Netcode.NetworkPrefabOverride.None &&
+                            entry.Prefab == null)
+                            entry.Prefab = replacement;
+                }
                 if (!ReconcileNetworkPrefabsList(list, source, replacement)) continue;
                 EditorUtility.SetDirty(list);
+            }
+            AssetDatabase.SaveAssets();
+        }
+
+        private static void ReplaceHeroDefinitionReferences(string sourcePath,
+            string targetPath, GameObject source, GameObject replacement)
+        {
+            if (replacement == null) return;
+            foreach (var guid in AssetDatabase.FindAssets("t:HeroDefinitionSO"))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var hero = AssetDatabase.LoadAssetAtPath<Splice.Data.HeroDefinitionSO>(path);
+                if (hero == null) continue;
+                var dependedOnRebuiltTarget = AssetDatabase.GetDependencies(path, false)
+                    .Contains(targetPath);
+                if (hero.prefab != source &&
+                    !(hero.prefab == null && dependedOnRebuiltTarget))
+                    continue;
+                hero.prefab = replacement;
+                EditorUtility.SetDirty(hero);
             }
             AssetDatabase.SaveAssets();
         }

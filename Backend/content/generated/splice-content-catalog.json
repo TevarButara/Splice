@@ -2,7 +2,7 @@
     "schemaVersion": 2,
     "liveContentVersion": "1.0.0",
     "serverContentVersion": "content-c4c2-v1",
-    "sourceSha256": "73db98c07bab7390cbc6028c5972b3b1ac7f4f29b6992e8f5888eacce5f9d2c2",
+    "sourceSha256": "637ba9e06fc12566a1b5ff296dbbcb647d53968ec4652f842ec60d1cd578878f",
     "items": [
         {
             "contentId": "1/0",
@@ -241,7 +241,7 @@
                 "attackDamage": 200,
                 "attackCooldownMs": 1000,
                 "attackRangeMilli": 1800,
-                "moveSpeedMilli": 9000,
+                "moveSpeedMilli": 30000,
                 "abilityId": "rowan_leaf_slash",
                 "abilityDamage": 300,
                 "abilityCooldownMs": 4000,
