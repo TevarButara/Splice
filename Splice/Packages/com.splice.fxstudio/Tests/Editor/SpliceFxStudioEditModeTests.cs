@@ -207,5 +207,90 @@ namespace Splice.FxStudio.Editor.Tests
                 Object.DestroyImmediate(root);
             }
         }
+
+        [Test]
+        public void MotionPlayer_PulseAnimatesImageScaleAtExactTime()
+        {
+            var root = new GameObject("Pulse");
+            var definition =
+                ScriptableObject.CreateInstance<SpliceFxSubEffectDefinition>();
+            try
+            {
+                var pulse = SpliceFxMotionLayer.Create(
+                    SpliceFxMotionType.Pulse);
+                pulse.speed = 1f;
+                pulse.amount = 0.5f;
+                pulse.phase = 0f;
+                definition.motions.Add(pulse);
+                var player = root.AddComponent<SpliceFxMotionPlayer>();
+                player.Configure(definition);
+
+                player.EvaluatePreview(0.25f);
+
+                Assert.That(root.transform.localScale.x,
+                    Is.EqualTo(1.5f).Within(0.001f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void MotionPlayer_SpinUsesDegreesPerSecond()
+        {
+            var root = new GameObject("Spin");
+            var definition =
+                ScriptableObject.CreateInstance<SpliceFxSubEffectDefinition>();
+            try
+            {
+                var spin = SpliceFxMotionLayer.Create(
+                    SpliceFxMotionType.Spin);
+                spin.speed = 90f;
+                definition.motions.Add(spin);
+                var player = root.AddComponent<SpliceFxMotionPlayer>();
+                player.Configure(definition);
+
+                player.EvaluatePreview(1f);
+
+                Assert.That(Quaternion.Angle(
+                        Quaternion.identity,
+                        root.transform.localRotation),
+                    Is.EqualTo(90f).Within(0.1f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void Validator_RejectsMotionWithZeroAxis()
+        {
+            var definition =
+                ScriptableObject.CreateInstance<SpliceFxSubEffectDefinition>();
+            try
+            {
+                var spin = SpliceFxMotionLayer.Create(
+                    SpliceFxMotionType.Spin);
+                spin.axis = Vector3.zero;
+                definition.motions.Add(spin);
+                var result = new SpliceFxValidationResult();
+
+                SpliceFxValidator.ValidateSubFx(definition, result);
+
+                Assert.That(result.Issues,
+                    Has.Some.Matches<SpliceFxValidationIssue>(
+                        issue =>
+                            issue.Code ==
+                            "FX_MOTION_AXIS_INVALID"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(definition);
+            }
+        }
     }
 }

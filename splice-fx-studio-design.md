@@ -144,6 +144,32 @@ Custom property รองรับ:
 - ASTC 6x6 สำหรับ Android/iOS
 - Default maximum 1024
 
+## SubFX Motion Stack
+
+ภาพที่นำเข้าเป็น visual source เท่านั้น จึงต้องเพิ่ม Motion หากต้องการให้ขยับ ผู้ใช้สามารถเลือก Motion หลายตัวและผสมกันตามลำดับได้:
+
+- `Spin` หมุนตามแกนและองศาต่อวินาที
+- `Pulse` ขยาย/ย่อเป็นจังหวะ
+- `Expand` ขยายตามเวลาและ Animation Curve
+- `Contract` ย่อลงตามเวลาและ Animation Curve
+- `Float` ลอยตามแกน
+- `Orbit` เคลื่อนเป็นวงรอบจุดกำเนิด
+- `Flicker` กระพริบความสว่าง
+- `Fade In` / `Fade Out`
+- `UV Scroll` เลื่อน texture โดยไม่ขยับ GameObject
+- `Shake` สั่นแบบ deterministic Perlin motion
+
+ค่าที่ปรับได้ขึ้นอยู่กับชนิด Motion ได้แก่ Speed, Amount, Start Delay, Duration, Phase, Loop, Axis, UV Direction และ Motion Curve
+
+Quick FX:
+
+- `Magic Circle` = Spin + Pulse + Fade In
+- `Impact Pop` = Expand + Flicker + Fade Out
+- `Energy Flow` = UV Scroll + Pulse
+- `Floating Aura` = Float + Pulse + Flicker
+
+Motion Stack ทำงานทั้งใน Live Preview และ `SpliceFxMotionPlayer` บน exported pooled prefab จึงไม่ใช่ animation เฉพาะ Editor
+
 ## Blend Sequence
 
 แต่ละ Clip เก็บ:

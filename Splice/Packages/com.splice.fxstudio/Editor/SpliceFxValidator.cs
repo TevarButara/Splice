@@ -176,6 +176,42 @@ namespace Splice.FxStudio.Editor
                         $"SubFX '{subFx.subFxId}' contains duplicate custom property '{value.propertyName}'.",
                         subFx);
             }
+            if (subFx.motions == null) return;
+            if (subFx.motions.Count > 8)
+                result.Warning("FX_MOTION_STACK_LARGE",
+                    $"SubFX '{subFx.subFxId}' has {subFx.motions.Count} motion layers. Consider baking or simplifying for mobile.",
+                    subFx);
+            for (var i = 0; i < subFx.motions.Count; i++)
+            {
+                var motion = subFx.motions[i];
+                if (motion == null)
+                {
+                    result.Error("FX_MOTION_LAYER_NULL",
+                        $"SubFX '{subFx.subFxId}' motion {i + 1} is null.",
+                        subFx);
+                    continue;
+                }
+                if (motion.durationSeconds <= 0f)
+                    result.Error("FX_MOTION_DURATION_INVALID",
+                        $"SubFX '{subFx.subFxId}' motion '{motion.label}' must have a positive duration.",
+                        subFx);
+                if (motion.amount < 0f)
+                    result.Error("FX_MOTION_AMOUNT_INVALID",
+                        $"SubFX '{subFx.subFxId}' motion '{motion.label}' cannot have a negative amount.",
+                        subFx);
+                if ((motion.type is SpliceFxMotionType.Spin or
+                     SpliceFxMotionType.Float or
+                     SpliceFxMotionType.Orbit) &&
+                    motion.axis.sqrMagnitude < 0.0001f)
+                    result.Error("FX_MOTION_AXIS_INVALID",
+                        $"SubFX '{subFx.subFxId}' motion '{motion.label}' requires a non-zero axis.",
+                        subFx);
+                if (motion.type == SpliceFxMotionType.UvScroll &&
+                    motion.uvSpeed.sqrMagnitude < 0.0001f)
+                    result.Warning("FX_MOTION_UV_STATIC",
+                        $"SubFX '{subFx.subFxId}' UV Scroll has zero UV speed and will look static.",
+                        subFx);
+            }
         }
 
         public static void ValidateSequence(

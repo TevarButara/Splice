@@ -17,7 +17,12 @@ namespace Splice.FxStudio
         [Tooltip("Optional one-off override. Leave empty to use the preset template.")]
         public GameObject templateOverride;
         public SpliceFxElementStyle elementStyle;
+        [HideInInspector]
         public SpliceFxMotionModifier motionModifiers;
+
+        [Header("FX Motion Stack")]
+        [Tooltip("Motions are evaluated from top to bottom and can be blended together.")]
+        public List<SpliceFxMotionLayer> motions = new();
 
         [Header("Texture Pipeline")]
         public Texture2D sourceTexture;
@@ -54,6 +59,18 @@ namespace Splice.FxStudio
             schemaVersion = Mathf.Max(1, schemaVersion);
             lifetime = Mathf.Max(0.01f, lifetime);
             size = Mathf.Max(0.001f, size);
+            if (motions == null) motions = new List<SpliceFxMotionLayer>();
+            foreach (var motion in motions)
+            {
+                if (motion == null) continue;
+                motion.amount = Mathf.Max(0f, motion.amount);
+                motion.delaySeconds =
+                    Mathf.Max(0f, motion.delaySeconds);
+                motion.durationSeconds =
+                    Mathf.Max(0.01f, motion.durationSeconds);
+                if (motion.axis.sqrMagnitude < 0.0001f)
+                    motion.axis = Vector3.up;
+            }
         }
     }
 }

@@ -283,6 +283,9 @@ namespace Splice.FxStudio.Editor
             var driver = result.GetComponent<SpliceFxPropertyDriver>() ??
                          result.AddComponent<SpliceFxPropertyDriver>();
             driver.Configure(value);
+            var motion = result.GetComponent<SpliceFxMotionPlayer>() ??
+                         result.AddComponent<SpliceFxMotionPlayer>();
+            motion.Configure(value);
             var allowed =
                 (value.quality & SpliceFxQuality.MaskFor(quality)) != 0;
             result.SetActive(allowed);
@@ -305,6 +308,9 @@ namespace Splice.FxStudio.Editor
                 visual.transform.localRotation =
                     Quaternion.Euler(clip.localEulerAngles);
                 visual.transform.localScale = SanitizeScale(clip.localScale);
+                foreach (var motion in visual.GetComponentsInChildren<
+                             SpliceFxMotionPlayer>(true))
+                    motion.CaptureCurrentAsBase();
                 visual.SetActive(false);
                 layers.Add(new SpliceFxRuntimeLayer
                 {
@@ -355,6 +361,10 @@ namespace Splice.FxStudio.Editor
 
         private static void SimulateVisual(GameObject root, float time)
         {
+            foreach (var motion in
+                     root.GetComponentsInChildren<SpliceFxMotionPlayer>(
+                         true))
+                motion.EvaluatePreview(time);
             foreach (var particle in
                      root.GetComponentsInChildren<ParticleSystem>(true))
             {
@@ -375,6 +385,9 @@ namespace Splice.FxStudio.Editor
         private void RestartVisuals()
         {
             if (contentRoot == null) return;
+            foreach (var motion in contentRoot.GetComponentsInChildren<
+                         SpliceFxMotionPlayer>(true))
+                motion.RestartMotion();
             foreach (var runtime in contentRoot.GetComponentsInChildren<
                          SpliceFxSequenceRuntime>(true))
                 runtime.RestartSequence();

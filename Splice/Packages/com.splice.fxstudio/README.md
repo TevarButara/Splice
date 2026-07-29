@@ -7,7 +7,7 @@ Open **Splice > FX Studio > Open Studio**.
 Workflow:
 
 1. Install or extend the Preset Library.
-2. Create a SubFX asset, choose a preset, import/process a texture, then tune its exposed values.
+2. Create a SubFX asset, choose a preset, import/process a texture, tune its exposed values, then add Motion Stack layers or a Quick FX recipe.
 3. Add SubFX assets to a Blend Sequence and author timing, transform and quality availability.
 4. Bind one or more Blend Sequences to skill execution stages.
 5. Export. Generated textures, materials and prefabs are written only below the configured `Generated` folder.

@@ -43,6 +43,95 @@ namespace Splice.FxStudio
         Home = 1 << 6
     }
 
+    public enum SpliceFxMotionType
+    {
+        Spin,
+        Pulse,
+        Expand,
+        Contract,
+        Float,
+        Orbit,
+        Flicker,
+        FadeIn,
+        FadeOut,
+        UvScroll,
+        Shake
+    }
+
+    [Serializable]
+    public sealed class SpliceFxMotionLayer
+    {
+        public string label = "Motion";
+        public bool enabled = true;
+        public SpliceFxMotionType type;
+        [Tooltip("Spin uses degrees/second. Oscillating motions use cycles/second.")]
+        public float speed = 1f;
+        [Min(0f)] public float amount = 0.2f;
+        [Min(0f)] public float delaySeconds;
+        [Min(0.01f)] public float durationSeconds = 1f;
+        [Range(0f, 1f)] public float phase;
+        public bool loop = true;
+        public Vector3 axis = Vector3.up;
+        public Vector2 uvSpeed = new(0.2f, 0f);
+        public AnimationCurve curve =
+            AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
+
+        public static SpliceFxMotionLayer Create(
+            SpliceFxMotionType motionType)
+        {
+            var result = new SpliceFxMotionLayer
+            {
+                type = motionType,
+                label = motionType.ToString()
+            };
+            switch (motionType)
+            {
+                case SpliceFxMotionType.Spin:
+                    result.speed = 90f;
+                    result.amount = 1f;
+                    break;
+                case SpliceFxMotionType.Pulse:
+                    result.speed = 1.5f;
+                    result.amount = 0.18f;
+                    break;
+                case SpliceFxMotionType.Expand:
+                case SpliceFxMotionType.Contract:
+                    result.speed = 1f;
+                    result.amount = 0.8f;
+                    result.loop = false;
+                    break;
+                case SpliceFxMotionType.Float:
+                    result.speed = 1f;
+                    result.amount = 0.35f;
+                    break;
+                case SpliceFxMotionType.Orbit:
+                    result.speed = 0.75f;
+                    result.amount = 1f;
+                    break;
+                case SpliceFxMotionType.Flicker:
+                    result.speed = 8f;
+                    result.amount = 0.35f;
+                    break;
+                case SpliceFxMotionType.FadeIn:
+                case SpliceFxMotionType.FadeOut:
+                    result.speed = 1f;
+                    result.amount = 1f;
+                    result.loop = false;
+                    break;
+                case SpliceFxMotionType.UvScroll:
+                    result.speed = 1f;
+                    result.amount = 1f;
+                    result.uvSpeed = new Vector2(0.25f, 0f);
+                    break;
+                case SpliceFxMotionType.Shake:
+                    result.speed = 14f;
+                    result.amount = 0.08f;
+                    break;
+            }
+            return result;
+        }
+    }
+
     public enum SpliceFxAlphaMode
     {
         SourceAlpha,

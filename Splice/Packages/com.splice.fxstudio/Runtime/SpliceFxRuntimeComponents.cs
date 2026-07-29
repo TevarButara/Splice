@@ -184,6 +184,268 @@ namespace Splice.FxStudio
             string.IsNullOrWhiteSpace(value) ? fallback : value;
     }
 
+    [ExecuteAlways]
+    [DisallowMultipleComponent]
+    public sealed class SpliceFxMotionPlayer : MonoBehaviour
+    {
+        [SerializeField] private SpliceFxSubEffectDefinition definition;
+        private Vector3 basePosition;
+        private Quaternion baseRotation;
+        private Vector3 baseScale;
+        private double startedAt;
+        private bool captured;
+        private MaterialPropertyBlock propertyBlock;
+
+        public SpliceFxSubEffectDefinition Definition => definition;
+
+        public void Configure(SpliceFxSubEffectDefinition value)
+        {
+            definition = value;
+            CaptureCurrentAsBase();
+            RestartMotion();
+        }
+
+        public void CaptureCurrentAsBase()
+        {
+            basePosition = transform.localPosition;
+            baseRotation = transform.localRotation;
+            baseScale = transform.localScale;
+            captured = true;
+        }
+
+        public void RestartMotion()
+        {
+            if (!captured) CaptureCurrentAsBase();
+            startedAt = Now;
+            Evaluate(0f);
+        }
+
+        public void EvaluatePreview(float elapsedSeconds)
+        {
+            if (!captured) CaptureCurrentAsBase();
+            Evaluate(Mathf.Max(0f, elapsedSeconds));
+        }
+
+        private void OnEnable()
+        {
+            CaptureCurrentAsBase();
+            startedAt = Now;
+        }
+
+        private void OnDisable()
+        {
+            if (!captured) return;
+            transform.SetLocalPositionAndRotation(
+                basePosition, baseRotation);
+            transform.localScale = baseScale;
+            ApplyVisuals(1f, 1f, Vector2.zero);
+        }
+
+        private void Update()
+        {
+            if (definition == null) return;
+            Evaluate((float)(Now - startedAt));
+        }
+
+        private void Evaluate(float elapsed)
+        {
+            if (definition == null || !captured) return;
+            var position = basePosition;
+            var rotation = baseRotation;
+            var scaleMultiplier = 1f;
+            var brightness = 1f;
+            var opacity = 1f;
+            var uvOffset = Vector2.zero;
+
+            if (definition.motions != null &&
+                definition.motions.Count > 0)
+            {
+                foreach (var motion in definition.motions)
+                {
+                    if (motion?.enabled != true) continue;
+                    ApplyMotion(motion, elapsed, ref position,
+                        ref rotation, ref scaleMultiplier,
+                        ref brightness, ref opacity, ref uvOffset);
+                }
+            }
+            else
+            {
+                ApplyLegacy(definition.motionModifiers, elapsed,
+                    ref rotation, ref scaleMultiplier,
+                    ref position, definition.rotationSpeed);
+            }
+
+            transform.SetLocalPositionAndRotation(position, rotation);
+            transform.localScale =
+                baseScale * Mathf.Max(0.001f, scaleMultiplier);
+            ApplyVisuals(brightness, opacity, uvOffset);
+        }
+
+        private static void ApplyMotion(SpliceFxMotionLayer motion,
+            float elapsed, ref Vector3 position, ref Quaternion rotation,
+            ref float scale, ref float brightness, ref float opacity,
+            ref Vector2 uvOffset)
+        {
+            var local = elapsed - Mathf.Max(0f, motion.delaySeconds);
+            if (local < 0f) return;
+            var duration = Mathf.Max(0.01f, motion.durationSeconds);
+            var motionTime = motion.loop
+                ? local
+                : Mathf.Min(local, duration);
+            var normalized = motion.loop
+                ? Mathf.Repeat(local / duration, 1f)
+                : Mathf.Clamp01(local / duration);
+            var curve = motion.curve != null
+                ? motion.curve.Evaluate(normalized)
+                : normalized;
+            var axis = motion.axis.sqrMagnitude > 0.0001f
+                ? motion.axis.normalized
+                : Vector3.up;
+            var wave = Mathf.Sin(
+                (motionTime * motion.speed + motion.phase) *
+                Mathf.PI * 2f);
+            var amount = Mathf.Max(0f, motion.amount);
+
+            switch (motion.type)
+            {
+                case SpliceFxMotionType.Spin:
+                    rotation *= Quaternion.AngleAxis(
+                        motion.speed * motionTime, axis);
+                    break;
+                case SpliceFxMotionType.Pulse:
+                    scale *= Mathf.Max(0.001f, 1f + wave * amount);
+                    break;
+                case SpliceFxMotionType.Expand:
+                    scale *= 1f + curve * amount;
+                    break;
+                case SpliceFxMotionType.Contract:
+                    scale *= Mathf.Max(0.001f, 1f - curve * amount);
+                    break;
+                case SpliceFxMotionType.Float:
+                    position += axis * (wave * amount);
+                    break;
+                case SpliceFxMotionType.Orbit:
+                {
+                    var reference = Vector3.Cross(axis, Vector3.forward);
+                    if (reference.sqrMagnitude < 0.0001f)
+                        reference = Vector3.Cross(axis, Vector3.right);
+                    position += Quaternion.AngleAxis(
+                                    motion.speed * motionTime * 360f,
+                                    axis) *
+                                reference.normalized * amount;
+                    break;
+                }
+                case SpliceFxMotionType.Flicker:
+                    brightness *= Mathf.Lerp(
+                        Mathf.Max(0f, 1f - amount), 1f,
+                        wave * 0.5f + 0.5f);
+                    break;
+                case SpliceFxMotionType.FadeIn:
+                    opacity *= Mathf.Lerp(1f - Mathf.Clamp01(amount),
+                        1f, curve);
+                    break;
+                case SpliceFxMotionType.FadeOut:
+                    opacity *= Mathf.Lerp(1f,
+                        1f - Mathf.Clamp01(amount), curve);
+                    break;
+                case SpliceFxMotionType.UvScroll:
+                    uvOffset += motion.uvSpeed *
+                                (motion.speed * motionTime);
+                    break;
+                case SpliceFxMotionType.Shake:
+                {
+                    var sample = motionTime * Mathf.Max(
+                        0.01f, Mathf.Abs(motion.speed));
+                    position += new Vector3(
+                        Mathf.PerlinNoise(sample, 0.17f) * 2f - 1f,
+                        Mathf.PerlinNoise(0.31f, sample) * 2f - 1f,
+                        Mathf.PerlinNoise(sample, 0.73f) * 2f - 1f) *
+                                amount;
+                    break;
+                }
+            }
+        }
+
+        private static void ApplyLegacy(
+            SpliceFxMotionModifier modifiers, float elapsed,
+            ref Quaternion rotation, ref float scale,
+            ref Vector3 position, float spinSpeed)
+        {
+            if ((modifiers & SpliceFxMotionModifier.Spin) != 0)
+                rotation *= Quaternion.AngleAxis(
+                    elapsed * spinSpeed, Vector3.up);
+            if ((modifiers & SpliceFxMotionModifier.Pulse) != 0)
+                scale *= 1f + Mathf.Sin(elapsed * Mathf.PI * 3f) *
+                         0.18f;
+            if ((modifiers & SpliceFxMotionModifier.Expand) != 0)
+                scale *= Mathf.Lerp(1f, 1.8f,
+                    Mathf.Clamp01(elapsed));
+            if ((modifiers & SpliceFxMotionModifier.Contract) != 0)
+                scale *= Mathf.Lerp(1f, 0.2f,
+                    Mathf.Clamp01(elapsed));
+            if ((modifiers & SpliceFxMotionModifier.Noise) != 0)
+                position += new Vector3(
+                    Mathf.PerlinNoise(elapsed * 12f, 0f) - 0.5f,
+                    0f,
+                    Mathf.PerlinNoise(0f, elapsed * 12f) - 0.5f) *
+                            0.12f;
+        }
+
+        private void ApplyVisuals(float brightness, float opacity,
+            Vector2 uvOffset)
+        {
+            if (definition == null) return;
+            var color = definition.mainColor *
+                        (Mathf.Max(0f, brightness) *
+                         Mathf.Max(1f, definition.emission));
+            color.a = definition.mainColor.a *
+                      Mathf.Clamp01(opacity);
+            propertyBlock ??= new MaterialPropertyBlock();
+
+            foreach (var renderer in
+                     GetComponentsInChildren<Renderer>(true))
+            {
+                renderer.GetPropertyBlock(propertyBlock);
+                propertyBlock.SetColor("_BaseColor", color);
+                propertyBlock.SetColor("_Color", color);
+                propertyBlock.SetColor("_EmissionColor", color);
+                var textureTransform = new Vector4(
+                    1f, 1f, uvOffset.x, uvOffset.y);
+                propertyBlock.SetVector("_BaseMap_ST",
+                    textureTransform);
+                propertyBlock.SetVector("_MainTex_ST",
+                    textureTransform);
+                renderer.SetPropertyBlock(propertyBlock);
+            }
+
+            foreach (var particle in
+                     GetComponentsInChildren<ParticleSystem>(true))
+            {
+                var main = particle.main;
+                main.startColor = color;
+            }
+
+            foreach (var visual in
+                     GetComponentsInChildren<VisualEffect>(true))
+            {
+                if (visual.visualEffectAsset == null) continue;
+                var colorProperty = string.IsNullOrWhiteSpace(
+                    definition.preset?.mainColorProperty)
+                    ? "MainColor"
+                    : definition.preset.mainColorProperty;
+                var colorId = Shader.PropertyToID(colorProperty);
+                if (visual.HasVector4(colorId))
+                    visual.SetVector4(colorId, color);
+                var uvId = Shader.PropertyToID("UVOffset");
+                if (visual.HasVector2(uvId))
+                    visual.SetVector2(uvId, uvOffset);
+            }
+        }
+
+        private static double Now =>
+            Time.realtimeSinceStartupAsDouble;
+    }
+
     [Serializable]
     public sealed class SpliceFxRuntimeLayer
     {
@@ -287,6 +549,10 @@ namespace Splice.FxStudio
 
         private static void Restart(GameObject root)
         {
+            foreach (var motion in
+                     root.GetComponentsInChildren<SpliceFxMotionPlayer>(
+                         true))
+                motion.RestartMotion();
             foreach (var particle in root.GetComponentsInChildren<ParticleSystem>(true))
             {
                 particle.Stop(true,
@@ -307,6 +573,10 @@ namespace Splice.FxStudio
 
         private static void SimulateAt(GameObject root, float seconds)
         {
+            foreach (var motion in
+                     root.GetComponentsInChildren<SpliceFxMotionPlayer>(
+                         true))
+                motion.EvaluatePreview(seconds);
             foreach (var particle in
                      root.GetComponentsInChildren<ParticleSystem>(true))
             {

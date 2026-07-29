@@ -36,6 +36,8 @@ namespace Splice.FxStudio.Editor
         private UnityEngine.Object abilityAsset;
         private SpliceFxPreviewViewport previewViewport;
         private int previewStageIndex;
+        private SpliceFxMotionType motionToAdd =
+            SpliceFxMotionType.Spin;
 
         [MenuItem("Splice/FX Studio/Open Studio", priority = 1700)]
         public static void Open()
@@ -238,7 +240,8 @@ namespace Splice.FxStudio.Editor
                 return;
             }
 
-            DrawSerializedAsset(subFx);
+            DrawSerializedAsset(subFx, "motions", "motionModifiers");
+            DrawMotionStack(subFx);
             EditorGUILayout.Space(8f);
             using (new EditorGUILayout.HorizontalScope())
             {
@@ -436,7 +439,200 @@ namespace Splice.FxStudio.Editor
             }
         }
 
-        private static void DrawSerializedAsset(UnityEngine.Object asset)
+        private void DrawMotionStack(
+            SpliceFxSubEffectDefinition value)
+        {
+            EditorGUILayout.Space(10f);
+            Section("FX Motion Stack");
+            EditorGUILayout.HelpBox(
+                "Add one or more motions. They blend from top to bottom and play immediately in Live Preview.",
+                MessageType.Info);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label("Add FX", GUILayout.Width(58f));
+                motionToAdd =
+                    (SpliceFxMotionType)EditorGUILayout.EnumPopup(
+                        motionToAdd);
+                if (GUILayout.Button("Add Motion",
+                        GUILayout.Width(105f)))
+                    AddMotion(value, motionToAdd);
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label("Quick FX", GUILayout.Width(58f));
+                if (GUILayout.Button("Magic Circle"))
+                    AddRecipe(value, SpliceFxMotionType.Spin,
+                        SpliceFxMotionType.Pulse,
+                        SpliceFxMotionType.FadeIn);
+                if (GUILayout.Button("Impact Pop"))
+                    AddRecipe(value, SpliceFxMotionType.Expand,
+                        SpliceFxMotionType.Flicker,
+                        SpliceFxMotionType.FadeOut);
+                if (GUILayout.Button("Energy Flow"))
+                    AddRecipe(value, SpliceFxMotionType.UvScroll,
+                        SpliceFxMotionType.Pulse);
+                if (GUILayout.Button("Floating Aura"))
+                    AddRecipe(value, SpliceFxMotionType.Float,
+                        SpliceFxMotionType.Pulse,
+                        SpliceFxMotionType.Flicker);
+            }
+
+            var serialized = new SerializedObject(value);
+            serialized.Update();
+            var list = serialized.FindProperty("motions");
+            if (list == null || list.arraySize == 0)
+            {
+                EditorGUILayout.HelpBox(
+                    value.motionModifiers != SpliceFxMotionModifier.None
+                        ? $"Legacy motion '{value.motionModifiers}' is active. Add a Motion Stack item to replace it with editable controls."
+                        : "No motion yet. The image will remain still until you add an FX motion.",
+                    MessageType.Warning);
+                return;
+            }
+
+            for (var i = 0; i < list.arraySize; i++)
+            {
+                var item = list.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(
+                           EditorStyles.helpBox))
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        EditorGUILayout.PropertyField(
+                            item.FindPropertyRelative("enabled"),
+                            GUIContent.none, GUILayout.Width(18f));
+                        EditorGUILayout.PropertyField(
+                            item.FindPropertyRelative("label"),
+                            GUIContent.none);
+                        EditorGUILayout.PropertyField(
+                            item.FindPropertyRelative("type"),
+                            GUIContent.none, GUILayout.Width(92f));
+                        GUI.enabled = i > 0;
+                        if (GUILayout.Button("↑", GUILayout.Width(24f)))
+                        {
+                            list.MoveArrayElement(i, i - 1);
+                            serialized.ApplyModifiedProperties();
+                            GUI.enabled = true;
+                            return;
+                        }
+                        GUI.enabled = i < list.arraySize - 1;
+                        if (GUILayout.Button("↓", GUILayout.Width(24f)))
+                        {
+                            list.MoveArrayElement(i, i + 1);
+                            serialized.ApplyModifiedProperties();
+                            GUI.enabled = true;
+                            return;
+                        }
+                        GUI.enabled = true;
+                        if (GUILayout.Button("×", GUILayout.Width(24f)))
+                        {
+                            list.DeleteArrayElementAtIndex(i);
+                            serialized.ApplyModifiedProperties();
+                            return;
+                        }
+                    }
+                    DrawMotionFields(item);
+                }
+            }
+            if (serialized.ApplyModifiedProperties())
+                EditorUtility.SetDirty(value);
+        }
+
+        private static void DrawMotionFields(SerializedProperty item)
+        {
+            var typeProperty = item.FindPropertyRelative("type");
+            var type = (SpliceFxMotionType)typeProperty.enumValueIndex;
+            var speed = item.FindPropertyRelative("speed");
+            var amount = item.FindPropertyRelative("amount");
+            var delay = item.FindPropertyRelative("delaySeconds");
+            var duration = item.FindPropertyRelative("durationSeconds");
+            var phase = item.FindPropertyRelative("phase");
+            var loop = item.FindPropertyRelative("loop");
+            var axis = item.FindPropertyRelative("axis");
+            var uvSpeed = item.FindPropertyRelative("uvSpeed");
+            var curve = item.FindPropertyRelative("curve");
+
+            EditorGUILayout.PropertyField(speed,
+                new GUIContent(type == SpliceFxMotionType.Spin
+                    ? "Degrees / Second"
+                    : "Speed"));
+            if (type != SpliceFxMotionType.UvScroll &&
+                type != SpliceFxMotionType.Spin)
+                EditorGUILayout.PropertyField(amount,
+                    new GUIContent(MotionAmountLabel(type)));
+            EditorGUILayout.PropertyField(delay,
+                new GUIContent("Start Delay"));
+
+            if (type is SpliceFxMotionType.Expand or
+                SpliceFxMotionType.Contract or
+                SpliceFxMotionType.FadeIn or
+                SpliceFxMotionType.FadeOut)
+            {
+                EditorGUILayout.PropertyField(duration,
+                    new GUIContent("Duration"));
+                EditorGUILayout.PropertyField(curve,
+                    new GUIContent("Motion Curve"));
+                EditorGUILayout.PropertyField(loop);
+            }
+            else if (type is SpliceFxMotionType.Pulse or
+                     SpliceFxMotionType.Float or
+                     SpliceFxMotionType.Flicker)
+            {
+                EditorGUILayout.PropertyField(phase,
+                    new GUIContent("Phase Offset"));
+            }
+
+            if (type is SpliceFxMotionType.Spin or
+                SpliceFxMotionType.Float or
+                SpliceFxMotionType.Orbit)
+                EditorGUILayout.PropertyField(axis,
+                    new GUIContent("Axis"));
+            if (type == SpliceFxMotionType.UvScroll)
+                EditorGUILayout.PropertyField(uvSpeed,
+                    new GUIContent("UV Direction / Speed"));
+        }
+
+        private static string MotionAmountLabel(
+            SpliceFxMotionType type) =>
+            type switch
+            {
+                SpliceFxMotionType.Pulse => "Scale Amount",
+                SpliceFxMotionType.Expand => "Expand Amount",
+                SpliceFxMotionType.Contract => "Contract Amount",
+                SpliceFxMotionType.Float => "Move Distance",
+                SpliceFxMotionType.Orbit => "Orbit Radius",
+                SpliceFxMotionType.Flicker => "Flicker Strength",
+                SpliceFxMotionType.FadeIn => "Fade Strength",
+                SpliceFxMotionType.FadeOut => "Fade Strength",
+                SpliceFxMotionType.Shake => "Shake Distance",
+                _ => "Amount"
+            };
+
+        private static void AddMotion(
+            SpliceFxSubEffectDefinition value,
+            SpliceFxMotionType type)
+        {
+            Undo.RecordObject(value, "Add FX Motion");
+            value.motions ??= new List<SpliceFxMotionLayer>();
+            value.motions.Add(SpliceFxMotionLayer.Create(type));
+            EditorUtility.SetDirty(value);
+        }
+
+        private static void AddRecipe(
+            SpliceFxSubEffectDefinition value,
+            params SpliceFxMotionType[] types)
+        {
+            Undo.RecordObject(value, "Add FX Motion Recipe");
+            value.motions ??= new List<SpliceFxMotionLayer>();
+            foreach (var type in types)
+                value.motions.Add(SpliceFxMotionLayer.Create(type));
+            EditorUtility.SetDirty(value);
+        }
+
+        private static void DrawSerializedAsset(UnityEngine.Object asset,
+            params string[] excludedPropertyPaths)
         {
             var serialized = new SerializedObject(asset);
             serialized.Update();
@@ -446,6 +642,9 @@ namespace Splice.FxStudio.Editor
             {
                 enterChildren = false;
                 if (iterator.propertyPath == "m_Script") continue;
+                if (Array.IndexOf(excludedPropertyPaths,
+                        iterator.propertyPath) >= 0)
+                    continue;
                 EditorGUILayout.PropertyField(iterator, true);
             }
             if (serialized.ApplyModifiedProperties())

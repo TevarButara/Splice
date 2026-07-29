@@ -34,6 +34,9 @@ namespace Splice.FxStudio.Editor
                 var driver = root.GetComponent<SpliceFxPropertyDriver>() ??
                              root.AddComponent<SpliceFxPropertyDriver>();
                 driver.Configure(subFx);
+                var motion = root.GetComponent<SpliceFxMotionPlayer>() ??
+                             root.AddComponent<SpliceFxMotionPlayer>();
+                motion.Configure(subFx);
                 var metadata =
                     root.GetComponent<SpliceFxGeneratedMetadata>() ??
                     root.AddComponent<SpliceFxGeneratedMetadata>();
