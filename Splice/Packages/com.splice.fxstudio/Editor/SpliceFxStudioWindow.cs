@@ -34,13 +34,15 @@ namespace Splice.FxStudio.Editor
         private SpliceFxBlendSequence sequence;
         private SpliceFxSkillPackage skillPackage;
         private UnityEngine.Object abilityAsset;
+        private SpliceFxPreviewViewport previewViewport;
+        private int previewStageIndex;
 
         [MenuItem("Splice/FX Studio/Open Studio", priority = 1700)]
         public static void Open()
         {
             var window = GetWindow<SpliceFxStudioWindow>();
             window.titleContent = new GUIContent("Splice FX Studio");
-            window.minSize = new Vector2(720f, 560f);
+            window.minSize = new Vector2(1040f, 650f);
             window.Show();
         }
 
@@ -49,9 +51,14 @@ namespace Splice.FxStudio.Editor
             registry =
                 AssetDatabase.LoadAssetAtPath<SpliceFxPresetRegistry>(
                     SpliceFxStarterLibrary.RegistryPath);
+            previewViewport ??= new SpliceFxPreviewViewport(Repaint);
         }
 
-        private void OnDisable() => SpliceFxPreview.Stop();
+        private void OnDisable()
+        {
+            previewViewport?.Dispose();
+            previewViewport = null;
+        }
 
         private void OnGUI()
         {
@@ -59,37 +66,45 @@ namespace Splice.FxStudio.Editor
             tab = (Tab)GUILayout.Toolbar((int)tab, TabLabels,
                 GUILayout.Height(30f));
             EditorGUILayout.Space(6f);
-            scroll = EditorGUILayout.BeginScrollView(scroll);
-            try
+            using (new EditorGUILayout.HorizontalScope())
             {
-                switch (tab)
+                using (new EditorGUILayout.VerticalScope(
+                           GUILayout.MinWidth(560f)))
                 {
-                    case Tab.Create:
-                        DrawCreate();
-                        break;
-                    case Tab.SubFX:
-                        DrawSubFx();
-                        break;
-                    case Tab.Blend:
-                        DrawBlend();
-                        break;
-                    case Tab.BindExport:
-                        DrawBindExport();
-                        break;
-                    case Tab.Validate:
-                        DrawValidate();
-                        break;
+                    scroll = EditorGUILayout.BeginScrollView(scroll);
+                    try
+                    {
+                        switch (tab)
+                        {
+                            case Tab.Create:
+                                DrawCreate();
+                                break;
+                            case Tab.SubFX:
+                                DrawSubFx();
+                                break;
+                            case Tab.Blend:
+                                DrawBlend();
+                                break;
+                            case Tab.BindExport:
+                                DrawBindExport();
+                                break;
+                            case Tab.Validate:
+                                DrawValidate();
+                                break;
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        EditorGUILayout.HelpBox(exception.Message,
+                            MessageType.Error);
+                        Debug.LogException(exception);
+                    }
+                    finally
+                    {
+                        EditorGUILayout.EndScrollView();
+                    }
                 }
-            }
-            catch (Exception exception)
-            {
-                EditorGUILayout.HelpBox(exception.Message,
-                    MessageType.Error);
-                Debug.LogException(exception);
-            }
-            finally
-            {
-                EditorGUILayout.EndScrollView();
+                DrawPreviewPanel();
             }
         }
 
@@ -243,15 +258,10 @@ namespace Splice.FxStudio.Editor
                     Selection.activeObject = prefab;
                     EditorGUIUtility.PingObject(prefab);
                 }
-                if (GUILayout.Button("Preview", GUILayout.Height(34f)))
-                {
-                    var prefab = SpliceFxExporter.ExportSubFx(subFx);
-                    SpliceFxPreview.Show(prefab);
-                }
-                GUI.enabled = true;
-                if (GUILayout.Button("Stop Preview",
+                if (GUILayout.Button("Replay Preview",
                         GUILayout.Height(34f)))
-                    SpliceFxPreview.Stop();
+                    previewViewport?.Replay();
+                GUI.enabled = true;
             }
             EditorGUILayout.HelpBox(
                 "Alpha processing is non-destructive. Source images are never modified; mobile ASTC textures are generated below Assets/SpliceFXStudio/Generated.",
@@ -301,13 +311,9 @@ namespace Splice.FxStudio.Editor
                     var prefab = SpliceFxExporter.ExportBlend(sequence);
                     Selection.activeObject = prefab;
                 }
-                if (GUILayout.Button("Preview Blend",
+                if (GUILayout.Button("Replay Preview",
                         GUILayout.Height(30f)))
-                    SpliceFxPreview.Show(
-                        SpliceFxExporter.ExportBlend(sequence));
-                if (GUILayout.Button("Stop Preview",
-                        GUILayout.Height(30f)))
-                    SpliceFxPreview.Stop();
+                    previewViewport?.Replay();
             }
             DrawSerializedAsset(sequence);
         }
@@ -325,6 +331,22 @@ namespace Splice.FxStudio.Editor
                     "Choose a Skill FX Package or create one in the Create tab.",
                     MessageType.Info);
                 return;
+            }
+            previewStageIndex = Mathf.Clamp(
+                previewStageIndex, 0,
+                Mathf.Max(0, skillPackage.stages.Count - 1));
+            if (skillPackage.stages.Count > 0)
+            {
+                var stageNames = new string[skillPackage.stages.Count];
+                for (var i = 0; i < stageNames.Length; i++)
+                {
+                    var binding = skillPackage.stages[i];
+                    stageNames[i] = binding != null
+                        ? $"{i + 1}. {binding.stage}"
+                        : $"{i + 1}. Empty";
+                }
+                previewStageIndex = EditorGUILayout.Popup(
+                    "Preview Stage", previewStageIndex, stageNames);
             }
             DrawSerializedAsset(skillPackage);
 
@@ -503,54 +525,50 @@ namespace Splice.FxStudio.Editor
                     fontSize = 13
                 });
         }
-    }
 
-    internal static class SpliceFxPreview
-    {
-        private static GameObject instance;
-
-        public static void Show(GameObject prefab)
+        private void DrawPreviewPanel()
         {
-            Stop();
-            if (prefab == null) return;
-            instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
-            if (instance == null)
-                instance = UnityEngine.Object.Instantiate(prefab);
-            instance.name = "[Splice FX Preview]";
-            instance.hideFlags = HideFlags.HideAndDontSave;
-            instance.transform.SetPositionAndRotation(
-                PreviewPosition(), Quaternion.identity);
-            instance.SetActive(true);
-            Selection.activeGameObject = instance;
-            SceneView.lastActiveSceneView?.FrameSelected();
-            EditorApplication.update -= Repaint;
-            EditorApplication.update += Repaint;
-        }
-
-        public static void Stop()
-        {
-            EditorApplication.update -= Repaint;
-            if (instance != null)
-                UnityEngine.Object.DestroyImmediate(instance);
-            instance = null;
-            SceneView.RepaintAll();
-        }
-
-        private static Vector3 PreviewPosition()
-        {
-            var view = SceneView.lastActiveSceneView;
-            return view != null ? view.pivot : Vector3.zero;
-        }
-
-        private static void Repaint()
-        {
-            if (instance == null)
+            previewViewport ??= new SpliceFxPreviewViewport(Repaint);
+            switch (tab)
             {
-                Stop();
-                return;
+                case Tab.Create:
+                    previewViewport.SetSource(
+                        creationPreset,
+                        SpliceFxPreviewSourceKind.Preset);
+                    break;
+                case Tab.SubFX:
+                    previewViewport.SetSource(
+                        subFx,
+                        SpliceFxPreviewSourceKind.SubFx);
+                    break;
+                case Tab.Blend:
+                    previewViewport.SetSource(
+                        sequence,
+                        SpliceFxPreviewSourceKind.Blend);
+                    break;
+                case Tab.BindExport:
+                    previewViewport.SetSource(
+                        skillPackage,
+                        SpliceFxPreviewSourceKind.SkillStage,
+                        previewStageIndex);
+                    break;
+                case Tab.Validate:
+                    if (skillPackage != null)
+                        previewViewport.SetSource(
+                            skillPackage,
+                            SpliceFxPreviewSourceKind.SkillStage,
+                            previewStageIndex);
+                    else if (sequence != null)
+                        previewViewport.SetSource(
+                            sequence,
+                            SpliceFxPreviewSourceKind.Blend);
+                    else
+                        previewViewport.SetSource(
+                            subFx,
+                            SpliceFxPreviewSourceKind.SubFx);
+                    break;
             }
-            EditorApplication.QueuePlayerLoopUpdate();
-            SceneView.RepaintAll();
+            previewViewport.Draw();
         }
     }
 }

@@ -146,5 +146,66 @@ namespace Splice.FxStudio.Editor.Tests
                 Object.DestroyImmediate(template);
             }
         }
+
+        [Test]
+        public void PropertyDriver_CanBeAddedWithoutConstructorSideEffects()
+        {
+            var root = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            var definition =
+                ScriptableObject.CreateInstance<SpliceFxSubEffectDefinition>();
+            try
+            {
+                var driver = root.AddComponent<SpliceFxPropertyDriver>();
+
+                Assert.DoesNotThrow(() => driver.Configure(definition));
+                Assert.That(driver.Definition, Is.SameAs(definition));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void SequencePreview_RespectsTimeAndQualityMask()
+        {
+            var root = new GameObject("Sequence");
+            var visual = new GameObject("Low Quality Layer");
+            visual.transform.SetParent(root.transform);
+            var runtime = root.AddComponent<SpliceFxSequenceRuntime>();
+            try
+            {
+                runtime.ConfigureEditor(
+                    new System.Collections.Generic.List<
+                        SpliceFxRuntimeLayer>
+                    {
+                        new()
+                        {
+                            visual = visual,
+                            startSeconds = 0.25f,
+                            durationSeconds = 0.5f,
+                            quality = SpliceFxQualityMask.Low
+                        }
+                    },
+                    1f);
+
+                runtime.EvaluatePreview(0.4f,
+                    SpliceFxQualityTier.High);
+                Assert.That(visual.activeSelf, Is.False);
+
+                runtime.EvaluatePreview(0.4f,
+                    SpliceFxQualityTier.Low);
+                Assert.That(visual.activeSelf, Is.True);
+
+                runtime.EvaluatePreview(0.9f,
+                    SpliceFxQualityTier.Low);
+                Assert.That(visual.activeSelf, Is.False);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
     }
 }

@@ -52,6 +52,24 @@ Splice > FX Studio > Open Studio
 4. `Bind & Export`
 5. `Validate`
 
+## Live Preview
+
+ทุกแท็บมี Preview Stage อยู่ทางขวาของหน้าต่าง จึงเห็นหน้าตาและสเกลของ Effect ระหว่างปรับค่าโดยไม่ต้อง Export หรือเข้า Play Mode
+
+ความสามารถ:
+
+- Preset tab แสดง template ตัวอย่าง
+- SubFX Lab อัปเดตสี, texture, emission, size, radius, speed และ lifetime จาก asset
+- Blend Timeline แสดงทุก layer ตาม start/duration/loop
+- Bind & Export เลือกดู Cast, Launch, Travel, Impact, Persistent และ End แยก stage
+- Play/Pause/Replay และเลื่อน Time slider เพื่อดูเฟรมที่ต้องการ
+- สลับ High/Medium/Low เพื่อดู layer ที่จะทำงานจริงในแต่ละระดับเครื่อง
+- หมุนกล้องด้วยการลากเมาส์และซูมด้วย scroll wheel
+- เปลี่ยนสีพื้นหลังและเปิด Hero Scale wireframe สูง 2 เมตรเพื่อเทียบขนาด
+- พื้นกริดหนึ่งช่องเท่ากับหนึ่ง Unity unit
+
+Preview ใช้ `PreviewRenderUtility` และ object แบบ `HideAndDontSave` จึงไม่เพิ่ม GameObject ลง Scene, ไม่ทำให้ Scene dirty และไม่แก้ source prefab
+
 ## Starter Presets
 
 ชุดเริ่มต้นติดตั้งแล้ว:

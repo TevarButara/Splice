@@ -10,7 +10,7 @@ namespace Splice.FxStudio
     public sealed class SpliceFxPropertyDriver : MonoBehaviour
     {
         [SerializeField] private SpliceFxSubEffectDefinition definition;
-        private readonly MaterialPropertyBlock propertyBlock = new();
+        private MaterialPropertyBlock propertyBlock;
 
         public SpliceFxSubEffectDefinition Definition => definition;
 
@@ -88,6 +88,7 @@ namespace Splice.FxStudio
         private void ApplyRenderer(Renderer renderer)
         {
             if (renderer == null) return;
+            propertyBlock ??= new MaterialPropertyBlock();
             renderer.GetPropertyBlock(propertyBlock);
             var texture = definition.EffectiveTexture;
             if (texture != null)
@@ -214,6 +215,18 @@ namespace Splice.FxStudio
             ResetLayers();
         }
 
+        public void RestartSequence()
+        {
+            startedAt = Now;
+            ResetLayers();
+        }
+
+        public void EvaluatePreview(float elapsedSeconds,
+            SpliceFxQualityTier quality)
+        {
+            Evaluate(Mathf.Max(0f, elapsedSeconds), quality, true);
+        }
+
         private void OnEnable()
         {
             startedAt = Now;
@@ -225,7 +238,13 @@ namespace Splice.FxStudio
         private void Update()
         {
             var elapsed = (float)(Now - startedAt);
-            var activeQuality = SpliceFxQuality.MaskFor(SpliceFxQuality.Current);
+            Evaluate(elapsed, SpliceFxQuality.Current, false);
+        }
+
+        private void Evaluate(float elapsed, SpliceFxQualityTier quality,
+            bool forceExactTime)
+        {
+            var activeQuality = SpliceFxQuality.MaskFor(quality);
             foreach (var layer in layers)
             {
                 if (layer?.visual == null) continue;
@@ -235,12 +254,24 @@ namespace Splice.FxStudio
                                      elapsed >= Mathf.Max(0f, layer.startSeconds) &&
                                      (layer.loop ||
                                       elapsed < layer.startSeconds + localDuration);
-                if (shouldBeActive == layer.active &&
+                if (!forceExactTime &&
+                    shouldBeActive == layer.active &&
                     layer.visual.activeSelf == shouldBeActive)
                     continue;
                 layer.active = shouldBeActive;
                 layer.visual.SetActive(shouldBeActive);
-                if (shouldBeActive) Restart(layer.visual);
+                if (!shouldBeActive) continue;
+                if (!forceExactTime)
+                {
+                    Restart(layer.visual);
+                    continue;
+                }
+
+                var localTime = Mathf.Max(0f,
+                    elapsed - Mathf.Max(0f, layer.startSeconds));
+                if (layer.loop)
+                    localTime %= localDuration;
+                SimulateAt(layer.visual, localTime);
             }
         }
 
@@ -271,6 +302,32 @@ namespace Splice.FxStudio
             {
                 visual.Reinit();
                 visual.Play();
+            }
+        }
+
+        private static void SimulateAt(GameObject root, float seconds)
+        {
+            foreach (var particle in
+                     root.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                particle.Stop(true,
+                    ParticleSystemStopBehavior.StopEmittingAndClear);
+                particle.Simulate(seconds, true, true, true);
+                particle.Pause(true);
+            }
+            foreach (var trail in
+                     root.GetComponentsInChildren<TrailRenderer>(true))
+            {
+                trail.Clear();
+                trail.emitting = true;
+            }
+            foreach (var visual in
+                     root.GetComponentsInChildren<VisualEffect>(true))
+            {
+                visual.Reinit();
+                if (seconds > 0f)
+                    visual.Simulate(seconds, 1);
+                visual.pause = true;
             }
         }
 
