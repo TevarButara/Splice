@@ -146,6 +146,10 @@ namespace Splice.Characters
         private bool normalAttackPending;
         private float nextAutoCombatActionAt;
         private int nextAutoSkillIndex;
+        private readonly NetworkVariable<bool> abilityExecutionActive = new(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
         private Vector3 lastPresentationPosition;
         private float lastPresentationMovementTime;
         private float actionAnimationUntil;
@@ -205,6 +209,7 @@ namespace Splice.Characters
             RaidContext.Target?.isIncomingDefense == true ||
             RaidSessionContext.Current?.isIncomingDefense == true;
         public bool CanLocalPlayerControl => CanAcceptControlIntent(IsOwner);
+        public bool IsExecutingAbility => abilityExecutionActive.Value;
 
         // Network ownership is not gameplay-role authority. In the local incoming-defense simulation the
         // host owns the synthetic attacker for replication, but the local player is only the defender viewer.
@@ -334,6 +339,7 @@ namespace Splice.Characters
             nextAutoCombatActionAt = 0f;
             nextAutoSkillIndex = 0;
             pendingAbilityDots.Clear();
+            abilityExecutionActive.Value = false;
         }
 
         private void Update()
@@ -364,6 +370,7 @@ namespace Splice.Characters
             }
 
             if (!CanAct || (RaidManager.Instance != null && RaidManager.Instance.IsOver)) return;
+            if (abilityExecutionActive.Value) return;
 
             attackTimer += Time.deltaTime;
             if (controlMode.Value == HeroControlMode.Auto) TickCombat();
@@ -678,7 +685,10 @@ namespace Splice.Characters
         [ServerRpc(RequireOwnership = false)]
         public void RequestMoveServerRpc(Vector2 worldDirectionXZ, ServerRpcParams rpcParams = default)
         {
-            if (!CanControl(rpcParams.Receive.SenderClientId) || controlMode.Value != HeroControlMode.Manual || !CanAct)
+            if (!CanControl(rpcParams.Receive.SenderClientId) ||
+                controlMode.Value != HeroControlMode.Manual ||
+                !CanAct ||
+                abilityExecutionActive.Value)
                 return;
             manualInput = Vector2.ClampMagnitude(worldDirectionXZ, 1f);
             lastManualInputTime = Time.time;
@@ -756,7 +766,10 @@ namespace Splice.Characters
         public void RequestNormalAttackServerRpc(ServerRpcParams rpcParams = default)
         {
             if (!CanControl(rpcParams.Receive.SenderClientId)) return;
-            if (!CanAct || definition == null || (RaidManager.Instance != null && RaidManager.Instance.IsOver))
+            if (!CanAct ||
+                abilityExecutionActive.Value ||
+                definition == null ||
+                (RaidManager.Instance != null && RaidManager.Instance.IsOver))
             {
                 PublishFeedback(HeroFeedback.AbilityUnavailable);
                 return;
@@ -792,7 +805,10 @@ namespace Splice.Characters
         {
             lastAbilitySlot.Value = slot;
             var ability = GetAbility(slot);
-            if (ability == null || !CanAct || (RaidManager.Instance != null && RaidManager.Instance.IsOver))
+            if (ability == null ||
+                !CanAct ||
+                abilityExecutionActive.Value ||
+                (RaidManager.Instance != null && RaidManager.Instance.IsOver))
             {
                 PublishFeedback(HeroFeedback.AbilityUnavailable);
                 return;
@@ -818,6 +834,16 @@ namespace Splice.Characters
             if (!hasLockedTarget) hasLockedTarget = TryResolveFocusTarget(out lockedTarget);
             if (ability.castType == HeroAbilityCastType.LockedTarget && hasLockedTarget)
                 requestedTargetPoint = lockedTarget.transform.position;
+
+            if (ability.execution != null)
+            {
+                CastCustomExecution(
+                    slot,
+                    ability,
+                    requestedTargetPoint,
+                    hasLockedTarget ? lockedTarget : null);
+                return;
+            }
 
             if (ability.effect == HeroAbilityEffect.ForwardBlink)
             {
@@ -862,6 +888,150 @@ namespace Splice.Characters
                 hitCount > 0 ? HeroFeedback.AbilityCast : HeroFeedback.AbilityNoTargets,
                 hitCount);
             PlayAbilityPresentationClientRpc(slot, targetPoint, transform.position);
+        }
+
+        private void CastCustomExecution(
+            HeroAbilitySlot slot,
+            HeroAbilityDefinitionSO ability,
+            Vector3 requestedTargetPoint,
+            CharacterBase preferredTarget)
+        {
+            var origin = transform.position;
+            var initialTargets = CollectExecutionTargets(
+                origin, Mathf.Max(0.1f, ability.castRange));
+            if (preferredTarget != null &&
+                !initialTargets.Contains(preferredTarget))
+                preferredTarget = null;
+            preferredTarget ??= FindExecutionTargetNearestPoint(
+                initialTargets, requestedTargetPoint);
+            if (initialTargets.Count == 0 || preferredTarget == null)
+            {
+                PublishFeedback(HeroFeedback.AbilityNoTargets);
+                return;
+            }
+
+            abilityExecutionActive.Value = true;
+            manualInput = Vector2.zero;
+            normalAttackPending = false;
+            pendingNormalAttackTarget = null;
+
+            var capturedTargets = new List<CharacterBase>(initialTargets);
+            var context = new HeroAbilityExecutionContext
+            {
+                CoroutineHost = this,
+                HeroTransform = transform,
+                Ability = ability,
+                Slot = slot,
+                CastOrigin = origin,
+                PreferredTarget = preferredTarget,
+                ResolveTargets = () => new List<CharacterBase>(capturedTargets),
+                IsValidTarget = target =>
+                    abilityExecutionActive.Value &&
+                    target != null &&
+                    !target.IsDead &&
+                    IsValidFocusTarget(target),
+                CanContinue = () =>
+                    abilityExecutionActive.Value &&
+                    CanAct &&
+                    (RaidManager.Instance == null || !RaidManager.Instance.IsOver),
+                ResolveGroundedDestination = ResolveExecutionDestination,
+                Face = Face,
+                ApplyDamage = (target, amount) =>
+                {
+                    if (target != null && !target.IsDead && amount > 0)
+                        target.ApplyDamage(amount, this);
+                },
+                Present = (stage, from, to, lifetime) =>
+                    PlayAbilityExecutionStageClientRpc(
+                        slot, stage, from, to, lifetime),
+                Completed = hitCount =>
+                {
+                    abilityExecutionActive.Value = false;
+                    manualInput = Vector2.zero;
+                    PublishFeedback(
+                        hitCount > 0
+                            ? HeroFeedback.AbilityCast
+                            : HeroFeedback.AbilityNoTargets,
+                        hitCount);
+                }
+            };
+
+            if (!ability.execution.TryStart(context))
+            {
+                abilityExecutionActive.Value = false;
+                PublishFeedback(HeroFeedback.AbilityNoTargets);
+                return;
+            }
+
+            ConsumeMana(ability.manaCost);
+            SetAbilityCooldown(slot, ability.cooldownSeconds);
+            PublishFeedback(HeroFeedback.AbilityCast, initialTargets.Count);
+        }
+
+        private List<CharacterBase> CollectExecutionTargets(
+            Vector3 origin,
+            float range)
+        {
+            var result = new List<CharacterBase>();
+            var rangeSqr = range * range;
+
+            var towers = TowerCharacter.Active;
+            for (var i = 0; i < towers.Count; i++)
+            {
+                var tower = towers[i];
+                if (tower == null || tower.IsDead || tower is FortCore) continue;
+                if (HorizontalSqrDistance(tower.transform.position, origin) <= rangeSqr)
+                    result.Add(tower);
+            }
+
+            var monsters = MonsterCharacter.Active;
+            for (var i = 0; i < monsters.Count; i++)
+            {
+                var monster = monsters[i];
+                if (monster == null || monster.IsDead || monster.Side == side) continue;
+                if (HorizontalSqrDistance(monster.transform.position, origin) <= rangeSqr)
+                    result.Add(monster);
+            }
+
+            for (var i = 0; i < instances.Count; i++)
+            {
+                var hero = instances[i];
+                if (hero == null || hero == this || hero.IsDead || hero.side == side) continue;
+                if (HorizontalSqrDistance(hero.transform.position, origin) <= rangeSqr)
+                    result.Add(hero);
+            }
+            return result;
+        }
+
+        private static CharacterBase FindExecutionTargetNearestPoint(
+            IReadOnlyList<CharacterBase> targets,
+            Vector3 point)
+        {
+            CharacterBase nearest = null;
+            var bestSqr = float.PositiveInfinity;
+            if (targets == null) return null;
+            for (var i = 0; i < targets.Count; i++)
+            {
+                var target = targets[i];
+                if (target == null || target.IsDead) continue;
+                var sqr = HorizontalSqrDistance(target.transform.position, point);
+                if (sqr >= bestSqr) continue;
+                bestSqr = sqr;
+                nearest = target;
+            }
+            return nearest;
+        }
+
+        private Vector3 ResolveExecutionDestination(Vector3 destination)
+        {
+            destination = ClampToMovementBounds(destination);
+            if (GroundSurfaceResolver.TrySnap(
+                    destination,
+                    transform,
+                    out var grounded,
+                    definition != null ? definition.groundOffset : 0f))
+                destination = grounded;
+            return destination;
         }
 
         // Lets the target-mode button produce server-confirmed feedback without entering targeting while the
@@ -1362,6 +1532,28 @@ namespace Splice.Characters
         }
 
         [ClientRpc]
+        private void PlayAbilityExecutionStageClientRpc(
+            HeroAbilitySlot slot,
+            HeroAbilityVfxStage stage,
+            Vector3 from,
+            Vector3 to,
+            float lifetimeSeconds)
+        {
+            var ability = GetAbility(slot);
+            if (ability == null) return;
+            if (stage == HeroAbilityVfxStage.Cast)
+                PlayActionState(ResolveAbilityAnimationState(slot, ability));
+            HeroAbilityVfxSequencePlayer.PlayExecutionStage(
+                ability,
+                stage,
+                transform,
+                abilityEffectAnchor,
+                from,
+                to,
+                lifetimeSeconds);
+        }
+
+        [ClientRpc]
         private void PlayNormalAttackPresentationClientRpc(bool useAttack2)
         {
             PlayNormalAttackPresentation(useAttack2);
@@ -1525,6 +1717,7 @@ namespace Splice.Characters
         protected override void HandleDeath()
         {
             if (!IsServer || definition == null) return;
+            abilityExecutionActive.Value = false;
             manualInput = Vector2.zero;
             normalAttackPending = false;
             pendingNormalAttackTarget = null;

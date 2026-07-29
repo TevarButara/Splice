@@ -1,3 +1,4 @@
+using Splice.Combat;
 using UnityEngine;
 
 namespace Splice.Data
@@ -77,6 +78,10 @@ namespace Splice.Data
         [Min(0f)] public float movementDistance;
         [Min(0f)] public float manaCost;
         [Min(0.1f)] public float cooldownSeconds = 8f;
+
+        [Header("Optional Execution Strategy")]
+        [Tooltip("Leave empty for the standard instant/DOT ability pipeline. Assign a strategy asset when this skill has unique server-authoritative rules such as Rowan's multi-dash Ultimate.")]
+        public HeroAbilityExecutionSO execution;
 
         [Header("Presentation Hook")]
         [Tooltip("Animator state played after the server accepts this action. Missing states are skipped safely.")]

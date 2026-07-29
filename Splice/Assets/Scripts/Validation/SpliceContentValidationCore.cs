@@ -452,6 +452,10 @@ namespace Splice.Validation
                             ability);
                     break;
             }
+            if (ability.execution != null)
+                ability.execution.Validate(
+                    ability,
+                    (code, message) => report.Error(code, message, ability));
         }
 
         private static void ValidateProjectile(ProjectileDefinitionSO projectile, ContentValidationReport report)

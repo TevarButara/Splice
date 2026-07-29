@@ -233,8 +233,9 @@ namespace Splice.Tests.EditMode
             Assert.That(rowan.healAbility.castType, Is.EqualTo(HeroAbilityCastType.SelfCast));
             Assert.That(rowan.skill1.castType, Is.EqualTo(HeroAbilityCastType.LockedTarget));
             Assert.That(rowan.skill2.castType, Is.EqualTo(HeroAbilityCastType.SelfCast));
-            Assert.That(rowan.skill3.castType, Is.EqualTo(HeroAbilityCastType.DragArea));
-            Assert.That(rowan.skill3.damageMode, Is.EqualTo(HeroAbilityDamageMode.DamageOverTime));
+            Assert.That(rowan.skill3.castType, Is.EqualTo(HeroAbilityCastType.LockedTarget));
+            Assert.That(rowan.skill3.damageMode, Is.EqualTo(HeroAbilityDamageMode.Instant));
+            Assert.That(rowan.skill3.execution, Is.TypeOf<MultiDashHeroAbilityExecutionSO>());
             Assert.That(rowan.normalAttackEffectPrefab, Is.Not.Null);
         }
 

@@ -5,6 +5,83 @@ namespace Splice.Combat
 {
     public static class HeroAbilityVfxSequencePlayer
     {
+        public static void PlayExecutionStage(
+            HeroAbilityDefinitionSO ability,
+            HeroAbilityVfxStage stage,
+            Transform heroRoot,
+            Transform heroEffectAnchor,
+            Vector3 from,
+            Vector3 to,
+            float lifetimeOverride)
+        {
+            if (ability == null) return;
+            var cue = CueForStage(ability, stage);
+            if (cue?.IsConfigured != true) return;
+
+            var direction = to - from;
+            direction.y = 0f;
+            var rotation = cue.orientToCastDirection &&
+                           direction.sqrMagnitude > 0.001f
+                ? Quaternion.LookRotation(direction.normalized)
+                : heroRoot != null ? heroRoot.rotation : Quaternion.identity;
+            var lifetime = lifetimeOverride > 0f
+                ? lifetimeOverride
+                : Lifetime(cue, ability);
+            var point = stage is HeroAbilityVfxStage.Cast or
+                HeroAbilityVfxStage.Launch or
+                HeroAbilityVfxStage.Travel
+                ? from
+                : to;
+            Transform follow = null;
+
+            if (stage == HeroAbilityVfxStage.Travel)
+            {
+                follow = heroEffectAnchor != null ? heroEffectAnchor : heroRoot;
+                point = follow != null ? follow.position : from;
+            }
+            else
+            {
+                switch (cue.placement)
+                {
+                    case HeroAbilityEffectPlacement.HeroRoot:
+                        follow = heroRoot;
+                        point = heroRoot != null ? heroRoot.position : point;
+                        break;
+                    case HeroAbilityEffectPlacement.HeroEffectAnchor:
+                        follow = heroEffectAnchor != null ? heroEffectAnchor : heroRoot;
+                        point = follow != null ? follow.position : point;
+                        break;
+                    case HeroAbilityEffectPlacement.GroundSurface:
+                        GroundSurfaceResolver.TrySnap(
+                            point, heroRoot, out point, cue.groundOffset);
+                        break;
+                }
+            }
+
+            var instance = VfxPoolService.Spawn(
+                cue.prefab,
+                point,
+                rotation,
+                Mathf.Max(0.05f, lifetime),
+                follow,
+                cue.localOffset);
+            if (instance == null) return;
+
+            var scale = stage switch
+            {
+                HeroAbilityVfxStage.Cast => Mathf.Max(0.1f, ability.castRange),
+                HeroAbilityVfxStage.End => Mathf.Max(0.1f, ability.castRange),
+                HeroAbilityVfxStage.Impact => Mathf.Max(1f, ability.effectRadius * 0.55f),
+                _ => 1f
+            };
+            var runtimeScale = instance.GetComponent<VfxRuntimeScale>();
+            if (runtimeScale != null)
+                runtimeScale.Configure(
+                    scale,
+                    lifetime,
+                    stage == HeroAbilityVfxStage.End);
+        }
+
         public static void Play(HeroAbilityDefinitionSO ability, Transform heroRoot,
             Transform heroEffectAnchor, Vector3 targetPoint, Vector3 originPoint)
         {
@@ -88,6 +165,22 @@ namespace Splice.Combat
                    ability.damageMode == HeroAbilityDamageMode.DamageOverTime
                 ? Mathf.Max(0.05f, ability.damageDurationSeconds)
                 : 1f;
+        }
+
+        private static HeroAbilityVfxCue CueForStage(
+            HeroAbilityDefinitionSO ability,
+            HeroAbilityVfxStage stage)
+        {
+            return stage switch
+            {
+                HeroAbilityVfxStage.Cast => ability.castVfx,
+                HeroAbilityVfxStage.Launch => ability.launchVfx,
+                HeroAbilityVfxStage.Travel => ability.travelVfx,
+                HeroAbilityVfxStage.Impact => ability.impactVfx,
+                HeroAbilityVfxStage.Persistent => ability.persistentVfx,
+                HeroAbilityVfxStage.End => ability.endVfx,
+                _ => null
+            };
         }
     }
 }

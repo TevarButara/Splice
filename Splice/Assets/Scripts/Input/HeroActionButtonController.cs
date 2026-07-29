@@ -40,6 +40,7 @@ namespace Splice.Input
         private GameObject attackPanel;
         private bool? lastControlAvailability;
         private HeroControlMode? lastControlMode;
+        private bool? lastExecutionActive;
         private JoystickController subscribedJoystick;
         private HeroAbilitySlot suppressedClickSlot;
         private int suppressClickThroughFrame = -1;
@@ -245,6 +246,7 @@ namespace Splice.Input
             EnsureSkillDragHandler(skill3Button, HeroAbilitySlot.Skill3);
             lastControlAvailability = null;
             lastControlMode = null;
+            lastExecutionActive = null;
             RefreshControlAvailability();
         }
 
@@ -269,11 +271,18 @@ namespace Splice.Input
 
         private void RefreshControlAvailability()
         {
-            var available = hero != null && hero.CanLocalPlayerControl;
+            var executionActive = hero != null && hero.IsExecutingAbility;
+            var available = hero != null &&
+                            hero.CanLocalPlayerControl &&
+                            !executionActive;
             var mode = hero != null ? hero.ControlMode : HeroControlMode.Auto;
-            if (lastControlAvailability == available && lastControlMode == mode) return;
+            if (lastControlAvailability == available &&
+                lastControlMode == mode &&
+                lastExecutionActive == executionActive)
+                return;
             lastControlAvailability = available;
             lastControlMode = mode;
+            lastExecutionActive = executionActive;
             SetInteractable(blinkButton, available);
             SetInteractable(healButton, available);
             SetInteractable(attackButton, available);

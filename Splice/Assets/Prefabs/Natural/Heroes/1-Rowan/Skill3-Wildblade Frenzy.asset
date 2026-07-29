@@ -16,12 +16,12 @@ MonoBehaviour:
   displayName: Wildblade Frenzy
   description: 
   icon: {fileID: 0}
-  castType: 0
-  targeting: 1
+  castType: 2
+  targeting: 0
   castRange: 6
   effectRadius: 4
   effect: 0
-  damageMode: 1
+  damageMode: 0
   damage: 700
   damageDurationSeconds: 1.866667
   dotTickIntervalSeconds: 0.46666676
@@ -29,6 +29,7 @@ MonoBehaviour:
   movementDistance: 0
   manaCost: 40
   cooldownSeconds: 15
+  execution: {fileID: 11400000, guid: 5ce40f75482204044a24a11fad177c80, type: 2}
   animationState: Skill3
   castEffectPrefab: {fileID: 1835876825148838861, guid: 61ddfc2bb35044b4bbb0abb41a07c0f2, type: 3}
   castEffectLifetime: 2
@@ -36,47 +37,47 @@ MonoBehaviour:
   effectLocalOffset: {x: 0, y: 0, z: 0}
   castVfx:
     enabled: 1
-    prefab: {fileID: 1859154344321425876, guid: bac76969327304a90806302aa3df64ac, type: 3}
+    prefab: {fileID: 6068200498504005540, guid: 36077fd1cfae44fd9a9005cf1874be2a, type: 3}
     delaySeconds: 0
-    lifetimeSeconds: 0.55
-    placement: 2
+    lifetimeSeconds: 5
+    placement: 0
     localOffset: {x: 0, y: 0, z: 0}
-    groundOffset: 0.05
+    groundOffset: 0.06
     orientToCastDirection: 1
-    travelDurationSeconds: 0.25
+    travelDurationSeconds: 0.2
   launchVfx:
     enabled: 1
-    prefab: {fileID: 0}
+    prefab: {fileID: 5806531634640547306, guid: 6bfdb53f856d9413faa7b7803d541089, type: 3}
     delaySeconds: 0
-    lifetimeSeconds: 1
-    placement: 3
+    lifetimeSeconds: 0.35
+    placement: 2
     localOffset: {x: 0, y: 0, z: 0}
-    groundOffset: 0.05
+    groundOffset: 0.06
     orientToCastDirection: 1
-    travelDurationSeconds: 0.25
+    travelDurationSeconds: 0.2
   travelVfx:
     enabled: 1
-    prefab: {fileID: 0}
+    prefab: {fileID: 6723429173544288449, guid: ade5632c0e8b347fe955b5b12f535e7f, type: 3}
     delaySeconds: 0
-    lifetimeSeconds: 1
-    placement: 3
+    lifetimeSeconds: 5
+    placement: 2
     localOffset: {x: 0, y: 0, z: 0}
-    groundOffset: 0.05
+    groundOffset: 0.06
     orientToCastDirection: 1
-    travelDurationSeconds: 0.25
+    travelDurationSeconds: 0.2
   impactVfx:
     enabled: 1
-    prefab: {fileID: 0}
+    prefab: {fileID: 2647773867139500038, guid: acd0827170d584eaaaa7154015bc3693, type: 3}
     delaySeconds: 0
-    lifetimeSeconds: 1
+    lifetimeSeconds: 0.5
     placement: 3
     localOffset: {x: 0, y: 0, z: 0}
-    groundOffset: 0.05
+    groundOffset: 0.06
     orientToCastDirection: 1
-    travelDurationSeconds: 0.25
+    travelDurationSeconds: 0.2
   persistentVfx:
-    enabled: 1
-    prefab: {fileID: 8438459006295466188, guid: cd2a9a2c6c0be4fae9077121269b6534, type: 3}
+    enabled: 0
+    prefab: {fileID: 0}
     delaySeconds: 0
     lifetimeSeconds: 0
     placement: 0
@@ -86,12 +87,12 @@ MonoBehaviour:
     travelDurationSeconds: 0.25
   endVfx:
     enabled: 1
-    prefab: {fileID: 143069709783054641, guid: dede0fa738c60420aa92b0c3eb50e694, type: 3}
+    prefab: {fileID: 2081649724448784717, guid: 6c079c13289de4fa3b358172a62ccfa8, type: 3}
     delaySeconds: 0
     lifetimeSeconds: 0.8
     placement: 0
     localOffset: {x: 0, y: 0, z: 0}
-    groundOffset: 0.08
+    groundOffset: 0.06
     orientToCastDirection: 1
-    travelDurationSeconds: 0.25
+    travelDurationSeconds: 0.2
   groundEffectOffset: 0.08

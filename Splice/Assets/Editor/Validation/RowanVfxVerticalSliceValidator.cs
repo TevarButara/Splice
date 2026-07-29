@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
+using Splice.Combat;
 using Splice.Data;
 using Splice.Validation;
 using UnityEditor;
@@ -35,8 +36,12 @@ namespace Splice.Editor.Validation
                 "launchVfx", "travelVfx", "impactVfx");
             ValidateAbility(hero.skill2, "Skill 2", report,
                 "castVfx", "persistentVfx", "endVfx");
-            ValidateAbility(hero.skill3, "Skill 3", report,
-                "castVfx", "persistentVfx", "endVfx");
+            ValidateAbility(hero.skill3, "Skill 3 / Ultimate", report,
+                "castVfx", "launchVfx", "travelVfx", "impactVfx", "endVfx");
+            if (hero.skill3?.execution is not MultiDashHeroAbilityExecutionSO)
+                report.Error("ROWAN_ULTIMATE_EXECUTION_MISSING",
+                    "Rowan Skill 3 must use the multi-dash execution strategy.",
+                    hero.skill3);
 
             foreach (var graphName in new[]
                      { "Rowan_GPU_Burst", "Rowan_GPU_Loop", "Rowan_GPU_Trail" })
@@ -46,6 +51,13 @@ namespace Splice.Editor.Validation
                     report.Error("ROWAN_VFX_GRAPH_MISSING",
                         "Missing Visual Effect Graph: " + path);
             }
+            var ultimateGraphPath =
+                Root + "/VFX/Graphs/Rowan_Ultimate_v1.vfx";
+            if (AssetDatabase.LoadAssetAtPath<VisualEffectAsset>(
+                    ultimateGraphPath) == null)
+                report.Error("ROWAN_ULTIMATE_GRAPH_MISSING",
+                    "Missing Rowan Ultimate impact graph: " +
+                    ultimateGraphPath);
         }
 
         private static void ValidateAbility(HeroAbilityDefinitionSO ability, string label,
@@ -109,6 +121,16 @@ namespace Splice.Editor.Validation
                 if (visual.visualEffectAsset == null)
                     report.Error("ROWAN_VFX_GRAPH_NOT_ASSIGNED",
                         prefab.name + " contains an unassigned VisualEffect component.", prefab);
+            var quality = prefab.GetComponent<VfxQualityTierController>();
+            if (prefab.name.StartsWith("Rowan_Ultimate_") &&
+                (quality == null ||
+                 quality.Low == null ||
+                 quality.Medium == null ||
+                 quality.High == null))
+                report.Error("ROWAN_ULTIMATE_QUALITY_VARIANTS_MISSING",
+                    prefab.name +
+                    " must provide Low, Medium and High quality variants.",
+                    prefab);
         }
     }
 }

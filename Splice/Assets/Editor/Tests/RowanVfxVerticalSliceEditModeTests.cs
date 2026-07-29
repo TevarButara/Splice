@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using NUnit.Framework;
+using Splice.Combat;
 using Splice.Data;
 using UnityEditor;
 using UnityEngine;
@@ -26,8 +27,15 @@ namespace Splice.Tests.EditMode
                 hero.skill1.travelVfx, hero.skill1.impactVfx);
             AssertCue(hero.skill2, "Skill2", hero.skill2.castVfx,
                 hero.skill2.persistentVfx, hero.skill2.endVfx);
-            AssertCue(hero.skill3, "Skill3", hero.skill3.castVfx,
-                hero.skill3.persistentVfx, hero.skill3.endVfx);
+            AssertCue(hero.skill3, "Skill3 Ultimate",
+                hero.skill3.castVfx,
+                hero.skill3.launchVfx,
+                hero.skill3.travelVfx,
+                hero.skill3.impactVfx,
+                hero.skill3.endVfx);
+            Assert.That(
+                hero.skill3.execution,
+                Is.TypeOf<MultiDashHeroAbilityExecutionSO>());
         }
 
         [Test]
@@ -40,7 +48,7 @@ namespace Splice.Tests.EditMode
 
             var guids = AssetDatabase.FindAssets("t:Prefab",
                 new[] { Root + "/VFX/Prefabs" });
-            Assert.That(guids, Has.Length.EqualTo(16));
+            Assert.That(guids, Has.Length.GreaterThanOrEqualTo(16));
             var seen = new HashSet<string>();
             foreach (var guid in guids)
             {
@@ -58,6 +66,34 @@ namespace Splice.Tests.EditMode
                     Assert.That(
                         GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(tf.gameObject),
                         Is.Zero, path + " contains a missing script.");
+            }
+        }
+
+        [Test]
+        public void RowanUltimate_HasThreeQualityVariantsAndUserImpactGraph()
+        {
+            Assert.That(
+                AssetDatabase.LoadAssetAtPath<VisualEffectAsset>(
+                    Root + "/VFX/Graphs/Rowan_Ultimate_v1.vfx"),
+                Is.Not.Null);
+            foreach (var prefabName in new[]
+                     {
+                         "Rowan_Ultimate_Cast_Ring",
+                         "Rowan_Ultimate_Launch",
+                         "Rowan_Ultimate_Travel_Trail",
+                         "Rowan_Ultimate_Impact_Cross",
+                         "Rowan_Ultimate_End_Return"
+                     })
+            {
+                var path = Root + "/VFX/Prefabs/Ultimate/" +
+                           prefabName + ".prefab";
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                Assert.That(prefab, Is.Not.Null, path);
+                var quality = prefab.GetComponent<VfxQualityTierController>();
+                Assert.That(quality, Is.Not.Null, path);
+                Assert.That(quality.Low, Is.Not.Null, path);
+                Assert.That(quality.Medium, Is.Not.Null, path);
+                Assert.That(quality.High, Is.Not.Null, path);
             }
         }
 
