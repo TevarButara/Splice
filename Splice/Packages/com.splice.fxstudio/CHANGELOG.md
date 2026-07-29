@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0
+
+- Added deterministic Instance Layouts so one SubFX source can produce multiple independently placed visuals.
+- Added Single, Radial, Arc, Line, Grid, Random Ring and Manual layouts.
+- Added instance count, radius, spacing, start angle, facing, rotation/scale steps and deterministic jitter controls.
+- Added separate High/Medium/Low instance counts for mobile scalability.
+- Added individual self-spin with optional alternating direction; group Motion Stack remains available for whole-formation movement.
+- Layouts are baked into exported pooled prefabs and do not instantiate copies during skill playback.
+- Added mobile count/renderer validation and layout/runtime regression tests.
+- New SubFX, Blend and Skill FX assets now receive collision-free IDs.
+
 ## 0.2.0
 
 - Added a composable SubFX Motion Stack with Spin, Pulse, Expand, Contract, Float, Orbit, Flicker, Fade In/Out, UV Scroll and Shake.

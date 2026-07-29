@@ -170,6 +170,27 @@ Quick FX:
 
 Motion Stack ทำงานทั้งใน Live Preview และ `SpliceFxMotionPlayer` บน exported pooled prefab จึงไม่ใช่ animation เฉพาะ Editor
 
+## SubFX Instance Layout
+
+SubFX หนึ่งตัวสามารถใช้ภาพหรือ prefab ต้นฉบับเพียงชิ้นเดียวแล้วสร้างเป็นหลาย instance ได้ โดยมีรูปแบบ:
+
+- `Single` หนึ่งชิ้น
+- `Radial` วางเต็มวง เช่น ดาบ 5 เล่มรอบวงเวท
+- `Arc` วางเป็นแนวโค้ง
+- `Line` วางเรียงตามทิศทาง
+- `Grid` วางเป็นแถวและคอลัมน์
+- `Random Ring` กระจายระหว่างรัศมีในและนอกด้วย seed ที่ให้ผลซ้ำได้
+- `Manual` กำหนดตำแหน่ง มุม ขนาด และเปิด/ปิดของแต่ละชิ้นเอง
+
+ค่าหลักประกอบด้วย Count, Center Offset, Base Rotation/Scale, Plane Axis, First Direction, Facing, Radius, Inner Radius, Arc, Start Angle, Spacing, Rotation Step, Scale Step และตำแหน่ง/มุม/ขนาดแบบ jitter
+
+การเคลื่อนไหวแยกเป็นสองระดับ:
+
+- `Motion Stack > Spin/Orbit` ขยับ formation ทั้งชุดรอบจุดกลาง
+- `Each Item Spin` หมุนแต่ละชิ้นรอบแกนของตัวเอง และเลือกสลับทิศชิ้นคู่/คี่ได้
+
+จำนวน instance แยก High/Medium/Low ได้ เช่น 5/4/3 สำหรับมือถือแต่ละระดับ การ Export จะ bake instance ทั้งหมดลง pooled prefab ล่วงหน้า จึงไม่มีการ `Instantiate` ระหว่างกด skill และ Validator จำกัดสูงสุด 64 ชิ้นพร้อมเตือน renderer budget
+
 ## Blend Sequence
 
 แต่ละ Clip เก็บ:

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Splice.FxStudio
@@ -56,6 +57,294 @@ namespace Splice.FxStudio
         FadeOut,
         UvScroll,
         Shake
+    }
+
+    public enum SpliceFxInstanceLayoutMode
+    {
+        Single,
+        Radial,
+        Arc,
+        Line,
+        Grid,
+        RandomRing,
+        Manual
+    }
+
+    public enum SpliceFxInstanceFacing
+    {
+        KeepAuthored,
+        FaceOutward,
+        FaceInward,
+        TangentClockwise,
+        TangentCounterClockwise
+    }
+
+    [Serializable]
+    public sealed class SpliceFxManualInstance
+    {
+        public string label = "Instance";
+        public bool enabled = true;
+        public Vector3 localPosition;
+        public Vector3 localEulerAngles;
+        public Vector3 localScale = Vector3.one;
+    }
+
+    [Serializable]
+    public sealed class SpliceFxInstanceLayout
+    {
+        public SpliceFxInstanceLayoutMode mode =
+            SpliceFxInstanceLayoutMode.Single;
+        [Range(1, 64)] public int highCount = 1;
+        [Range(0, 64)] public int mediumCount = 1;
+        [Range(0, 64)] public int lowCount = 1;
+        public Vector3 centerOffset;
+        public Vector3 baseEulerAngles;
+        public Vector3 baseScale = Vector3.one;
+
+        [Header("Plane / Facing")]
+        public Vector3 planeAxis = Vector3.up;
+        public Vector3 startDirection = Vector3.forward;
+        public SpliceFxInstanceFacing facing =
+            SpliceFxInstanceFacing.KeepAuthored;
+
+        [Header("Radial / Arc / Random Ring")]
+        [Min(0f)] public float radius = 1f;
+        [Min(0f)] public float innerRadius = 0.5f;
+        [Range(1f, 360f)] public float arcDegrees = 360f;
+        public float startAngleDegrees;
+
+        [Header("Line / Grid")]
+        public Vector3 lineDirection = Vector3.right;
+        [Min(0.01f)] public float spacing = 1f;
+        [Range(1, 16)] public int gridColumns = 3;
+        public Vector2 gridSpacing = Vector2.one;
+
+        [Header("Per Instance Variation")]
+        public Vector3 eulerStep;
+        public float uniformScaleStep;
+        [Min(0f)] public float angleJitter;
+        [Min(0f)] public float radiusJitter;
+        [Min(0f)] public float rotationJitter;
+        [Min(0f)] public float scaleJitter;
+        public int randomSeed = 1337;
+
+        [Header("Individual Animation")]
+        public Vector3 selfSpinAxis = Vector3.up;
+        public float selfSpinDegreesPerSecond;
+        public bool alternateSelfSpin;
+
+        [Header("Manual Instances")]
+        public List<SpliceFxManualInstance> manualInstances = new();
+
+        public int MaximumCount => mode ==
+                                   SpliceFxInstanceLayoutMode.Manual
+            ? manualInstances?.Count ?? 0
+            : Mathf.Clamp(highCount, 1, 64);
+
+        public int CountFor(SpliceFxQualityTier tier)
+        {
+            var maximum = Mathf.Max(0, MaximumCount);
+            return tier switch
+            {
+                SpliceFxQualityTier.Low =>
+                    Mathf.Clamp(lowCount, 0, maximum),
+                SpliceFxQualityTier.Medium =>
+                    Mathf.Clamp(mediumCount, 0, maximum),
+                _ => maximum
+            };
+        }
+
+        public static SpliceFxInstanceLayout RadialFive() =>
+            new()
+            {
+                mode = SpliceFxInstanceLayoutMode.Radial,
+                highCount = 5,
+                mediumCount = 4,
+                lowCount = 3,
+                radius = 1.5f,
+                facing = SpliceFxInstanceFacing.FaceOutward,
+                eulerStep = Vector3.zero
+            };
+    }
+
+    public readonly struct SpliceFxInstancePose
+    {
+        public readonly Vector3 Position;
+        public readonly Quaternion Rotation;
+        public readonly Vector3 Scale;
+        public readonly bool Enabled;
+
+        public SpliceFxInstancePose(Vector3 position,
+            Quaternion rotation, Vector3 scale, bool enabled = true)
+        {
+            Position = position;
+            Rotation = rotation;
+            Scale = scale;
+            Enabled = enabled;
+        }
+    }
+
+    public static class SpliceFxInstanceLayoutSolver
+    {
+        public static List<SpliceFxInstancePose> Build(
+            SpliceFxInstanceLayout layout)
+        {
+            var result = new List<SpliceFxInstancePose>();
+            if (layout == null)
+            {
+                result.Add(new SpliceFxInstancePose(
+                    Vector3.zero, Quaternion.identity, Vector3.one));
+                return result;
+            }
+            if (layout.mode == SpliceFxInstanceLayoutMode.Manual)
+            {
+                if (layout.manualInstances == null) return result;
+                foreach (var item in layout.manualInstances)
+                {
+                    if (item == null) continue;
+                    result.Add(new SpliceFxInstancePose(
+                        item.localPosition,
+                        Quaternion.Euler(item.localEulerAngles),
+                        SanitizeScale(item.localScale), item.enabled));
+                }
+                return result;
+            }
+
+            var count = layout.mode == SpliceFxInstanceLayoutMode.Single
+                ? 1
+                : Mathf.Clamp(layout.highCount, 1, 64);
+            var random = new System.Random(layout.randomSeed);
+            var axis = SafeDirection(layout.planeAxis, Vector3.up);
+            var start = Vector3.ProjectOnPlane(
+                layout.startDirection, axis);
+            start = SafeDirection(start,
+                Vector3.Cross(axis, Vector3.right));
+            var side = SafeDirection(Vector3.Cross(axis, start),
+                Vector3.right);
+
+            for (var i = 0; i < count; i++)
+            {
+                var position = layout.centerOffset;
+                var radial = start;
+                switch (layout.mode)
+                {
+                    case SpliceFxInstanceLayoutMode.Radial:
+                    case SpliceFxInstanceLayoutMode.Arc:
+                    {
+                        var fullCircle =
+                            layout.mode ==
+                            SpliceFxInstanceLayoutMode.Radial ||
+                            layout.arcDegrees >= 359.99f;
+                        var denominator = fullCircle
+                            ? count
+                            : Mathf.Max(1, count - 1);
+                        var angle = layout.startAngleDegrees +
+                                    layout.arcDegrees * i / denominator +
+                                    Signed(random) *
+                                    layout.angleJitter;
+                        radial = Quaternion.AngleAxis(angle, axis) * start;
+                        var radius = Mathf.Max(0f,
+                            layout.radius +
+                            Signed(random) * layout.radiusJitter);
+                        position += radial * radius;
+                        break;
+                    }
+                    case SpliceFxInstanceLayoutMode.Line:
+                    {
+                        var direction = SafeDirection(
+                            layout.lineDirection, Vector3.right);
+                        position += direction *
+                                    ((i - (count - 1) * 0.5f) *
+                                     Mathf.Max(0.01f, layout.spacing));
+                        radial = direction;
+                        break;
+                    }
+                    case SpliceFxInstanceLayoutMode.Grid:
+                    {
+                        var columns = Mathf.Clamp(
+                            layout.gridColumns, 1, count);
+                        var rows = Mathf.CeilToInt(count /
+                                                   (float)columns);
+                        var column = i % columns;
+                        var row = i / columns;
+                        var x = (column - (columns - 1) * 0.5f) *
+                                layout.gridSpacing.x;
+                        var y = (row - (rows - 1) * 0.5f) *
+                                layout.gridSpacing.y;
+                        position += side * x + start * y;
+                        radial = SafeDirection(
+                            position - layout.centerOffset, start);
+                        break;
+                    }
+                    case SpliceFxInstanceLayoutMode.RandomRing:
+                    {
+                        var angle = layout.startAngleDegrees +
+                                    (float)random.NextDouble() *
+                                    layout.arcDegrees;
+                        radial = Quaternion.AngleAxis(angle, axis) * start;
+                        var inner = Mathf.Min(
+                            layout.innerRadius, layout.radius);
+                        var outer = Mathf.Max(
+                            layout.innerRadius, layout.radius);
+                        var radius = Mathf.Lerp(inner, outer,
+                            Mathf.Sqrt((float)random.NextDouble()));
+                        position += radial * radius;
+                        break;
+                    }
+                }
+
+                var facing = FacingRotation(
+                    layout.facing, radial, axis);
+                var jitterEuler = Vector3.one *
+                                  (Signed(random) *
+                                   layout.rotationJitter);
+                var authored = Quaternion.Euler(
+                    layout.baseEulerAngles +
+                    layout.eulerStep * i + jitterEuler);
+                var scaleValue = 1f +
+                                 layout.uniformScaleStep * i +
+                                 Signed(random) * layout.scaleJitter;
+                result.Add(new SpliceFxInstancePose(
+                    position,
+                    facing * authored,
+                    SanitizeScale(layout.baseScale *
+                                  Mathf.Max(0.001f, scaleValue))));
+            }
+            return result;
+        }
+
+        private static Quaternion FacingRotation(
+            SpliceFxInstanceFacing facing, Vector3 radial,
+            Vector3 up)
+        {
+            if (facing == SpliceFxInstanceFacing.KeepAuthored)
+                return Quaternion.identity;
+            var direction = SafeDirection(radial, Vector3.forward);
+            direction = facing switch
+            {
+                SpliceFxInstanceFacing.FaceInward => -direction,
+                SpliceFxInstanceFacing.TangentClockwise =>
+                    Quaternion.AngleAxis(90f, up) * direction,
+                SpliceFxInstanceFacing.TangentCounterClockwise =>
+                    Quaternion.AngleAxis(-90f, up) * direction,
+                _ => direction
+            };
+            return Quaternion.LookRotation(direction, up);
+        }
+
+        private static Vector3 SafeDirection(
+            Vector3 value, Vector3 fallback) =>
+            value.sqrMagnitude > 0.0001f
+                ? value.normalized
+                : fallback.normalized;
+
+        private static float Signed(System.Random random) =>
+            (float)random.NextDouble() * 2f - 1f;
+
+        private static Vector3 SanitizeScale(Vector3 value) =>
+            new(Mathf.Max(0.001f, Mathf.Abs(value.x)),
+                Mathf.Max(0.001f, Mathf.Abs(value.y)),
+                Mathf.Max(0.001f, Mathf.Abs(value.z)));
     }
 
     [Serializable]

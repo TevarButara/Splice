@@ -7,6 +7,118 @@ namespace Splice.FxStudio
 {
     [ExecuteAlways]
     [DisallowMultipleComponent]
+    public sealed class SpliceFxInstanceGroup : MonoBehaviour
+    {
+        [SerializeField] private SpliceFxSubEffectDefinition definition;
+        [SerializeField] private List<Transform> instances = new();
+        [SerializeField] private List<bool> layoutEnabled = new();
+        private readonly List<Quaternion> baseRotations = new();
+        private double startedAt;
+
+        public IReadOnlyList<Transform> Instances => instances;
+
+        public void ConfigureEditor(
+            SpliceFxSubEffectDefinition value,
+            List<Transform> instanceTransforms,
+            List<bool> enabledStates)
+        {
+            definition = value;
+            instances = instanceTransforms ?? new List<Transform>();
+            layoutEnabled = enabledStates ?? new List<bool>();
+            CaptureRotations();
+            startedAt = Now;
+            EvaluatePreview(0f, SpliceFxQuality.Current);
+        }
+
+        public void RestartInstances()
+        {
+            EnsureRotations();
+            startedAt = Now;
+            EvaluatePreview(0f, SpliceFxQuality.Current);
+        }
+
+        public void EvaluatePreview(float elapsedSeconds,
+            SpliceFxQualityTier quality)
+        {
+            EnsureRotations();
+            var layout = definition?.instanceLayout;
+            var visibleCount = layout != null
+                ? layout.CountFor(quality)
+                : instances.Count;
+            var spinSpeed =
+                layout?.selfSpinDegreesPerSecond ?? 0f;
+            var spinAxis = layout != null &&
+                           layout.selfSpinAxis.sqrMagnitude > 0.0001f
+                ? layout.selfSpinAxis.normalized
+                : Vector3.up;
+
+            for (var i = 0; i < instances.Count; i++)
+            {
+                var instance = instances[i];
+                if (instance == null) continue;
+                var authoredEnabled = i >= layoutEnabled.Count ||
+                                      layoutEnabled[i];
+                instance.gameObject.SetActive(
+                    authoredEnabled && i < visibleCount);
+                if (i >= baseRotations.Count) continue;
+                var direction = layout?.alternateSelfSpin == true &&
+                                (i & 1) == 1
+                    ? -1f
+                    : 1f;
+                instance.localRotation = baseRotations[i] *
+                                         Quaternion.AngleAxis(
+                                             spinSpeed *
+                                             Mathf.Max(0f,
+                                                 elapsedSeconds) *
+                                             direction,
+                                             spinAxis);
+            }
+        }
+
+        private void OnEnable()
+        {
+            CaptureRotations();
+            startedAt = Now;
+        }
+
+        private void OnDisable()
+        {
+            for (var i = 0; i < instances.Count &&
+                            i < baseRotations.Count; i++)
+            {
+                if (instances[i] != null)
+                    instances[i].localRotation = baseRotations[i];
+            }
+        }
+
+        private void Update()
+        {
+            if (definition == null) return;
+            EvaluatePreview((float)(Now - startedAt),
+                SpliceFxQuality.Current);
+        }
+
+        private void CaptureRotations()
+        {
+            baseRotations.Clear();
+            foreach (var instance in instances)
+                baseRotations.Add(instance != null
+                    ? instance.localRotation
+                    : Quaternion.identity);
+        }
+
+        private void EnsureRotations()
+        {
+            if (baseRotations.Count != instances.Count)
+                CaptureRotations();
+        }
+
+        private static double Now =>
+            Time.realtimeSinceStartupAsDouble;
+    }
+
+    [ExecuteAlways]
+    [DisallowMultipleComponent]
     public sealed class SpliceFxPropertyDriver : MonoBehaviour
     {
         [SerializeField] private SpliceFxSubEffectDefinition definition;
@@ -533,7 +645,7 @@ namespace Splice.FxStudio
                     elapsed - Mathf.Max(0f, layer.startSeconds));
                 if (layer.loop)
                     localTime %= localDuration;
-                SimulateAt(layer.visual, localTime);
+                SimulateAt(layer.visual, localTime, quality);
             }
         }
 
@@ -549,6 +661,10 @@ namespace Splice.FxStudio
 
         private static void Restart(GameObject root)
         {
+            foreach (var group in
+                     root.GetComponentsInChildren<SpliceFxInstanceGroup>(
+                         true))
+                group.RestartInstances();
             foreach (var motion in
                      root.GetComponentsInChildren<SpliceFxMotionPlayer>(
                          true))
@@ -571,8 +687,13 @@ namespace Splice.FxStudio
             }
         }
 
-        private static void SimulateAt(GameObject root, float seconds)
+        private static void SimulateAt(GameObject root, float seconds,
+            SpliceFxQualityTier quality)
         {
+            foreach (var group in
+                     root.GetComponentsInChildren<SpliceFxInstanceGroup>(
+                         true))
+                group.EvaluatePreview(seconds, quality);
             foreach (var motion in
                      root.GetComponentsInChildren<SpliceFxMotionPlayer>(
                          true))

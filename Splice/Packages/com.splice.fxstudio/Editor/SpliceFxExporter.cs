@@ -22,21 +22,11 @@ namespace Splice.FxStudio.Editor
             ValidateGeneratedRoot(outputRoot);
             SpliceFxAlphaProcessor.EnsureAssetFolder(outputRoot);
 
-            var root = PrefabUtility.InstantiatePrefab(
-                subFx.EffectiveTemplate) as GameObject;
-            if (root == null)
-                root = UnityEngine.Object.Instantiate(
-                    subFx.EffectiveTemplate);
+            var root = SpliceFxVisualFactory.Build(subFx);
             root.name = $"SubFX_{Safe(subFx.subFxId)}";
             root.SetActive(true);
             try
             {
-                var driver = root.GetComponent<SpliceFxPropertyDriver>() ??
-                             root.AddComponent<SpliceFxPropertyDriver>();
-                driver.Configure(subFx);
-                var motion = root.GetComponent<SpliceFxMotionPlayer>() ??
-                             root.AddComponent<SpliceFxMotionPlayer>();
-                motion.Configure(subFx);
                 var metadata =
                     root.GetComponent<SpliceFxGeneratedMetadata>() ??
                     root.AddComponent<SpliceFxGeneratedMetadata>();

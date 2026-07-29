@@ -279,13 +279,7 @@ namespace Splice.FxStudio.Editor
         {
             if (value?.EffectiveTemplate == null) return null;
             duration = Mathf.Max(0.05f, value.lifetime);
-            var result = Object.Instantiate(value.EffectiveTemplate);
-            var driver = result.GetComponent<SpliceFxPropertyDriver>() ??
-                         result.AddComponent<SpliceFxPropertyDriver>();
-            driver.Configure(value);
-            var motion = result.GetComponent<SpliceFxMotionPlayer>() ??
-                         result.AddComponent<SpliceFxMotionPlayer>();
-            motion.Configure(value);
+            var result = SpliceFxVisualFactory.Build(value);
             var allowed =
                 (value.quality & SpliceFxQuality.MaskFor(quality)) != 0;
             result.SetActive(allowed);
@@ -356,11 +350,16 @@ namespace Splice.FxStudio.Editor
                     runtime.EvaluatePreview(time, quality);
                 return;
             }
-            SimulateVisual(contentRoot, time);
+            SimulateVisual(contentRoot, time, quality);
         }
 
-        private static void SimulateVisual(GameObject root, float time)
+        private static void SimulateVisual(GameObject root, float time,
+            SpliceFxQualityTier qualityTier)
         {
+            foreach (var group in
+                     root.GetComponentsInChildren<SpliceFxInstanceGroup>(
+                         true))
+                group.EvaluatePreview(time, qualityTier);
             foreach (var motion in
                      root.GetComponentsInChildren<SpliceFxMotionPlayer>(
                          true))
@@ -385,6 +384,9 @@ namespace Splice.FxStudio.Editor
         private void RestartVisuals()
         {
             if (contentRoot == null) return;
+            foreach (var group in contentRoot.GetComponentsInChildren<
+                         SpliceFxInstanceGroup>(true))
+                group.RestartInstances();
             foreach (var motion in contentRoot.GetComponentsInChildren<
                          SpliceFxMotionPlayer>(true))
                 motion.RestartMotion();

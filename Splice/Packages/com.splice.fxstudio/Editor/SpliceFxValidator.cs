@@ -176,42 +176,107 @@ namespace Splice.FxStudio.Editor
                         $"SubFX '{subFx.subFxId}' contains duplicate custom property '{value.propertyName}'.",
                         subFx);
             }
-            if (subFx.motions == null) return;
-            if (subFx.motions.Count > 8)
-                result.Warning("FX_MOTION_STACK_LARGE",
-                    $"SubFX '{subFx.subFxId}' has {subFx.motions.Count} motion layers. Consider baking or simplifying for mobile.",
-                    subFx);
-            for (var i = 0; i < subFx.motions.Count; i++)
+            if (subFx.motions != null)
             {
-                var motion = subFx.motions[i];
-                if (motion == null)
+                if (subFx.motions.Count > 8)
+                    result.Warning("FX_MOTION_STACK_LARGE",
+                        $"SubFX '{subFx.subFxId}' has {subFx.motions.Count} motion layers. Consider baking or simplifying for mobile.",
+                        subFx);
+                for (var i = 0; i < subFx.motions.Count; i++)
                 {
-                    result.Error("FX_MOTION_LAYER_NULL",
-                        $"SubFX '{subFx.subFxId}' motion {i + 1} is null.",
-                        subFx);
-                    continue;
+                    var motion = subFx.motions[i];
+                    if (motion == null)
+                    {
+                        result.Error("FX_MOTION_LAYER_NULL",
+                            $"SubFX '{subFx.subFxId}' motion {i + 1} is null.",
+                            subFx);
+                        continue;
+                    }
+                    if (motion.durationSeconds <= 0f)
+                        result.Error("FX_MOTION_DURATION_INVALID",
+                            $"SubFX '{subFx.subFxId}' motion '{motion.label}' must have a positive duration.",
+                            subFx);
+                    if (motion.amount < 0f)
+                        result.Error("FX_MOTION_AMOUNT_INVALID",
+                            $"SubFX '{subFx.subFxId}' motion '{motion.label}' cannot have a negative amount.",
+                            subFx);
+                    if ((motion.type is SpliceFxMotionType.Spin or
+                         SpliceFxMotionType.Float or
+                         SpliceFxMotionType.Orbit) &&
+                        motion.axis.sqrMagnitude < 0.0001f)
+                        result.Error("FX_MOTION_AXIS_INVALID",
+                            $"SubFX '{subFx.subFxId}' motion '{motion.label}' requires a non-zero axis.",
+                            subFx);
+                    if (motion.type == SpliceFxMotionType.UvScroll &&
+                        motion.uvSpeed.sqrMagnitude < 0.0001f)
+                        result.Warning("FX_MOTION_UV_STATIC",
+                            $"SubFX '{subFx.subFxId}' UV Scroll has zero UV speed and will look static.",
+                            subFx);
                 }
-                if (motion.durationSeconds <= 0f)
-                    result.Error("FX_MOTION_DURATION_INVALID",
-                        $"SubFX '{subFx.subFxId}' motion '{motion.label}' must have a positive duration.",
-                        subFx);
-                if (motion.amount < 0f)
-                    result.Error("FX_MOTION_AMOUNT_INVALID",
-                        $"SubFX '{subFx.subFxId}' motion '{motion.label}' cannot have a negative amount.",
-                        subFx);
-                if ((motion.type is SpliceFxMotionType.Spin or
-                     SpliceFxMotionType.Float or
-                     SpliceFxMotionType.Orbit) &&
-                    motion.axis.sqrMagnitude < 0.0001f)
-                    result.Error("FX_MOTION_AXIS_INVALID",
-                        $"SubFX '{subFx.subFxId}' motion '{motion.label}' requires a non-zero axis.",
-                        subFx);
-                if (motion.type == SpliceFxMotionType.UvScroll &&
-                    motion.uvSpeed.sqrMagnitude < 0.0001f)
-                    result.Warning("FX_MOTION_UV_STATIC",
-                        $"SubFX '{subFx.subFxId}' UV Scroll has zero UV speed and will look static.",
-                        subFx);
             }
+            ValidateInstanceLayout(subFx, result);
+        }
+
+        private static void ValidateInstanceLayout(
+            SpliceFxSubEffectDefinition subFx,
+            SpliceFxValidationResult result)
+        {
+            var layout = subFx.instanceLayout;
+            if (layout == null)
+            {
+                result.Error("FX_INSTANCE_LAYOUT_MISSING",
+                    $"SubFX '{subFx.subFxId}' has no instance layout.",
+                    subFx);
+                return;
+            }
+            var count = layout.MaximumCount;
+            if (count <= 0)
+                result.Error("FX_INSTANCE_COUNT_EMPTY",
+                    $"SubFX '{subFx.subFxId}' layout creates no instances.",
+                    subFx);
+            if (count > 64)
+                result.Error("FX_INSTANCE_COUNT_LIMIT",
+                    $"SubFX '{subFx.subFxId}' creates {count} instances; the supported maximum is 64.",
+                    subFx);
+            if (count > 32)
+                result.Warning("FX_INSTANCE_COUNT_HIGH",
+                    $"SubFX '{subFx.subFxId}' creates {count} instances. Profile this layout on a mid-range mobile device.",
+                    subFx);
+            if (layout.mediumCount > count ||
+                layout.lowCount > count)
+                result.Error("FX_INSTANCE_QUALITY_COUNT_INVALID",
+                    $"SubFX '{subFx.subFxId}' Medium/Low count cannot exceed High count.",
+                    subFx);
+            if ((layout.mode is SpliceFxInstanceLayoutMode.Radial or
+                 SpliceFxInstanceLayoutMode.Arc or
+                 SpliceFxInstanceLayoutMode.Grid or
+                 SpliceFxInstanceLayoutMode.RandomRing) &&
+                layout.planeAxis.sqrMagnitude < 0.0001f)
+                result.Error("FX_INSTANCE_AXIS_INVALID",
+                    $"SubFX '{subFx.subFxId}' layout requires a non-zero plane axis.",
+                    subFx);
+            if (Mathf.Abs(layout.selfSpinDegreesPerSecond) > 0.001f &&
+                layout.selfSpinAxis.sqrMagnitude < 0.0001f)
+                result.Error("FX_INSTANCE_SELF_SPIN_AXIS_INVALID",
+                    $"SubFX '{subFx.subFxId}' individual spin requires a non-zero axis.",
+                    subFx);
+            if (layout.mode == SpliceFxInstanceLayoutMode.Manual &&
+                (layout.manualInstances == null ||
+                 layout.manualInstances.Count == 0))
+                result.Error("FX_INSTANCE_MANUAL_EMPTY",
+                    $"SubFX '{subFx.subFxId}' Manual layout has no instances.",
+                    subFx);
+
+            if (count <= 1 || subFx.EffectiveTemplate == null ||
+                subFx.preset == null)
+                return;
+            var renderers = subFx.EffectiveTemplate
+                .GetComponentsInChildren<Renderer>(true).Length;
+            var estimated = renderers * count;
+            if (estimated > subFx.preset.budget.maxRenderers)
+                result.Warning("FX_INSTANCE_RENDERER_BUDGET",
+                    $"SubFX '{subFx.subFxId}' layout can render approximately {estimated} renderers on High; preset budget is {subFx.preset.budget.maxRenderers}.",
+                    subFx);
         }
 
         public static void ValidateSequence(

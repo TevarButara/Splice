@@ -149,7 +149,9 @@ namespace Splice.FxStudio.Editor
                     {
                         subFx.displayName = newAssetName;
                         subFx.subFxId =
-                            SpliceFxPresetDefinition.SanitizeId(newAssetName);
+                            CreateUniqueId<SpliceFxSubEffectDefinition>(
+                                newAssetName, subFx,
+                                item => item.subFxId);
                         subFx.preset = creationPreset;
                         EditorUtility.SetDirty(subFx);
                         tab = Tab.SubFX;
@@ -164,7 +166,9 @@ namespace Splice.FxStudio.Editor
                     {
                         sequence.displayName = newAssetName;
                         sequence.sequenceId =
-                            SpliceFxPresetDefinition.SanitizeId(newAssetName);
+                            CreateUniqueId<SpliceFxBlendSequence>(
+                                newAssetName, sequence,
+                                item => item.sequenceId);
                         EditorUtility.SetDirty(sequence);
                         tab = Tab.Blend;
                     }
@@ -178,7 +182,9 @@ namespace Splice.FxStudio.Editor
                     {
                         skillPackage.displayName = newAssetName;
                         skillPackage.packageId =
-                            SpliceFxPresetDefinition.SanitizeId(newAssetName);
+                            CreateUniqueId<SpliceFxSkillPackage>(
+                                newAssetName, skillPackage,
+                                item => item.packageId);
                         AddDefaultStages(skillPackage);
                         EditorUtility.SetDirty(skillPackage);
                         tab = Tab.BindExport;
@@ -240,7 +246,9 @@ namespace Splice.FxStudio.Editor
                 return;
             }
 
-            DrawSerializedAsset(subFx, "motions", "motionModifiers");
+            DrawSerializedAsset(subFx, "motions", "motionModifiers",
+                "instanceLayout");
+            DrawInstanceLayout(subFx);
             DrawMotionStack(subFx);
             EditorGUILayout.Space(8f);
             using (new EditorGUILayout.HorizontalScope())
@@ -540,6 +548,245 @@ namespace Splice.FxStudio.Editor
                 EditorUtility.SetDirty(value);
         }
 
+        private static void DrawInstanceLayout(
+            SpliceFxSubEffectDefinition value)
+        {
+            EditorGUILayout.Space(10f);
+            Section("Instance Layout");
+            EditorGUILayout.HelpBox(
+                "Duplicate the same image/prefab inside one SubFX. Layout is baked into the exported prefab; no runtime Instantiate is required.",
+                MessageType.Info);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label("Quick Layout", GUILayout.Width(82f));
+                if (GUILayout.Button("Single"))
+                    SetLayout(value, new SpliceFxInstanceLayout());
+                if (GUILayout.Button("5 Around"))
+                    SetLayout(value,
+                        SpliceFxInstanceLayout.RadialFive());
+                if (GUILayout.Button("5 Arc"))
+                    SetLayout(value, ArcLayout());
+                if (GUILayout.Button("Line 5"))
+                    SetLayout(value, LineLayout());
+                if (GUILayout.Button("Grid 3×3"))
+                    SetLayout(value, GridLayout());
+                if (GUILayout.Button("Random 8"))
+                    SetLayout(value, RandomLayout());
+            }
+
+            var serialized = new SerializedObject(value);
+            serialized.Update();
+            var layout = serialized.FindProperty("instanceLayout");
+            if (layout == null) return;
+            var modeProperty = layout.FindPropertyRelative("mode");
+            EditorGUILayout.PropertyField(modeProperty,
+                new GUIContent("Layout Mode"));
+            var mode = (SpliceFxInstanceLayoutMode)
+                modeProperty.enumValueIndex;
+
+            if (mode == SpliceFxInstanceLayoutMode.Manual)
+            {
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("manualInstances"),
+                    new GUIContent("Manual Instances"), true);
+                EditorGUILayout.HelpBox(
+                    "High uses every enabled Manual Instance.",
+                    MessageType.None);
+                DrawQualityCounts(layout, true, true);
+            }
+            else
+            {
+                DrawQualityCounts(layout,
+                    mode != SpliceFxInstanceLayoutMode.Single);
+            }
+
+            EditorGUILayout.PropertyField(
+                layout.FindPropertyRelative("centerOffset"),
+                new GUIContent("Center Offset"));
+            EditorGUILayout.PropertyField(
+                layout.FindPropertyRelative("baseEulerAngles"),
+                new GUIContent("Base Rotation"));
+            EditorGUILayout.PropertyField(
+                layout.FindPropertyRelative("baseScale"),
+                new GUIContent("Base Scale"));
+
+            if (mode is SpliceFxInstanceLayoutMode.Radial or
+                SpliceFxInstanceLayoutMode.Arc or
+                SpliceFxInstanceLayoutMode.RandomRing)
+            {
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("planeAxis"),
+                    new GUIContent("Circle Axis"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("startDirection"),
+                    new GUIContent("First Direction"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("facing"),
+                    new GUIContent("Each Item Faces"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("radius"),
+                    new GUIContent(mode ==
+                                   SpliceFxInstanceLayoutMode.RandomRing
+                        ? "Outer Radius"
+                        : "Radius"));
+                if (mode == SpliceFxInstanceLayoutMode.RandomRing)
+                    EditorGUILayout.PropertyField(
+                        layout.FindPropertyRelative("innerRadius"),
+                        new GUIContent("Inner Radius"));
+                if (mode != SpliceFxInstanceLayoutMode.Radial)
+                    EditorGUILayout.PropertyField(
+                        layout.FindPropertyRelative("arcDegrees"),
+                        new GUIContent("Arc Degrees"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("startAngleDegrees"),
+                    new GUIContent("Start Angle"));
+            }
+            else if (mode == SpliceFxInstanceLayoutMode.Line)
+            {
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("lineDirection"),
+                    new GUIContent("Line Direction"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("spacing"));
+            }
+            else if (mode == SpliceFxInstanceLayoutMode.Grid)
+            {
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("planeAxis"),
+                    new GUIContent("Grid Normal"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("startDirection"),
+                    new GUIContent("Grid Forward"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("gridColumns"),
+                    new GUIContent("Columns"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("gridSpacing"),
+                    new GUIContent("Grid Spacing"));
+            }
+
+            if (mode is not SpliceFxInstanceLayoutMode.Single and
+                not SpliceFxInstanceLayoutMode.Manual)
+            {
+                EditorGUILayout.Space(3f);
+                EditorGUILayout.LabelField("Per Instance Variation",
+                    EditorStyles.miniBoldLabel);
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("eulerStep"),
+                    new GUIContent("Rotation Step"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("uniformScaleStep"),
+                    new GUIContent("Scale Step"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("angleJitter"),
+                    new GUIContent("Angle Jitter"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("radiusJitter"),
+                    new GUIContent("Radius Jitter"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("rotationJitter"),
+                    new GUIContent("Rotation Jitter"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("scaleJitter"),
+                    new GUIContent("Scale Jitter"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("randomSeed"),
+                    new GUIContent("Random Seed"));
+            }
+
+            if (mode != SpliceFxInstanceLayoutMode.Single)
+            {
+                EditorGUILayout.Space(3f);
+                EditorGUILayout.LabelField("Individual Animation",
+                    EditorStyles.miniBoldLabel);
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative(
+                        "selfSpinDegreesPerSecond"),
+                    new GUIContent("Each Item Spin °/s"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("selfSpinAxis"),
+                    new GUIContent("Self Spin Axis"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative(
+                        "alternateSelfSpin"),
+                    new GUIContent("Alternate Direction"));
+            }
+
+            if (serialized.ApplyModifiedProperties())
+                EditorUtility.SetDirty(value);
+        }
+
+        private static void DrawQualityCounts(
+            SerializedProperty layout, bool multiple,
+            bool manual = false)
+        {
+            if (!multiple) return;
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (!manual)
+                    EditorGUILayout.PropertyField(
+                        layout.FindPropertyRelative("highCount"),
+                        new GUIContent("High Count"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("mediumCount"),
+                    new GUIContent("Medium"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("lowCount"),
+                    new GUIContent("Low"));
+            }
+        }
+
+        private static void SetLayout(
+            SpliceFxSubEffectDefinition value,
+            SpliceFxInstanceLayout layout)
+        {
+            Undo.RecordObject(value, "Set FX Instance Layout");
+            value.instanceLayout = layout;
+            EditorUtility.SetDirty(value);
+        }
+
+        private static SpliceFxInstanceLayout ArcLayout()
+        {
+            var layout = SpliceFxInstanceLayout.RadialFive();
+            layout.mode = SpliceFxInstanceLayoutMode.Arc;
+            layout.arcDegrees = 180f;
+            layout.startAngleDegrees = -90f;
+            return layout;
+        }
+
+        private static SpliceFxInstanceLayout LineLayout() =>
+            new()
+            {
+                mode = SpliceFxInstanceLayoutMode.Line,
+                highCount = 5,
+                mediumCount = 4,
+                lowCount = 3,
+                spacing = 1f
+            };
+
+        private static SpliceFxInstanceLayout GridLayout() =>
+            new()
+            {
+                mode = SpliceFxInstanceLayoutMode.Grid,
+                highCount = 9,
+                mediumCount = 6,
+                lowCount = 4,
+                gridColumns = 3,
+                gridSpacing = Vector2.one
+            };
+
+        private static SpliceFxInstanceLayout RandomLayout() =>
+            new()
+            {
+                mode = SpliceFxInstanceLayoutMode.RandomRing,
+                highCount = 8,
+                mediumCount = 6,
+                lowCount = 4,
+                innerRadius = 0.7f,
+                radius = 2f,
+                facing = SpliceFxInstanceFacing.FaceOutward
+            };
+
         private static void DrawMotionFields(SerializedProperty item)
         {
             var typeProperty = item.FindPropertyRelative("type");
@@ -667,6 +914,37 @@ namespace Splice.FxStudio.Editor
             Selection.activeObject = asset;
             EditorGUIUtility.PingObject(asset);
             return asset;
+        }
+
+        private static string CreateUniqueId<T>(
+            string requestedName,
+            T current,
+            Func<T, string> selector)
+            where T : UnityEngine.Object
+        {
+            var baseId =
+                SpliceFxPresetDefinition.SanitizeId(requestedName);
+            var used = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var guid in AssetDatabase.FindAssets(
+                         $"t:{typeof(T).Name}"))
+            {
+                var asset = AssetDatabase.LoadAssetAtPath<T>(
+                    AssetDatabase.GUIDToAssetPath(guid));
+                if (asset == null || asset == current) continue;
+                var id = selector(asset);
+                if (!string.IsNullOrWhiteSpace(id))
+                    used.Add(id);
+            }
+
+            if (!used.Contains(baseId)) return baseId;
+            for (var suffix = 2; suffix < 10000; suffix++)
+            {
+                var candidate = $"{baseId}_{suffix}";
+                if (!used.Contains(candidate))
+                    return candidate;
+            }
+            return $"{baseId}_{Guid.NewGuid():N}";
         }
 
         private static void AddDefaultStages(SpliceFxSkillPackage package)

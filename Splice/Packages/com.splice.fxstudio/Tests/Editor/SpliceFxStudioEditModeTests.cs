@@ -292,5 +292,148 @@ namespace Splice.FxStudio.Editor.Tests
                 Object.DestroyImmediate(definition);
             }
         }
+
+        [Test]
+        public void RadialFive_CreatesFiveEvenlySpacedPoses()
+        {
+            var layout = SpliceFxInstanceLayout.RadialFive();
+
+            var poses = SpliceFxInstanceLayoutSolver.Build(layout);
+
+            Assert.That(poses, Has.Count.EqualTo(5));
+            foreach (var pose in poses)
+                Assert.That(pose.Position.magnitude,
+                    Is.EqualTo(1.5f).Within(0.001f));
+            Assert.That(Vector3.Distance(
+                    poses[0].Position, poses[1].Position),
+                Is.GreaterThan(1f));
+        }
+
+        [Test]
+        public void RandomRing_IsDeterministicForSameSeed()
+        {
+            var layout = new SpliceFxInstanceLayout
+            {
+                mode = SpliceFxInstanceLayoutMode.RandomRing,
+                highCount = 8,
+                randomSeed = 90210,
+                innerRadius = 1f,
+                radius = 3f
+            };
+
+            var first = SpliceFxInstanceLayoutSolver.Build(layout);
+            var second = SpliceFxInstanceLayoutSolver.Build(layout);
+
+            Assert.That(second, Has.Count.EqualTo(first.Count));
+            for (var i = 0; i < first.Count; i++)
+                Assert.That(second[i].Position,
+                    Is.EqualTo(first[i].Position));
+        }
+
+        [Test]
+        public void InstanceGroup_UsesQualityCounts()
+        {
+            var root = new GameObject("Instances");
+            var definition =
+                ScriptableObject.CreateInstance<SpliceFxSubEffectDefinition>();
+            var transforms = new System.Collections.Generic.List<Transform>();
+            var enabled = new System.Collections.Generic.List<bool>();
+            try
+            {
+                definition.instanceLayout =
+                    SpliceFxInstanceLayout.RadialFive();
+                for (var i = 0; i < 5; i++)
+                {
+                    var child = new GameObject($"Instance {i}");
+                    child.transform.SetParent(root.transform);
+                    transforms.Add(child.transform);
+                    enabled.Add(true);
+                }
+                var group = root.AddComponent<SpliceFxInstanceGroup>();
+                group.ConfigureEditor(definition, transforms, enabled);
+
+                group.EvaluatePreview(0f, SpliceFxQualityTier.Low);
+                Assert.That(transforms[0].gameObject.activeSelf, Is.True);
+                Assert.That(transforms[2].gameObject.activeSelf, Is.True);
+                Assert.That(transforms[3].gameObject.activeSelf, Is.False);
+
+                group.EvaluatePreview(0f, SpliceFxQualityTier.High);
+                Assert.That(transforms[4].gameObject.activeSelf, Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void InstanceGroup_RestartDoesNotAccumulateSelfSpin()
+        {
+            var root = new GameObject("Instances");
+            var child = new GameObject("Instance");
+            child.transform.SetParent(root.transform);
+            var definition =
+                ScriptableObject.CreateInstance<SpliceFxSubEffectDefinition>();
+            try
+            {
+                definition.instanceLayout.selfSpinDegreesPerSecond = 90f;
+                var group = root.AddComponent<SpliceFxInstanceGroup>();
+                group.ConfigureEditor(
+                    definition,
+                    new System.Collections.Generic.List<Transform>
+                        { child.transform },
+                    new System.Collections.Generic.List<bool> { true });
+
+                group.EvaluatePreview(1f, SpliceFxQualityTier.High);
+                Assert.That(Quaternion.Angle(
+                        Quaternion.identity,
+                        child.transform.localRotation),
+                    Is.EqualTo(90f).Within(0.1f));
+
+                group.RestartInstances();
+                Assert.That(Quaternion.Angle(
+                        Quaternion.identity,
+                        child.transform.localRotation),
+                    Is.EqualTo(0f).Within(0.1f));
+
+                group.EvaluatePreview(1f, SpliceFxQualityTier.High);
+                Assert.That(Quaternion.Angle(
+                        Quaternion.identity,
+                        child.transform.localRotation),
+                    Is.EqualTo(90f).Within(0.1f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void Validator_RejectsEmptyManualLayout()
+        {
+            var definition =
+                ScriptableObject.CreateInstance<SpliceFxSubEffectDefinition>();
+            try
+            {
+                definition.instanceLayout.mode =
+                    SpliceFxInstanceLayoutMode.Manual;
+                definition.instanceLayout.manualInstances.Clear();
+                var result = new SpliceFxValidationResult();
+
+                SpliceFxValidator.ValidateSubFx(definition, result);
+
+                Assert.That(result.Issues,
+                    Has.Some.Matches<SpliceFxValidationIssue>(
+                        issue =>
+                            issue.Code ==
+                            "FX_INSTANCE_MANUAL_EMPTY"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(definition);
+            }
+        }
     }
 }
