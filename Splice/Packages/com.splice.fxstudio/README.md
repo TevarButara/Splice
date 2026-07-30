@@ -11,6 +11,16 @@ Workflow:
 3. Add SubFX assets to a Blend Sequence and author timing, transform and quality availability.
 4. Bind one or more Blend Sequences to skill execution stages.
 5. Export. Generated textures, materials and prefabs are written only below the configured `Generated` folder.
+
+## Sprite (2D and UI) input
+
+SubFX Lab accepts either a regular Texture2D or a Unity Sprite imported as
+`Sprite (2D and UI)`. Assign the Sprite in **Source Image → Sprite (2D and UI)**.
+For sprite sheets and atlases, FX Studio samples only the selected sprite rect.
+The same Sprite field is available inside every Trail and Particle layer.
+
+Sprite takes priority when both source types exist. Gradient, Stroke, UV Scroll,
+Preview, Export and Alpha Processor all preserve the selected sprite UV rect.
 6. Validate mobile budgets before building.
 
 The Studio never edits `.vfx` graph YAML. Preset authors create a tested Visual Effect Graph or prefab once and expose a stable property contract; skill authors then work only through Studio data.

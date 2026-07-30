@@ -126,7 +126,8 @@ namespace Splice.FxStudio.Editor
                     var motion =
                         visualRoot.AddComponent<
                             SpliceFxMotionPlayer>();
-                    motion.ConfigureInline(layer.motions);
+                    motion.ConfigureInline(layer.motions,
+                        layer.EffectiveTextureScaleOffset);
                 }
 
                 var transforms = new List<Transform>();
@@ -189,7 +190,8 @@ namespace Splice.FxStudio.Editor
             trail.motionVectorGenerationMode =
                 MotionVectorGenerationMode.ForceNoMotion;
             trail.emitting = true;
-            ApplyTexture(trail, layer.texture);
+            ApplyTexture(trail, layer.EffectiveTexture,
+                layer.EffectiveTextureScaleOffset);
         }
 
         private static void ConfigureParticle(
@@ -279,19 +281,30 @@ namespace Splice.FxStudio.Editor
                 ReflectionProbeUsage.Off;
             renderer.motionVectorGenerationMode =
                 MotionVectorGenerationMode.ForceNoMotion;
-            ApplyTexture(renderer, layer.texture);
+            ApplyTexture(renderer, layer.EffectiveTexture,
+                layer.EffectiveTextureScaleOffset);
             particle.Stop(true,
                 ParticleSystemStopBehavior.StopEmittingAndClear);
         }
 
         private static void ApplyTexture(
-            Renderer renderer, Texture texture)
+            Renderer renderer, Texture texture,
+            Vector4 textureScaleOffset)
         {
             if (renderer == null || texture == null) return;
             var block = new MaterialPropertyBlock();
             renderer.GetPropertyBlock(block);
             block.SetTexture("_BaseMap", texture);
             block.SetTexture("_MainTex", texture);
+            block.SetVector("_BaseMap_ST",
+                textureScaleOffset);
+            block.SetVector("_MainTex_ST",
+                textureScaleOffset);
+            block.SetVector("_BaseMap_TexelSize",
+                new Vector4(
+                    1f / Mathf.Max(1, texture.width),
+                    1f / Mathf.Max(1, texture.height),
+                    texture.width, texture.height));
             renderer.SetPropertyBlock(block);
         }
 

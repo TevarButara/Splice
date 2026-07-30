@@ -322,6 +322,10 @@ namespace Splice.FxStudio
             var preset = definition.preset;
             SetTexture(visual, Property(preset?.mainTextureProperty, "MainTexture"),
                 definition.EffectiveTexture);
+            SetVector4(visual, "MainTexture_ST",
+                definition.EffectiveTextureScaleOffset);
+            SetVector4(visual, "UVScaleOffset",
+                definition.EffectiveTextureScaleOffset);
             SetVector4(visual, Property(preset?.mainColorProperty, "MainColor"),
                 definition.mainColor * Mathf.Max(1f, definition.emission));
             var gradientId = Shader.PropertyToID("MainGradient");
@@ -403,6 +407,12 @@ namespace Splice.FxStudio
             {
                 propertyBlock.SetTexture("_BaseMap", texture);
                 propertyBlock.SetTexture("_MainTex", texture);
+                var textureTransform =
+                    definition.EffectiveTextureScaleOffset;
+                propertyBlock.SetVector("_BaseMap_ST",
+                    textureTransform);
+                propertyBlock.SetVector("_MainTex_ST",
+                    textureTransform);
                 var width = Mathf.Max(1, texture.width);
                 var height = Mathf.Max(1, texture.height);
                 propertyBlock.SetVector("_BaseMap_TexelSize",
@@ -558,6 +568,8 @@ namespace Splice.FxStudio
         [SerializeField] private bool useInlineMotions;
         [SerializeField] private List<SpliceFxMotionLayer> inlineMotions =
             new();
+        [SerializeField] private Vector4 inlineTextureScaleOffset =
+            new(1f, 1f, 0f, 0f);
         private Vector3 basePosition;
         private Quaternion baseRotation;
         private Vector3 baseScale;
@@ -573,6 +585,8 @@ namespace Splice.FxStudio
         {
             definition = value;
             useInlineMotions = false;
+            inlineTextureScaleOffset =
+                new Vector4(1f, 1f, 0f, 0f);
             inlineMotions.Clear();
             CaptureCurrentAsBase();
             RestartMotion();
@@ -581,8 +595,18 @@ namespace Splice.FxStudio
         public void ConfigureInline(
             List<SpliceFxMotionLayer> motions)
         {
+            ConfigureInline(motions,
+                new Vector4(1f, 1f, 0f, 0f));
+        }
+
+        public void ConfigureInline(
+            List<SpliceFxMotionLayer> motions,
+            Vector4 textureScaleOffset)
+        {
             definition = null;
             useInlineMotions = true;
+            inlineTextureScaleOffset =
+                textureScaleOffset;
             inlineMotions = motions ?? new List<SpliceFxMotionLayer>();
             CaptureCurrentAsBase();
             RestartMotion();
@@ -789,28 +813,49 @@ namespace Splice.FxStudio
             // Use white as a neutral multiplier so Fade/Flicker/UV Scroll
             // can animate Trail and Particle layers without replacing their
             // authored gradients or texture property blocks.
-            var authoredColor = definition != null
+            var authoredColor = definition != null &&
+                                definition.gradientMode ==
+                                SpliceFxGradientMode.Solid
                 ? definition.mainColor
                 : Color.white;
             var authoredEmission = definition != null
                 ? Mathf.Max(1f, definition.emission)
                 : 1f;
-            var color = authoredColor *
-                        (Mathf.Max(0f, brightness) *
-                         authoredEmission);
-            color.a = authoredColor.a *
-                      Mathf.Clamp01(opacity);
             propertyBlock ??= new MaterialPropertyBlock();
 
             foreach (var renderer in
                      GetComponentsInChildren<Renderer>(true))
             {
+                if (definition != null &&
+                    renderer.GetComponentInParent<
+                        SpliceFxAuxiliaryLayerMarker>() != null)
+                    continue;
+                var supportsFxStudioColor =
+                    renderer.sharedMaterial != null &&
+                    renderer.sharedMaterial.HasProperty(
+                        "_GradientMap");
+                var color = authoredColor *
+                            (Mathf.Max(0f, brightness) *
+                             (supportsFxStudioColor
+                                 ? 1f
+                                 : authoredEmission));
+                color.a = authoredColor.a *
+                          Mathf.Clamp01(opacity);
                 renderer.GetPropertyBlock(propertyBlock);
                 propertyBlock.SetColor("_BaseColor", color);
                 propertyBlock.SetColor("_Color", color);
                 propertyBlock.SetColor("_EmissionColor", color);
+                var baseTransform = definition != null
+                    ? definition.EffectiveTextureScaleOffset
+                    : useInlineMotions
+                        ? inlineTextureScaleOffset
+                        : new Vector4(1f, 1f, 0f, 0f);
                 var textureTransform = new Vector4(
-                    1f, 1f, uvOffset.x, uvOffset.y);
+                    baseTransform.x, baseTransform.y,
+                    baseTransform.z + uvOffset.x *
+                    baseTransform.x,
+                    baseTransform.w + uvOffset.y *
+                    baseTransform.y);
                 propertyBlock.SetVector("_BaseMap_ST",
                     textureTransform);
                 propertyBlock.SetVector("_MainTex_ST",
@@ -821,6 +866,15 @@ namespace Splice.FxStudio
             foreach (var particle in
                      GetComponentsInChildren<ParticleSystem>(true))
             {
+                if (definition != null &&
+                    particle.GetComponentInParent<
+                        SpliceFxAuxiliaryLayerMarker>() != null)
+                    continue;
+                var color = authoredColor *
+                            (Mathf.Max(0f, brightness) *
+                             authoredEmission);
+                color.a = authoredColor.a *
+                          Mathf.Clamp01(opacity);
                 var main = particle.main;
                 main.startColor = color;
             }
@@ -829,6 +883,15 @@ namespace Splice.FxStudio
                      GetComponentsInChildren<VisualEffect>(true))
             {
                 if (visual.visualEffectAsset == null) continue;
+                if (definition != null &&
+                    visual.GetComponentInParent<
+                        SpliceFxAuxiliaryLayerMarker>() != null)
+                    continue;
+                var color = authoredColor *
+                            (Mathf.Max(0f, brightness) *
+                             authoredEmission);
+                color.a = authoredColor.a *
+                          Mathf.Clamp01(opacity);
                 var colorProperty = string.IsNullOrWhiteSpace(
                     definition?.preset?.mainColorProperty)
                     ? "MainColor"

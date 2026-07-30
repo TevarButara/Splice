@@ -128,7 +128,12 @@ namespace Splice.FxStudio.Editor
                 result.Error("FX_SUB_TEMPLATE_MISSING",
                     $"SubFX '{subFx.subFxId}' has no effective template.",
                     subFx);
-            if (subFx.sourceTexture != null &&
+            if (subFx.sourceSprite != null &&
+                subFx.sourceTexture != null)
+                result.Warning("FX_SUB_MULTIPLE_IMAGE_SOURCES",
+                    $"SubFX '{subFx.subFxId}' has both a Sprite and Texture assigned. Sprite takes priority; clear the unused source.",
+                    subFx);
+            if (subFx.SourceTextureForProcessing != null &&
                 subFx.processedTexture == null &&
                 subFx.alpha.mode != SpliceFxAlphaMode.SourceAlpha)
                 result.Warning("FX_SUB_ALPHA_NOT_GENERATED",
@@ -145,14 +150,14 @@ namespace Splice.FxStudio.Editor
                     subFx);
             if (subFx.preset != null && subFx.EffectiveTexture != null)
             {
-                var texture = subFx.EffectiveTexture;
-                var maximum = Mathf.Max(texture.width, texture.height);
+                var size = subFx.EffectivePixelSize;
+                var maximum = Mathf.Max(size.x, size.y);
                 if (maximum > subFx.preset.budget.maxTextureSize)
                     result.Error("FX_TEXTURE_SIZE_BUDGET",
-                        $"SubFX '{subFx.subFxId}' texture is {texture.width}x{texture.height}; preset maximum is {subFx.preset.budget.maxTextureSize}.",
+                        $"SubFX '{subFx.subFxId}' visual region is {size.x}x{size.y}; preset maximum is {subFx.preset.budget.maxTextureSize}.",
                         subFx);
                 var estimatedKb = EstimateAstc6x6Kb(
-                    texture.width, texture.height);
+                    size.x, size.y);
                 if (subFx.preset.budget.maxEstimatedTextureMemoryKb > 0 &&
                     estimatedKb >
                     subFx.preset.budget.maxEstimatedTextureMemoryKb)
@@ -247,7 +252,13 @@ namespace Splice.FxStudio.Editor
                     continue;
                 }
                 if (!layer.enabled) continue;
-                if (layer.texture == null)
+                if (layer.sprite != null &&
+                    layer.texture != null)
+                    result.Warning(
+                        "FX_VISUAL_LAYER_MULTIPLE_IMAGE_SOURCES",
+                        $"SubFX '{subFx.subFxId}' layer '{layer.label}' has both Sprite and Texture assigned. Sprite takes priority.",
+                        subFx);
+                if (layer.EffectiveTexture == null)
                     result.Warning("FX_VISUAL_LAYER_TEXTURE_MISSING",
                         $"SubFX '{subFx.subFxId}' layer '{layer.label}' has no image; the fallback material may render a plain shape.",
                         subFx);

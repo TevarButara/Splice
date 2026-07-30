@@ -334,9 +334,12 @@ namespace Splice.FxStudio.Editor
 
             DrawSerializedAsset(subFx, "motions", "motionModifiers",
                 "instanceLayout", "visualLayers",
+                "sourceSprite", "sourceTexture",
+                "processedTexture",
                 "mainColor", "gradientMode", "mainGradient",
                 "reverseGradient", "strokeMode", "strokeColor",
                 "strokeWidth", "strokeDashFrequency");
+            DrawSourceImageInput(subFx);
             DrawCommonVisualAppearance(subFx);
             DrawInstanceLayout(subFx);
             DrawVisualLayers(subFx);
@@ -344,7 +347,8 @@ namespace Splice.FxStudio.Editor
             EditorGUILayout.Space(8f);
             using (new EditorGUILayout.HorizontalScope())
             {
-                GUI.enabled = subFx.sourceTexture != null;
+                GUI.enabled =
+                    subFx.SourceTextureForProcessing != null;
                 if (GUILayout.Button("Generate Processed Alpha",
                         GUILayout.Height(34f)))
                 {
@@ -368,6 +372,63 @@ namespace Splice.FxStudio.Editor
             EditorGUILayout.HelpBox(
                 "Alpha processing is non-destructive. Source images are never modified; mobile ASTC textures are generated below Assets/SpliceFXStudio/Generated.",
                 MessageType.None);
+        }
+
+        private static void DrawSourceImageInput(
+            SpliceFxSubEffectDefinition value)
+        {
+            EditorGUILayout.Space(8f);
+            Section("Source Image");
+            EditorGUILayout.HelpBox(
+                "Assign either a Sprite imported as Sprite (2D and UI), including a sub-sprite, or a regular Texture2D. Sprite takes priority and its atlas rectangle is preserved in Preview and Export.",
+                MessageType.Info);
+
+            var nextSprite = (Sprite)EditorGUILayout.ObjectField(
+                new GUIContent("Sprite (2D and UI)"),
+                value.sourceSprite, typeof(Sprite), false);
+            if (nextSprite != value.sourceSprite)
+            {
+                Undo.RecordObject(value, "Change FX Source Sprite");
+                value.sourceSprite = nextSprite;
+                if (nextSprite != null)
+                    value.sourceTexture = null;
+                value.processedTexture = null;
+                EditorUtility.SetDirty(value);
+            }
+
+            using (new EditorGUI.DisabledScope(
+                       value.sourceSprite != null))
+            {
+                var nextTexture =
+                    (Texture2D)EditorGUILayout.ObjectField(
+                        new GUIContent("Texture2D"),
+                        value.sourceTexture,
+                        typeof(Texture2D), false);
+                if (nextTexture != value.sourceTexture)
+                {
+                    Undo.RecordObject(value,
+                        "Change FX Source Texture");
+                    value.sourceTexture = nextTexture;
+                    if (nextTexture != null)
+                        value.sourceSprite = null;
+                    value.processedTexture = null;
+                    EditorUtility.SetDirty(value);
+                }
+            }
+
+            using (new EditorGUI.DisabledScope(true))
+                EditorGUILayout.ObjectField(
+                    new GUIContent("Processed Output"),
+                    value.processedTexture,
+                    typeof(Texture2D), false);
+
+            if (value.sourceSprite != null)
+            {
+                var size = value.EffectivePixelSize;
+                EditorGUILayout.LabelField(
+                    $"Active Sprite Region: {size.x} × {size.y}px",
+                    EditorStyles.miniLabel);
+            }
         }
 
         private static void DrawCommonVisualAppearance(
@@ -817,10 +878,16 @@ namespace Splice.FxStudio.Editor
         {
             var type = (SpliceFxVisualLayerType)item
                 .FindPropertyRelative("type").enumValueIndex;
-            EditorGUILayout.PropertyField(
-                item.FindPropertyRelative("texture"),
-                new GUIContent("Image / Texture",
-                    "Optional image used by the trail strip or particle billboard. Keep the source image alpha-enabled."));
+            var sprite = item.FindPropertyRelative("sprite");
+            EditorGUILayout.PropertyField(sprite,
+                new GUIContent("Image / Sprite (2D/UI)",
+                    "Optional Sprite used by the trail strip or particle billboard. Sub-sprite atlas UV is preserved and takes priority over Texture2D."));
+            using (new EditorGUI.DisabledScope(
+                       sprite.objectReferenceValue != null))
+                EditorGUILayout.PropertyField(
+                    item.FindPropertyRelative("texture"),
+                    new GUIContent("Image / Texture2D",
+                        "Optional regular texture. Keep the source image alpha-enabled."));
             EditorGUILayout.PropertyField(
                 item.FindPropertyRelative("color"),
                 new GUIContent("Color Gradient"));

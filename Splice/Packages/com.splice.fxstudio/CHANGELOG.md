@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+- Added first-class Sprite (2D and UI) input for the main SubFX source and every Trail/Particle visual layer.
+- Sprite sub-rects are preserved, so a selected sprite inside a sprite sheet or atlas no longer renders the complete backing texture.
+- Preview, exported prefabs, Gradient, Stroke and UV Scroll now share the same sprite texture scale/offset.
+- Alpha Processor crops the selected sprite region before generating its non-destructive processed texture.
+- Texture size and memory validation use the selected sprite region rather than charging the complete atlas.
+- Main SubFX motion no longer overwrites visual-layer texture coordinates or colors.
+- Added regression coverage for main Sprite sources, sprite-based visual layers, atlas UV rects and motion evaluation.
+
 ## 0.7.1
 
 - Fixed spatial gradients being tinted or hidden by Main Color. Solid mode now uses Main Color, while every spatial Gradient mode uses the authored Gradient as the exclusive color source.

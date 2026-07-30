@@ -530,6 +530,8 @@ namespace Splice.FxStudio
         public bool enabled = true;
         public SpliceFxVisualLayerType type =
             SpliceFxVisualLayerType.Trail;
+        [Tooltip("Optional Sprite (2D and UI), including a sub-sprite. Takes priority over Texture.")]
+        public Sprite sprite;
         public Texture2D texture;
         public Gradient color = CreateDefaultGradient();
         [Min(0f)] public float emission = 1f;
@@ -567,6 +569,34 @@ namespace Splice.FxStudio
         [Min(0f)] public float particleShapeRadius = 0.25f;
         public Vector3 particleGravity;
         public bool particleWorldSpace;
+
+        public Texture EffectiveTexture =>
+            sprite != null ? sprite.texture : texture;
+
+        public Vector4 EffectiveTextureScaleOffset
+        {
+            get
+            {
+                if (sprite == null || sprite.texture == null)
+                    return new Vector4(1f, 1f, 0f, 0f);
+                Rect rect;
+                try
+                {
+                    rect = sprite.textureRect;
+                }
+                catch
+                {
+                    rect = sprite.rect;
+                }
+                var width = Mathf.Max(1f, sprite.texture.width);
+                var height = Mathf.Max(1f, sprite.texture.height);
+                return new Vector4(
+                    rect.width / width,
+                    rect.height / height,
+                    rect.x / width,
+                    rect.y / height);
+            }
+        }
 
         public static SpliceFxVisualLayerDefinition CreateTrail() =>
             new()

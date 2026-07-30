@@ -174,13 +174,17 @@ namespace Splice.FxStudio.Editor.Tests
             var definition =
                 ScriptableObject.CreateInstance<
                     SpliceFxSubEffectDefinition>();
+            var layerTexture = new Texture2D(32, 16);
+            var layerSprite = Sprite.Create(layerTexture,
+                new Rect(8f, 4f, 16f, 8f),
+                new Vector2(0.5f, 0.5f));
             GameObject built = null;
             try
             {
                 definition.templateOverride = template;
                 var trail =
                     SpliceFxVisualLayerDefinition.CreateTrail();
-                trail.texture = Texture2D.whiteTexture;
+                trail.sprite = layerSprite;
                 trail.instanceLayout.mode =
                     SpliceFxInstanceLayoutMode.Radial;
                 trail.instanceLayout.highCount = 3;
@@ -204,12 +208,26 @@ namespace Splice.FxStudio.Editor.Tests
                     built.GetComponentsInChildren<
                         SpliceFxAuxiliaryLayerMarker>(true),
                     Has.Length.EqualTo(2));
+                var block = new MaterialPropertyBlock();
+                built.GetComponentsInChildren<TrailRenderer>(true)[0]
+                    .GetPropertyBlock(block);
+                var transform = block.GetVector("_BaseMap_ST");
+                Assert.That(transform.x,
+                    Is.EqualTo(0.5f).Within(0.0001f));
+                Assert.That(transform.y,
+                    Is.EqualTo(0.5f).Within(0.0001f));
+                Assert.That(transform.z,
+                    Is.EqualTo(0.25f).Within(0.0001f));
+                Assert.That(transform.w,
+                    Is.EqualTo(0.25f).Within(0.0001f));
             }
             finally
             {
                 if (built != null) Object.DestroyImmediate(built);
                 Object.DestroyImmediate(definition);
                 Object.DestroyImmediate(template);
+                Object.DestroyImmediate(layerSprite);
+                Object.DestroyImmediate(layerTexture);
             }
         }
 
@@ -261,6 +279,64 @@ namespace Splice.FxStudio.Editor.Tests
             {
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(material);
+                Object.DestroyImmediate(texture);
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void SpriteSource_UsesSubRectAndSurvivesMotionEvaluation()
+        {
+            var shader = Shader.Find(
+                "Splice/FX Studio/Gradient Stroke Card");
+            Assert.That(shader, Is.Not.Null);
+            var root = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            var material = new Material(shader);
+            var texture = new Texture2D(32, 16);
+            var sprite = Sprite.Create(texture,
+                new Rect(8f, 4f, 16f, 8f),
+                new Vector2(0.5f, 0.5f));
+            var definition =
+                ScriptableObject.CreateInstance<
+                    SpliceFxSubEffectDefinition>();
+            try
+            {
+                root.GetComponent<Renderer>().sharedMaterial = material;
+                definition.sourceSprite = sprite;
+                definition.mainColor = Color.red;
+                definition.gradientMode =
+                    SpliceFxGradientMode.Horizontal;
+                var driver =
+                    root.AddComponent<SpliceFxPropertyDriver>();
+                driver.Configure(definition);
+                var motion =
+                    root.AddComponent<SpliceFxMotionPlayer>();
+                motion.Configure(definition);
+                motion.EvaluatePreview(0.25f);
+
+                Assert.That(definition.EffectiveTexture,
+                    Is.SameAs(texture));
+                Assert.That(definition.EffectivePixelSize,
+                    Is.EqualTo(new Vector2Int(16, 8)));
+                var block = new MaterialPropertyBlock();
+                root.GetComponent<Renderer>().GetPropertyBlock(block);
+                var transform = block.GetVector("_BaseMap_ST");
+                Assert.That(transform.x,
+                    Is.EqualTo(0.5f).Within(0.0001f));
+                Assert.That(transform.y,
+                    Is.EqualTo(0.5f).Within(0.0001f));
+                Assert.That(transform.z,
+                    Is.EqualTo(0.25f).Within(0.0001f));
+                Assert.That(transform.w,
+                    Is.EqualTo(0.25f).Within(0.0001f));
+                Assert.That(block.GetColor("_BaseColor"),
+                    Is.EqualTo(Color.white));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(material);
+                Object.DestroyImmediate(sprite);
                 Object.DestroyImmediate(texture);
                 Object.DestroyImmediate(definition);
             }

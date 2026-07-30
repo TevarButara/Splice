@@ -192,6 +192,12 @@ Stroke มี `None`, `Solid`, `Soft Glow`, `Dashed` ปรับสี คว�
 
 Stroke ใช้หน่วยความหนาเป็น pixel ของ texture จริง และต้องมีพื้นที่โปร่งใสรอบวัตถุในภาพเพื่อให้ขอบด้านนอกมีพื้นที่แสดงผล
 
+## Sprite (2D and UI) Source
+
+SubFX หลักและ Additional Visual Layer รองรับทั้ง Texture2D และ Unity Sprite โดยตรง หากเป็น Sprite Sheet/Atlas ระบบใช้เฉพาะ texture rect ของ Sprite ที่เลือก และส่ง UV scale/offset เดียวกันให้ Preview, Export, Gradient, Stroke และ UV Scroll
+
+Alpha Processor crop เฉพาะบริเวณ Sprite ก่อนสร้าง processed texture ใหม่ จึงไม่ดึงภาพอื่นใน atlas มารวมด้วย ส่วน Validator คิดขนาดและ memory budget จากพื้นที่ Sprite ที่ใช้งานจริง
+
 ## SubFX Instance Layout
 
 SubFX หนึ่งตัวสามารถใช้ภาพหรือ prefab ต้นฉบับเพียงชิ้นเดียวแล้วสร้างเป็นหลาย instance ได้ โดยมีรูปแบบ:

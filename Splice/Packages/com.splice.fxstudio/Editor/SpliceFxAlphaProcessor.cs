@@ -17,9 +17,9 @@ namespace Splice.FxStudio.Editor
         {
             if (subFx == null)
                 throw new ArgumentNullException(nameof(subFx));
-            if (subFx.sourceTexture == null)
+            if (subFx.SourceTextureForProcessing == null)
                 throw new InvalidOperationException(
-                    "Assign a source texture before generating alpha.");
+                    "Assign a source Texture2D or Sprite before generating alpha.");
             if (string.IsNullOrWhiteSpace(outputRoot) ||
                 !outputRoot.StartsWith("Assets/", StringComparison.Ordinal))
                 throw new InvalidOperationException(
@@ -32,7 +32,9 @@ namespace Splice.FxStudio.Editor
                 path = AssetDatabase.GenerateUniqueAssetPath(path);
 
             var settings = subFx.alpha ?? new SpliceFxAlphaSettings();
-            var source = ReadScaled(subFx.sourceTexture,
+            var source = ReadScaled(
+                subFx.SourceTextureForProcessing,
+                subFx.SourcePixelRect,
                 Mathf.Clamp(settings.maximumSize, 32, 2048));
             try
             {
@@ -129,18 +131,37 @@ namespace Splice.FxStudio.Editor
             }
         }
 
-        private static Texture2D ReadScaled(Texture source, int maximumSize)
+        private static Texture2D ReadScaled(
+            Texture source, Rect sourcePixels, int maximumSize)
         {
+            if (sourcePixels.width <= 0f ||
+                sourcePixels.height <= 0f)
+                sourcePixels = new Rect(
+                    0f, 0f, source.width, source.height);
             var scale = Mathf.Min(1f,
-                maximumSize / (float)Mathf.Max(source.width, source.height));
-            var width = Mathf.Max(1, Mathf.RoundToInt(source.width * scale));
-            var height = Mathf.Max(1, Mathf.RoundToInt(source.height * scale));
+                maximumSize / Mathf.Max(
+                    sourcePixels.width, sourcePixels.height));
+            var width = Mathf.Max(
+                1, Mathf.RoundToInt(sourcePixels.width * scale));
+            var height = Mathf.Max(
+                1, Mathf.RoundToInt(sourcePixels.height * scale));
             var temporary = RenderTexture.GetTemporary(width, height, 0,
                 RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
             var previous = RenderTexture.active;
             try
             {
-                Graphics.Blit(source, temporary);
+                var textureScale = new Vector2(
+                    sourcePixels.width /
+                    Mathf.Max(1f, source.width),
+                    sourcePixels.height /
+                    Mathf.Max(1f, source.height));
+                var textureOffset = new Vector2(
+                    sourcePixels.x /
+                    Mathf.Max(1f, source.width),
+                    sourcePixels.y /
+                    Mathf.Max(1f, source.height));
+                Graphics.Blit(source, temporary,
+                    textureScale, textureOffset);
                 RenderTexture.active = temporary;
                 var result = new Texture2D(width, height,
                     TextureFormat.RGBA32, false, false);

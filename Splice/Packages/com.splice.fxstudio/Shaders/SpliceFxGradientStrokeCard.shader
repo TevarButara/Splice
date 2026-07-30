@@ -66,6 +66,7 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
             {
                 float4 positionCS : SV_POSITION;
                 float2 uv : TEXCOORD0;
+                float2 localUv : TEXCOORD1;
                 half4 color : COLOR;
             };
 
@@ -75,6 +76,7 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
                 output.positionCS = TransformObjectToHClip(
                     input.positionOS.xyz);
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
+                output.localUv = input.uv;
                 output.color = input.color;
                 return output;
             }
@@ -96,9 +98,13 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
 
             half AlphaAt(float2 uv)
             {
+                float2 halfTexel = _BaseMap_TexelSize.xy * 0.5;
+                float2 minimumUv = _BaseMap_ST.zw + halfTexel;
+                float2 maximumUv = _BaseMap_ST.zw +
+                    _BaseMap_ST.xy - halfTexel;
                 return SAMPLE_TEXTURE2D(
                     _BaseMap, sampler_BaseMap,
-                    saturate(uv)).a;
+                    clamp(uv, minimumUv, maximumUv)).a;
             }
 
             half4 Frag(Varyings input) : SV_Target
@@ -108,7 +114,8 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
                 half4 gradient = half4(1, 1, 1, 1);
                 if (_GradientMode > 0.5)
                 {
-                    float coordinate = GradientCoordinate(input.uv);
+                    float coordinate =
+                        GradientCoordinate(input.localUv);
                     gradient = SAMPLE_TEXTURE2D(
                         _GradientMap, sampler_GradientMap,
                         float2(coordinate, 0.5));
@@ -159,8 +166,8 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
                     else if (_StrokeMode > 2.5)
                     {
                         float angle = atan2(
-                            input.uv.y - 0.5,
-                            input.uv.x - 0.5);
+                            input.localUv.y - 0.5,
+                            input.localUv.x - 0.5);
                         stroke *= step(0.0,
                             sin(angle * _StrokeDashFrequency));
                     }
