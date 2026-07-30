@@ -83,7 +83,7 @@ namespace Splice.FxStudio.Editor
                     "Stable one-image card for Instance Layouts, floating weapons, runes and manually animated objects.",
                 family = SpliceFxPresetFamily.Orbit,
                 maxParticles = 0,
-                maxRenderers = 1,
+                maxRenderers = 32,
                 staticCard = true
             },
             new()

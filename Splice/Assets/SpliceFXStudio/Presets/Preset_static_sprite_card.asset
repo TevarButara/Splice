@@ -55,7 +55,7 @@ MonoBehaviour:
     tooltip: Stable seed used by deterministic/replay-safe graphs.
   budget:
     maxParticles: 0
-    maxRenderers: 1
+    maxRenderers: 32
     maxVisualEffectComponents: 4
     maxLifetimeSeconds: 8
     maxTextureSize: 1024

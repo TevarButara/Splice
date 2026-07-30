@@ -1,0 +1,149 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 548f306170a4341559f1eaa167ccb0cd, type: 3}
+  m_Name: SubFX_rowan_ultimate_v2_sword 1
+  m_EditorClassIdentifier: Splice.FxStudio.Runtime::Splice.FxStudio.SpliceFxSubEffectDefinition
+  subFxId: rowan_ultimate_v2_sword_card
+  displayName: Rowan_Ultimate_v2_sword
+  schemaVersion: 1
+  preset: {fileID: 11400000, guid: 1dfb804a46e764e29a079808de7b654f, type: 2}
+  templateOverride: {fileID: 0}
+  elementStyle: 1
+  motionModifiers: 0
+  motions:
+  - label: Spin
+    enabled: 1
+    type: 0
+    speed: 90
+    amount: 1
+    delaySeconds: 0
+    durationSeconds: 1
+    phase: 0
+    loop: 1
+    axis: {x: 0, y: 1, z: 0}
+    uvSpeed: {x: 0.2, y: 0}
+    curve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - label: FadeIn
+    enabled: 1
+    type: 7
+    speed: 1
+    amount: 1
+    delaySeconds: 0
+    durationSeconds: 1
+    phase: 0
+    loop: 0
+    axis: {x: 0, y: 1, z: 0}
+    uvSpeed: {x: 0.2, y: 0}
+    curve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  instanceLayout:
+    mode: 1
+    highCount: 5
+    mediumCount: 4
+    lowCount: 3
+    centerOffset: {x: 0, y: 0.45, z: 0}
+    baseEulerAngles: {x: -99.8, y: 0.07, z: 0}
+    baseScale: {x: 1, y: 1, z: 1}
+    planeAxis: {x: 0, y: 1, z: 0}
+    startDirection: {x: 0, y: 0, z: 1}
+    facing: 1
+    radius: 1.98
+    innerRadius: 0.5
+    arcDegrees: 360
+    startAngleDegrees: 0
+    lineDirection: {x: 1, y: 0, z: 0}
+    spacing: 1
+    gridColumns: 3
+    gridSpacing: {x: 1, y: 1}
+    eulerStep: {x: 0, y: 0, z: 0}
+    uniformScaleStep: 0
+    angleJitter: 0
+    radiusJitter: 0
+    rotationJitter: 0
+    scaleJitter: 0
+    randomSeed: 1337
+    selfSpinAxis: {x: 0, y: 1, z: 0}
+    selfSpinDegreesPerSecond: 0
+    alternateSelfSpin: 0
+    activationDelayStep: 0
+    activeDuration: 0
+    reverseActivationOrder: 0
+    manualInstances: []
+  sourceTexture: {fileID: 2800000, guid: 77e6d4f5f5721495894c6afaebe50ecf, type: 3}
+  processedTexture: {fileID: 0}
+  alpha:
+    mode: 0
+    chromaKey: {r: 0, g: 0, b: 0, a: 1}
+    tolerance: 0.08
+    softness: 0.18
+    despill: 0.75
+    threshold: 0
+    feather: 0.1
+    invert: 0
+    multiplySourceAlpha: 1
+    maximumSize: 1024
+  mainColor: {r: 1, g: 1, b: 1, a: 1}
+  emission: 3
+  lifetime: 1
+  spawnRate: 32
+  speed: 2.45
+  size: 1
+  radius: 1
+  rotationSpeed: 35
+  noiseStrength: 0
+  quality: -1
+  customValues: []
