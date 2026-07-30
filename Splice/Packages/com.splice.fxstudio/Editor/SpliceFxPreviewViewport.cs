@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.VFX;
 using Object = UnityEngine.Object;
+
+[assembly: InternalsVisibleTo("Splice.FxStudio.Editor.Tests")]
 
 namespace Splice.FxStudio.Editor
 {
@@ -37,6 +40,9 @@ namespace Splice.FxStudio.Editor
         private Vector2 cameraAngles = new(28f, -32f);
         private Vector3 cameraPivot = new(0f, 0.7f, 0f);
         private float cameraDistance = 6f;
+        private bool editInstances;
+        private bool draggingInstance;
+        private int selectedInstanceIndex = -1;
 
         public SpliceFxPreviewViewport(Action repaint)
         {
@@ -59,11 +65,18 @@ namespace Splice.FxStudio.Editor
                 sourceSignature == signature)
                 return;
 
+            var changedAsset = source != value || sourceKind != kind;
             source = value;
             sourceKind = kind;
             stageIndex = selectedStage;
             sourceSignature = signature;
             previewTime = 0f;
+            if (changedAsset)
+            {
+                editInstances = false;
+                draggingInstance = false;
+                selectedInstanceIndex = -1;
+            }
             Rebuild();
         }
 
@@ -86,12 +99,13 @@ namespace Splice.FxStudio.Editor
                 var rect = GUILayoutUtility.GetRect(
                     width - 18f, 350f, GUILayout.ExpandWidth(true));
                 DrawPreview(rect);
-                HandleCamera(rect);
+                HandleViewportInput(rect);
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    GUILayout.Label(
-                        "Drag: orbit  •  Wheel: zoom",
+                    GUILayout.Label(editInstances
+                            ? "Drag marker: move • Alt/Right drag: orbit"
+                            : "Drag: orbit  •  Wheel: zoom",
                         EditorStyles.miniLabel);
                     GUILayout.FlexibleSpace();
                     if (GUILayout.Button("Focus", GUILayout.Width(58f)))
@@ -150,6 +164,41 @@ namespace Splice.FxStudio.Editor
                 background = EditorGUILayout.ColorField(
                     GUIContent.none, background, false, false, false,
                     GUILayout.Width(42f));
+                DrawInstanceEditToggle();
+            }
+        }
+
+        private void DrawInstanceEditToggle()
+        {
+            var subFx = source as SpliceFxSubEffectDefinition;
+            var canEdit = sourceKind == SpliceFxPreviewSourceKind.SubFx &&
+                          subFx?.instanceLayout != null;
+            using (new EditorGUI.DisabledScope(!canEdit))
+            {
+                var next = GUILayout.Toggle(editInstances,
+                    "Edit", "Button", GUILayout.Width(46f));
+                if (next == editInstances || !canEdit) return;
+                if (next &&
+                    subFx.instanceLayout.mode !=
+                    SpliceFxInstanceLayoutMode.Manual)
+                {
+                    if (!EditorUtility.DisplayDialog(
+                            "Convert Layout to Manual?",
+                            "The current formation will be preserved, then every item can be positioned independently. This can be undone.",
+                            "Convert & Edit", "Cancel"))
+                        return;
+                    Undo.RecordObject(subFx,
+                        "Convert FX Layout to Manual");
+                    subFx.instanceLayout =
+                        SpliceFxInstanceLayoutSolver.ToManual(
+                            subFx.instanceLayout);
+                    EditorUtility.SetDirty(subFx);
+                    selectedInstanceIndex = 0;
+                    Rebuild();
+                }
+                editInstances = next;
+                draggingInstance = false;
+                requestRepaint?.Invoke();
             }
         }
 
@@ -174,6 +223,7 @@ namespace Splice.FxStudio.Editor
             {
                 utility.EndAndDrawPreview(rect);
             }
+            DrawInstanceHandles(rect);
 
             if (contentRoot == null)
             {
@@ -234,6 +284,7 @@ namespace Splice.FxStudio.Editor
             previewRoot.hideFlags = HideFlags.HideAndDontSave;
             CreateEnvironment(previewRoot.transform);
             contentRoot = BuildContent(previewRoot.transform);
+            ConfigureExternalPreview(previewRoot);
             SetHideFlagsRecursive(previewRoot);
             utility.AddSingleGO(previewRoot);
             FocusContent();
@@ -353,32 +404,62 @@ namespace Splice.FxStudio.Editor
             SimulateVisual(contentRoot, time, quality);
         }
 
-        private static void SimulateVisual(GameObject root, float time,
+        internal static void SimulateVisual(GameObject root, float time,
             SpliceFxQualityTier qualityTier)
         {
-            foreach (var group in
-                     root.GetComponentsInChildren<SpliceFxInstanceGroup>(
-                         true))
+            var groups =
+                root.GetComponentsInChildren<SpliceFxInstanceGroup>(true);
+            foreach (var group in groups)
                 group.EvaluatePreview(time, qualityTier);
             foreach (var motion in
                      root.GetComponentsInChildren<SpliceFxMotionPlayer>(
                          true))
-                motion.EvaluatePreview(time);
+                motion.EvaluatePreview(InstanceLocalTime(
+                    groups, motion.transform, time));
             foreach (var particle in
                      root.GetComponentsInChildren<ParticleSystem>(true))
             {
+                if (!particle.gameObject.activeInHierarchy) continue;
+                var localTime = InstanceLocalTime(
+                    groups, particle.transform, time);
                 particle.Stop(true,
                     ParticleSystemStopBehavior.StopEmittingAndClear);
-                particle.Simulate(time, true, true, true);
+                particle.Simulate(localTime, true, true, true);
                 particle.Pause(true);
             }
             foreach (var visual in
                      root.GetComponentsInChildren<VisualEffect>(true))
             {
+                if (!visual.gameObject.activeInHierarchy) continue;
+                var localTime = InstanceLocalTime(
+                    groups, visual.transform, time);
                 visual.Reinit();
-                if (time > 0f) visual.Simulate(time, 1);
+                SimulateVisualEffect(visual, localTime);
                 visual.pause = true;
             }
+        }
+
+        private static float InstanceLocalTime(
+            IReadOnlyList<SpliceFxInstanceGroup> groups,
+            Transform component, float time)
+        {
+            foreach (var group in groups)
+                foreach (var instance in group.Instances)
+                    if (instance != null &&
+                        (component == instance ||
+                         component.IsChildOf(instance)))
+                        return group.GetLocalElapsed(component, time);
+            return Mathf.Max(0f, time);
+        }
+
+        private static void SimulateVisualEffect(
+            VisualEffect visual, float time)
+        {
+            if (time <= 0f) return;
+            const float fixedStep = 1f / 30f;
+            var steps = Mathf.Clamp(
+                Mathf.CeilToInt(time / fixedStep), 1, 240);
+            visual.Simulate(time / steps, (uint)steps);
         }
 
         private void RestartVisuals()
@@ -430,6 +511,34 @@ namespace Splice.FxStudio.Editor
             }
         }
 
+        internal static void ConfigureExternalPreview(GameObject root)
+        {
+            if (root == null) return;
+            foreach (var group in root.GetComponentsInChildren<
+                         SpliceFxInstanceGroup>(true))
+                group.SetExternalTimeControl(true);
+            foreach (var motion in root.GetComponentsInChildren<
+                         SpliceFxMotionPlayer>(true))
+                motion.SetExternalTimeControl(true);
+            foreach (var runtime in root.GetComponentsInChildren<
+                         SpliceFxSequenceRuntime>(true))
+                runtime.SetExternalTimeControl(true);
+
+            var seed = 104729u;
+            foreach (var particle in root.GetComponentsInChildren<
+                         ParticleSystem>(true))
+            {
+                particle.useAutoRandomSeed = false;
+                particle.randomSeed = seed++;
+            }
+            foreach (var visual in root.GetComponentsInChildren<
+                         VisualEffect>(true))
+            {
+                visual.resetSeedOnPlay = false;
+                visual.startSeed = seed++;
+            }
+        }
+
         private void Cleanup()
         {
             if (utility != null)
@@ -452,6 +561,7 @@ namespace Splice.FxStudio.Editor
             var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
             ground.name = "Preview Ground";
             ground.transform.SetParent(parent, false);
+            ground.transform.localPosition = Vector3.down * 0.05f;
             ground.transform.localScale = Vector3.one * 0.8f;
             var collider = ground.GetComponent<Collider>();
             if (collider != null) Object.DestroyImmediate(collider);
@@ -463,11 +573,11 @@ namespace Splice.FxStudio.Editor
             for (var i = -4; i <= 4; i++)
             {
                 CreateGridLine(parent, gridMaterial,
-                    new Vector3(i, 0.012f, -4f),
-                    new Vector3(i, 0.012f, 4f));
+                    new Vector3(i, -0.038f, -4f),
+                    new Vector3(i, -0.038f, 4f));
                 CreateGridLine(parent, gridMaterial,
-                    new Vector3(-4f, 0.012f, i),
-                    new Vector3(4f, 0.012f, i));
+                    new Vector3(-4f, -0.038f, i),
+                    new Vector3(4f, -0.038f, i));
             }
 
             if (!showHeroReference) return;
@@ -604,12 +714,169 @@ namespace Splice.FxStudio.Editor
             utility.camera.transform.rotation = rotation;
         }
 
+        private void DrawInstanceHandles(Rect rect)
+        {
+            if (!editInstances ||
+                source is not SpliceFxSubEffectDefinition subFx ||
+                subFx.instanceLayout?.mode !=
+                SpliceFxInstanceLayoutMode.Manual)
+                return;
+            var group = EditableGroup();
+            if (group == null) return;
+            selectedInstanceIndex = Mathf.Clamp(
+                selectedInstanceIndex, 0,
+                Mathf.Max(0, group.Instances.Count - 1));
+            for (var i = 0; i < group.Instances.Count; i++)
+            {
+                var instance = group.Instances[i];
+                if (instance == null) continue;
+                if (!TryWorldToGui(
+                        rect, instance.position, out var point))
+                    continue;
+                if (!rect.Contains(point)) continue;
+                var selected = i == selectedInstanceIndex;
+                var outer = new Rect(point.x - 7f, point.y - 7f,
+                    14f, 14f);
+                EditorGUI.DrawRect(outer, selected
+                    ? new Color(1f, 0.58f, 0.08f, 0.95f)
+                    : new Color(0.1f, 0.8f, 1f, 0.9f));
+                EditorGUI.DrawRect(new Rect(
+                        outer.x + 3f, outer.y + 3f, 8f, 8f),
+                    new Color(0.03f, 0.05f, 0.08f, 0.95f));
+                if (selected)
+                    GUI.Label(new Rect(point.x + 10f, point.y - 10f,
+                            90f, 20f),
+                        $"Item {i + 1}", EditorStyles.miniBoldLabel);
+            }
+        }
+
+        private void HandleViewportInput(Rect rect)
+        {
+            if (HandleInstanceInput(rect)) return;
+            HandleCamera(rect);
+        }
+
+        private bool HandleInstanceInput(Rect rect)
+        {
+            if (!editInstances ||
+                source is not SpliceFxSubEffectDefinition subFx ||
+                subFx.instanceLayout?.mode !=
+                SpliceFxInstanceLayoutMode.Manual)
+                return false;
+            var current = Event.current;
+            if (draggingInstance &&
+                current.type == EventType.MouseUp &&
+                current.button == 0)
+            {
+                draggingInstance = false;
+                current.Use();
+                return true;
+            }
+            if (!rect.Contains(current.mousePosition)) return false;
+            var group = EditableGroup();
+            if (group == null) return false;
+
+            if (current.type == EventType.MouseDown &&
+                current.button == 0 && !current.alt)
+            {
+                var hit = FindInstanceHandle(
+                    rect, group, current.mousePosition);
+                if (hit < 0) return false;
+                selectedInstanceIndex = hit;
+                draggingInstance = true;
+                Undo.RecordObject(subFx, "Move FX Instance");
+                current.Use();
+                requestRepaint?.Invoke();
+                return true;
+            }
+            if (current.type != EventType.MouseDrag ||
+                current.button != 0 || !draggingInstance)
+                return false;
+            if (selectedInstanceIndex < 0 ||
+                selectedInstanceIndex >= group.Instances.Count ||
+                selectedInstanceIndex >=
+                subFx.instanceLayout.manualInstances.Count)
+                return false;
+
+            var axis = subFx.instanceLayout.planeAxis;
+            if (axis.sqrMagnitude < 0.0001f) axis = Vector3.up;
+            var plane = new Plane(
+                group.transform.TransformDirection(axis.normalized),
+                group.transform.position);
+            var ray = GuiPointToRay(rect, current.mousePosition);
+            if (!plane.Raycast(ray, out var distance)) return false;
+            var local = group.transform.InverseTransformPoint(
+                ray.GetPoint(distance));
+            var manual = subFx.instanceLayout
+                .manualInstances[selectedInstanceIndex];
+            var delta = local - manual.localPosition;
+            manual.localPosition = local;
+            var instance = group.Instances[selectedInstanceIndex];
+            if (instance != null)
+                instance.localPosition += delta;
+            EditorUtility.SetDirty(subFx);
+            GUI.changed = true;
+            current.Use();
+            requestRepaint?.Invoke();
+            return true;
+        }
+
+        private SpliceFxInstanceGroup EditableGroup()
+        {
+            if (contentRoot == null) return null;
+            var groups = contentRoot.GetComponentsInChildren<
+                SpliceFxInstanceGroup>(true);
+            return groups.Length > 0 ? groups[0] : null;
+        }
+
+        private int FindInstanceHandle(Rect rect,
+            SpliceFxInstanceGroup group, Vector2 mouse)
+        {
+            var closest = -1;
+            var closestDistance = 12f;
+            for (var i = 0; i < group.Instances.Count; i++)
+            {
+                var instance = group.Instances[i];
+                if (instance == null) continue;
+                if (!TryWorldToGui(
+                        rect, instance.position, out var point))
+                    continue;
+                var distance = Vector2.Distance(mouse, point);
+                if (distance >= closestDistance) continue;
+                closest = i;
+                closestDistance = distance;
+            }
+            return closest;
+        }
+
+        private bool TryWorldToGui(
+            Rect rect, Vector3 world, out Vector2 gui)
+        {
+            var viewport = utility.camera.WorldToViewportPoint(world);
+            gui = new Vector2(
+                rect.x + viewport.x * rect.width,
+                rect.y + (1f - viewport.y) * rect.height);
+            return viewport.z > 0f;
+        }
+
+        private Ray GuiPointToRay(Rect rect, Vector2 gui)
+        {
+            var viewport = new Vector3(
+                Mathf.InverseLerp(rect.x, rect.xMax, gui.x),
+                1f - Mathf.InverseLerp(rect.y, rect.yMax, gui.y),
+                0f);
+            return utility.camera.ViewportPointToRay(viewport);
+        }
+
         private void HandleCamera(Rect rect)
         {
             var current = Event.current;
             if (!rect.Contains(current.mousePosition)) return;
             if (current.type == EventType.MouseDrag &&
-                current.button == 0)
+                ((!editInstances && current.button == 0) ||
+                 (editInstances &&
+                  (current.button == 1 ||
+                   (current.button == 0 && current.alt)))))
             {
                 cameraAngles.y += current.delta.x * 0.45f;
                 cameraAngles.x =

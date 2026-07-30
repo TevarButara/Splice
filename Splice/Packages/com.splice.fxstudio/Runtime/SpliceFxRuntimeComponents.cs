@@ -14,8 +14,11 @@ namespace Splice.FxStudio
         [SerializeField] private List<bool> layoutEnabled = new();
         private readonly List<Quaternion> baseRotations = new();
         private double startedAt;
+        private bool externalTimeControl;
+        private int evaluatedVisibleCount;
 
         public IReadOnlyList<Transform> Instances => instances;
+        public bool ExternalTimeControl => externalTimeControl;
 
         public void ConfigureEditor(
             SpliceFxSubEffectDefinition value,
@@ -37,6 +40,30 @@ namespace Splice.FxStudio
             EvaluatePreview(0f, SpliceFxQuality.Current);
         }
 
+        public void SetExternalTimeControl(bool enabled) =>
+            externalTimeControl = enabled;
+
+        public float GetLocalElapsed(
+            Transform descendant, float elapsedSeconds)
+        {
+            if (descendant == null) return Mathf.Max(0f, elapsedSeconds);
+            var layout = definition?.instanceLayout;
+            for (var i = 0; i < instances.Count; i++)
+            {
+                var instance = instances[i];
+                if (instance == null ||
+                    (descendant != instance &&
+                     !descendant.IsChildOf(instance)))
+                    continue;
+                return Mathf.Max(0f, elapsedSeconds -
+                    (layout?.DelayFor(i,
+                        evaluatedVisibleCount > 0
+                            ? evaluatedVisibleCount
+                            : instances.Count) ?? 0f));
+            }
+            return Mathf.Max(0f, elapsedSeconds);
+        }
+
         public void EvaluatePreview(float elapsedSeconds,
             SpliceFxQualityTier quality)
         {
@@ -45,6 +72,7 @@ namespace Splice.FxStudio
             var visibleCount = layout != null
                 ? layout.CountFor(quality)
                 : instances.Count;
+            evaluatedVisibleCount = visibleCount;
             var spinSpeed =
                 layout?.selfSpinDegreesPerSecond ?? 0f;
             var spinAxis = layout != null &&
@@ -58,8 +86,17 @@ namespace Splice.FxStudio
                 if (instance == null) continue;
                 var authoredEnabled = i >= layoutEnabled.Count ||
                                       layoutEnabled[i];
+                var delay = layout?.DelayFor(i, visibleCount) ?? 0f;
+                var localElapsed =
+                    Mathf.Max(0f, elapsedSeconds - delay);
+                var started = elapsedSeconds + 0.0001f >= delay;
+                var withinDuration = layout == null ||
+                                     layout.activeDuration <= 0f ||
+                                     localElapsed <
+                                     layout.activeDuration;
                 instance.gameObject.SetActive(
-                    authoredEnabled && i < visibleCount);
+                    authoredEnabled && i < visibleCount &&
+                    started && withinDuration);
                 if (i >= baseRotations.Count) continue;
                 var direction = layout?.alternateSelfSpin == true &&
                                 (i & 1) == 1
@@ -68,8 +105,7 @@ namespace Splice.FxStudio
                 instance.localRotation = baseRotations[i] *
                                          Quaternion.AngleAxis(
                                              spinSpeed *
-                                             Mathf.Max(0f,
-                                                 elapsedSeconds) *
+                                             localElapsed *
                                              direction,
                                              spinAxis);
             }
@@ -93,7 +129,7 @@ namespace Splice.FxStudio
 
         private void Update()
         {
-            if (definition == null) return;
+            if (definition == null || externalTimeControl) return;
             EvaluatePreview((float)(Now - startedAt),
                 SpliceFxQuality.Current);
         }
@@ -307,8 +343,10 @@ namespace Splice.FxStudio
         private double startedAt;
         private bool captured;
         private MaterialPropertyBlock propertyBlock;
+        private bool externalTimeControl;
 
         public SpliceFxSubEffectDefinition Definition => definition;
+        public bool ExternalTimeControl => externalTimeControl;
 
         public void Configure(SpliceFxSubEffectDefinition value)
         {
@@ -338,6 +376,9 @@ namespace Splice.FxStudio
             Evaluate(Mathf.Max(0f, elapsedSeconds));
         }
 
+        public void SetExternalTimeControl(bool enabled) =>
+            externalTimeControl = enabled;
+
         private void OnEnable()
         {
             CaptureCurrentAsBase();
@@ -355,7 +396,7 @@ namespace Splice.FxStudio
 
         private void Update()
         {
-            if (definition == null) return;
+            if (definition == null || externalTimeControl) return;
             Evaluate((float)(Now - startedAt));
         }
 
@@ -577,9 +618,11 @@ namespace Splice.FxStudio
         [SerializeField] private List<SpliceFxRuntimeLayer> layers = new();
         [SerializeField] private float durationSeconds = 1f;
         private double startedAt;
+        private bool externalTimeControl;
 
         public IReadOnlyList<SpliceFxRuntimeLayer> Layers => layers;
         public float DurationSeconds => durationSeconds;
+        public bool ExternalTimeControl => externalTimeControl;
 
         public void ConfigureEditor(List<SpliceFxRuntimeLayer> value,
             float duration)
@@ -601,6 +644,9 @@ namespace Splice.FxStudio
             Evaluate(Mathf.Max(0f, elapsedSeconds), quality, true);
         }
 
+        public void SetExternalTimeControl(bool enabled) =>
+            externalTimeControl = enabled;
+
         private void OnEnable()
         {
             startedAt = Now;
@@ -611,6 +657,7 @@ namespace Splice.FxStudio
 
         private void Update()
         {
+            if (externalTimeControl) return;
             var elapsed = (float)(Now - startedAt);
             Evaluate(elapsed, SpliceFxQuality.Current, false);
         }
@@ -690,20 +737,24 @@ namespace Splice.FxStudio
         private static void SimulateAt(GameObject root, float seconds,
             SpliceFxQualityTier quality)
         {
-            foreach (var group in
-                     root.GetComponentsInChildren<SpliceFxInstanceGroup>(
-                         true))
+            var groups =
+                root.GetComponentsInChildren<SpliceFxInstanceGroup>(true);
+            foreach (var group in groups)
                 group.EvaluatePreview(seconds, quality);
             foreach (var motion in
                      root.GetComponentsInChildren<SpliceFxMotionPlayer>(
                          true))
-                motion.EvaluatePreview(seconds);
+                motion.EvaluatePreview(InstanceLocalTime(
+                    groups, motion.transform, seconds));
             foreach (var particle in
                      root.GetComponentsInChildren<ParticleSystem>(true))
             {
+                if (!particle.gameObject.activeInHierarchy) continue;
+                var localTime = InstanceLocalTime(
+                    groups, particle.transform, seconds);
                 particle.Stop(true,
                     ParticleSystemStopBehavior.StopEmittingAndClear);
-                particle.Simulate(seconds, true, true, true);
+                particle.Simulate(localTime, true, true, true);
                 particle.Pause(true);
             }
             foreach (var trail in
@@ -715,11 +766,33 @@ namespace Splice.FxStudio
             foreach (var visual in
                      root.GetComponentsInChildren<VisualEffect>(true))
             {
+                if (!visual.gameObject.activeInHierarchy) continue;
+                var localTime = InstanceLocalTime(
+                    groups, visual.transform, seconds);
                 visual.Reinit();
-                if (seconds > 0f)
-                    visual.Simulate(seconds, 1);
+                if (localTime > 0f)
+                {
+                    const float fixedStep = 1f / 30f;
+                    var steps = Mathf.Clamp(
+                        Mathf.CeilToInt(localTime / fixedStep),
+                        1, 240);
+                    visual.Simulate(localTime / steps, (uint)steps);
+                }
                 visual.pause = true;
             }
+        }
+
+        private static float InstanceLocalTime(
+            IReadOnlyList<SpliceFxInstanceGroup> groups,
+            Transform component, float time)
+        {
+            foreach (var group in groups)
+                foreach (var instance in group.Instances)
+                    if (instance != null &&
+                        (component == instance ||
+                         component.IsChildOf(instance)))
+                        return group.GetLocalElapsed(component, time);
+            return Mathf.Max(0f, time);
         }
 
         private static double Now => Time.realtimeSinceStartupAsDouble;

@@ -411,6 +411,161 @@ namespace Splice.FxStudio.Editor.Tests
         }
 
         [Test]
+        public void InstanceGroup_StaggersVisibilityAndUsesLocalSpinTime()
+        {
+            var root = new GameObject("Instances");
+            var definition =
+                ScriptableObject.CreateInstance<SpliceFxSubEffectDefinition>();
+            var transforms = new System.Collections.Generic.List<Transform>();
+            var enabled = new System.Collections.Generic.List<bool>();
+            try
+            {
+                definition.instanceLayout =
+                    SpliceFxInstanceLayout.RadialFive();
+                definition.instanceLayout.highCount = 3;
+                definition.instanceLayout.mediumCount = 3;
+                definition.instanceLayout.lowCount = 3;
+                definition.instanceLayout.activationDelayStep = 0.5f;
+                definition.instanceLayout.selfSpinDegreesPerSecond = 90f;
+                for (var i = 0; i < 3; i++)
+                {
+                    var child = new GameObject($"Instance {i}");
+                    child.transform.SetParent(root.transform);
+                    transforms.Add(child.transform);
+                    enabled.Add(true);
+                }
+                var group = root.AddComponent<SpliceFxInstanceGroup>();
+                group.ConfigureEditor(definition, transforms, enabled);
+
+                group.EvaluatePreview(0.25f,
+                    SpliceFxQualityTier.High);
+                Assert.That(transforms[0].gameObject.activeSelf, Is.True);
+                Assert.That(transforms[1].gameObject.activeSelf, Is.False);
+                Assert.That(Quaternion.Angle(
+                        Quaternion.identity,
+                        transforms[0].localRotation),
+                    Is.EqualTo(22.5f).Within(0.1f));
+
+                group.EvaluatePreview(0.75f,
+                    SpliceFxQualityTier.High);
+                Assert.That(transforms[1].gameObject.activeSelf, Is.True);
+                Assert.That(transforms[2].gameObject.activeSelf, Is.False);
+                Assert.That(Quaternion.Angle(
+                        Quaternion.identity,
+                        transforms[1].localRotation),
+                    Is.EqualTo(22.5f).Within(0.1f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void ProceduralLayout_ConvertsToEditableManualPoses()
+        {
+            var radial = SpliceFxInstanceLayout.RadialFive();
+            radial.motionScope =
+                SpliceFxInstanceMotionScope.EachInstance;
+
+            var manual = SpliceFxInstanceLayoutSolver.ToManual(radial);
+
+            Assert.That(manual.mode,
+                Is.EqualTo(SpliceFxInstanceLayoutMode.Manual));
+            Assert.That(manual.manualInstances, Has.Count.EqualTo(5));
+            Assert.That(manual.manualInstances[0].localPosition.magnitude,
+                Is.EqualTo(1.5f).Within(0.001f));
+            Assert.That(manual.mediumCount, Is.EqualTo(4));
+            Assert.That(manual.lowCount, Is.EqualTo(3));
+            Assert.That(manual.motionScope,
+                Is.EqualTo(SpliceFxInstanceMotionScope.EachInstance));
+        }
+
+        [Test]
+        public void ReverseStagger_StartsFromLastInstance()
+        {
+            var layout = SpliceFxInstanceLayout.RadialFive();
+            layout.activationDelayStep = 0.2f;
+            layout.reverseActivationOrder = true;
+
+            Assert.That(layout.DelayFor(4, 5),
+                Is.EqualTo(0f).Within(0.001f));
+            Assert.That(layout.DelayFor(0, 5),
+                Is.EqualTo(0.8f).Within(0.001f));
+        }
+
+        [Test]
+        public void Validator_WarnsWhenStaggerExceedsLifetime()
+        {
+            var definition =
+                ScriptableObject.CreateInstance<SpliceFxSubEffectDefinition>();
+            try
+            {
+                definition.lifetime = 1f;
+                definition.instanceLayout =
+                    SpliceFxInstanceLayout.RadialFive();
+                definition.instanceLayout.activationDelayStep = 0.3f;
+                var result = new SpliceFxValidationResult();
+
+                SpliceFxValidator.ValidateSubFx(definition, result);
+
+                Assert.That(result.Issues,
+                    Has.Some.Matches<SpliceFxValidationIssue>(
+                        issue =>
+                            issue.Code ==
+                            "FX_INSTANCE_STAGGER_EXCEEDS_LIFETIME"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void PreviewSimulation_IsDeterministicAtExactTime()
+        {
+            var root = new GameObject("Preview Particle");
+            try
+            {
+                var particle = root.AddComponent<ParticleSystem>();
+                var main = particle.main;
+                main.loop = true;
+                main.startLifetime = 1f;
+                main.startSpeed = 1f;
+                var emission = particle.emission;
+                emission.rateOverTime = 24f;
+                var motion = root.AddComponent<SpliceFxMotionPlayer>();
+
+                SpliceFxPreviewViewport.ConfigureExternalPreview(root);
+                Assert.That(particle.useAutoRandomSeed, Is.False);
+                Assert.That(motion.ExternalTimeControl, Is.True);
+
+                SpliceFxPreviewViewport.SimulateVisual(
+                    root, 0.5f, SpliceFxQualityTier.High);
+                var first = new ParticleSystem.Particle[
+                    particle.particleCount];
+                var firstCount = particle.GetParticles(first);
+
+                SpliceFxPreviewViewport.SimulateVisual(
+                    root, 0.5f, SpliceFxQualityTier.High);
+                var second = new ParticleSystem.Particle[
+                    particle.particleCount];
+                var secondCount = particle.GetParticles(second);
+
+                Assert.That(firstCount, Is.GreaterThan(0));
+                Assert.That(secondCount, Is.EqualTo(firstCount));
+                for (var i = 0; i < firstCount; i++)
+                    Assert.That(second[i].position,
+                        Is.EqualTo(first[i].position));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
         public void Validator_RejectsEmptyManualLayout()
         {
             var definition =

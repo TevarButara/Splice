@@ -54,12 +54,24 @@ namespace Splice.FxStudio.Editor
                 clone.SetActive(pose.Enabled);
                 transforms.Add(clone.transform);
                 enabledStates.Add(pose.Enabled);
+                if (subFx.instanceLayout?.motionScope ==
+                    SpliceFxInstanceMotionScope.EachInstance)
+                {
+                    var itemMotion =
+                        clone.GetComponent<SpliceFxMotionPlayer>() ??
+                        clone.AddComponent<SpliceFxMotionPlayer>();
+                    itemMotion.Configure(subFx);
+                }
             }
 
             var driver = root.AddComponent<SpliceFxPropertyDriver>();
             driver.Configure(subFx);
-            var motion = root.AddComponent<SpliceFxMotionPlayer>();
-            motion.Configure(subFx);
+            if (subFx.instanceLayout?.motionScope !=
+                SpliceFxInstanceMotionScope.EachInstance)
+            {
+                var motion = root.AddComponent<SpliceFxMotionPlayer>();
+                motion.Configure(subFx);
+            }
             var group = root.AddComponent<SpliceFxInstanceGroup>();
             group.ConfigureEditor(subFx, transforms, enabledStates);
             root.SetActive(true);

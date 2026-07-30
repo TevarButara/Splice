@@ -189,6 +189,12 @@ SubFX หนึ่งตัวสามารถใช้ภาพหรือ p
 - `Motion Stack > Spin/Orbit` ขยับ formation ทั้งชุดรอบจุดกลาง
 - `Each Item Spin` หมุนแต่ละชิ้นรอบแกนของตัวเอง และเลือกสลับทิศชิ้นคู่/คี่ได้
 
+`Motion Stack Applies To` เลือกได้ว่าจะให้ Motion Stack ทำงานกับทั้ง formation หรือให้แต่ละ instance เล่น Motion Stack แยกกัน เมื่อเลือก `Each Instance` ระบบจะใช้ `Delay Per Item` เป็น local time ของแต่ละชิ้น จึงสร้างการปรากฏ หมุน ลอย หรือพุ่งเรียงลำดับได้โดยไม่ต้องเขียน execution code ใหม่
+
+Live Preview มีโหมด `Edit` สำหรับแปลง procedural layout ปัจจุบันเป็น Manual โดยรักษาตำแหน่งเดิมทั้งหมด จากนั้นเลือกและลาก marker ของแต่ละ instance บนระนาบ authoring ได้โดยตรง ใช้ Alt/Right-drag เพื่อหมุนกล้อง
+
+ภาพเดี่ยวที่ต้องคงอยู่ เช่น ดาบหรือสัญลักษณ์ ใช้ preset `Static Sprite / Instance Card` ส่วน Particle preset ใช้เมื่อต้องการ emitter ที่สร้างอนุภาคอายุสั้นหลายชิ้นจริง ๆ
+
 จำนวน instance แยก High/Medium/Low ได้ เช่น 5/4/3 สำหรับมือถือแต่ละระดับ การ Export จะ bake instance ทั้งหมดลง pooled prefab ล่วงหน้า จึงไม่มีการ `Instantiate` ระหว่างกด skill และ Validator จำกัดสูงสุด 64 ชิ้นพร้อมเตือน renderer budget
 
 ## Blend Sequence

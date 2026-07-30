@@ -20,6 +20,7 @@ namespace Splice.FxStudio.Editor
             public SpliceFxPresetFamily family;
             public int maxParticles;
             public int maxRenderers;
+            public bool staticCard;
         }
 
         private static readonly Starter[] Starters =
@@ -73,6 +74,17 @@ namespace Splice.FxStudio.Editor
                 family = SpliceFxPresetFamily.Beam,
                 maxParticles = 64,
                 maxRenderers = 4
+            },
+            new()
+            {
+                id = "static_sprite_card",
+                name = "Static Sprite / Instance Card",
+                description =
+                    "Stable one-image card for Instance Layouts, floating weapons, runes and manually animated objects.",
+                family = SpliceFxPresetFamily.Orbit,
+                maxParticles = 0,
+                maxRenderers = 1,
+                staticCard = true
             },
             new()
             {
@@ -196,7 +208,11 @@ namespace Splice.FxStudio.Editor
             var root = new GameObject($"Template_{starter.id}");
             try
             {
-                switch (starter.family)
+                if (starter.staticCard)
+                {
+                    CreateSpriteCard(root, material);
+                }
+                else switch (starter.family)
                 {
                     case SpliceFxPresetFamily.Ground:
                         CreateGround(root, material);
@@ -218,6 +234,24 @@ namespace Splice.FxStudio.Editor
             {
                 UnityEngine.Object.DestroyImmediate(root);
             }
+        }
+
+        private static void CreateSpriteCard(
+            GameObject root, Material material)
+        {
+            var quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            quad.name = "Sprite Card";
+            quad.transform.SetParent(root.transform, false);
+            if (quad.TryGetComponent<Collider>(out var collider))
+                UnityEngine.Object.DestroyImmediate(collider);
+            var renderer = quad.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            renderer.motionVectorGenerationMode =
+                MotionVectorGenerationMode.ForceNoMotion;
         }
 
         private static void CreateGround(GameObject root, Material material)

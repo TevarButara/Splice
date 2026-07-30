@@ -90,6 +90,10 @@ namespace Splice.FxStudio
                 instanceLayout.startDirection = Vector3.forward;
             if (instanceLayout.selfSpinAxis.sqrMagnitude < 0.0001f)
                 instanceLayout.selfSpinAxis = Vector3.up;
+            instanceLayout.activationDelayStep =
+                Mathf.Max(0f, instanceLayout.activationDelayStep);
+            instanceLayout.activeDuration =
+                Mathf.Max(0f, instanceLayout.activeDuration);
         }
     }
 }

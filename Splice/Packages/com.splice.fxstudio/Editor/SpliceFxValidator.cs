@@ -242,6 +242,12 @@ namespace Splice.FxStudio.Editor
                 result.Warning("FX_INSTANCE_COUNT_HIGH",
                     $"SubFX '{subFx.subFxId}' creates {count} instances. Profile this layout on a mid-range mobile device.",
                     subFx);
+            if (layout.motionScope ==
+                    SpliceFxInstanceMotionScope.EachInstance &&
+                count * (subFx.motions?.Count ?? 0) > 128)
+                result.Warning("FX_INSTANCE_MOTION_BUDGET",
+                    $"SubFX '{subFx.subFxId}' evaluates Motion Stack per item ({count} instances × {subFx.motions.Count} motions). Profile or reduce Low/Medium counts.",
+                    subFx);
             if (layout.mediumCount > count ||
                 layout.lowCount > count)
                 result.Error("FX_INSTANCE_QUALITY_COUNT_INVALID",
@@ -259,6 +265,18 @@ namespace Splice.FxStudio.Editor
                 layout.selfSpinAxis.sqrMagnitude < 0.0001f)
                 result.Error("FX_INSTANCE_SELF_SPIN_AXIS_INVALID",
                     $"SubFX '{subFx.subFxId}' individual spin requires a non-zero axis.",
+                    subFx);
+            if (layout.activationDelayStep < 0f ||
+                layout.activeDuration < 0f)
+                result.Error("FX_INSTANCE_TIMING_INVALID",
+                    $"SubFX '{subFx.subFxId}' instance delay and visible duration cannot be negative.",
+                    subFx);
+            var finalDelay = Mathf.Max(0f,
+                layout.activationDelayStep) *
+                Mathf.Max(0, count - 1);
+            if (count > 1 && finalDelay >= subFx.lifetime)
+                result.Warning("FX_INSTANCE_STAGGER_EXCEEDS_LIFETIME",
+                    $"SubFX '{subFx.subFxId}' last instance starts at {finalDelay:0.##}s but lifetime is {subFx.lifetime:0.##}s.",
                     subFx);
             if (layout.mode == SpliceFxInstanceLayoutMode.Manual &&
                 (layout.manualInstances == null ||

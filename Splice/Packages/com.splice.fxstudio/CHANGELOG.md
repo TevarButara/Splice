@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0
+
+- Fixed unstable Live Preview playback by giving Editor preview exclusive timeline control and deterministic Particle/VFX seeds.
+- Fixed flat visuals intersecting the preview ground by separating environment depth.
+- Visual Effect Graph preview now simulates with fixed substeps instead of one large unstable step.
+- Added Static Sprite / Instance Card starter preset for stable one-image objects.
+- Added in-preview instance markers; convert a procedural layout to Manual and drag items directly on its authoring plane.
+- Added per-item activation delay, optional visible duration and reverse order.
+- Added Motion Stack scope selection: Whole Formation or Each Instance.
+- Per-instance motion, self-spin, particles and VFX use local staggered time in preview and runtime.
+- Added timing, conversion and stagger regression coverage.
+
 ## 0.3.0
 
 - Added deterministic Instance Layouts so one SubFX source can produce multiple independently placed visuals.

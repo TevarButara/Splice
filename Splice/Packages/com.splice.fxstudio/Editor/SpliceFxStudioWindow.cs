@@ -197,7 +197,7 @@ namespace Splice.FxStudio.Editor
             if (registry == null)
             {
                 EditorGUILayout.HelpBox(
-                    "Starter Library has not been installed. Installation creates six editable presets and functional URP fallback templates without overwriting existing assets.",
+                    "Starter Library has not been installed. Installation creates editable presets and functional URP fallback templates without overwriting existing assets.",
                     MessageType.Info);
                 if (GUILayout.Button("Install Starter Library",
                         GUILayout.Height(34f)))
@@ -556,6 +556,26 @@ namespace Splice.FxStudio.Editor
             EditorGUILayout.HelpBox(
                 "Duplicate the same image/prefab inside one SubFX. Layout is baked into the exported prefab; no runtime Instantiate is required.",
                 MessageType.Info);
+            if (value.EffectiveTemplate != null &&
+                value.EffectiveTemplate
+                    .GetComponentInChildren<ParticleSystem>(true) != null)
+            {
+                EditorGUILayout.HelpBox(
+                    "This preset is a particle emitter, so one image can appear as many short-lived particles. For stable swords or individually placed images, use Static Sprite / Instance Card.",
+                    MessageType.Warning);
+                var staticCard = AssetDatabase.LoadAssetAtPath<
+                    SpliceFxPresetDefinition>(
+                    SpliceFxStarterLibrary.Root +
+                    "/Presets/Preset_static_sprite_card.asset");
+                using (new EditorGUI.DisabledScope(staticCard == null))
+                    if (GUILayout.Button("Use Static Sprite Card"))
+                    {
+                        Undo.RecordObject(value,
+                            "Use Static Sprite Card");
+                        value.preset = staticCard;
+                        EditorUtility.SetDirty(value);
+                    }
+            }
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.Label("Quick Layout", GUILayout.Width(82f));
@@ -700,6 +720,10 @@ namespace Splice.FxStudio.Editor
                 EditorGUILayout.LabelField("Individual Animation",
                     EditorStyles.miniBoldLabel);
                 EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("motionScope"),
+                    new GUIContent("Motion Stack Applies To",
+                        "Whole Formation moves the group. Each Instance runs the same Motion Stack independently and respects Delay Per Item."));
+                EditorGUILayout.PropertyField(
                     layout.FindPropertyRelative(
                         "selfSpinDegreesPerSecond"),
                     new GUIContent("Each Item Spin °/s"));
@@ -710,6 +734,21 @@ namespace Splice.FxStudio.Editor
                     layout.FindPropertyRelative(
                         "alternateSelfSpin"),
                     new GUIContent("Alternate Direction"));
+                EditorGUILayout.Space(3f);
+                EditorGUILayout.LabelField("Stagger / Sequence",
+                    EditorStyles.miniBoldLabel);
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative(
+                        "activationDelayStep"),
+                    new GUIContent("Delay Per Item"));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative("activeDuration"),
+                    new GUIContent("Visible Duration",
+                        "0 keeps each item visible until the SubFX ends."));
+                EditorGUILayout.PropertyField(
+                    layout.FindPropertyRelative(
+                        "reverseActivationOrder"),
+                    new GUIContent("Reverse Order"));
             }
 
             if (serialized.ApplyModifiedProperties())

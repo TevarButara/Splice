@@ -79,6 +79,12 @@ namespace Splice.FxStudio
         TangentCounterClockwise
     }
 
+    public enum SpliceFxInstanceMotionScope
+    {
+        WholeFormation,
+        EachInstance
+    }
+
     [Serializable]
     public sealed class SpliceFxManualInstance
     {
@@ -129,9 +135,14 @@ namespace Splice.FxStudio
         public int randomSeed = 1337;
 
         [Header("Individual Animation")]
+        public SpliceFxInstanceMotionScope motionScope =
+            SpliceFxInstanceMotionScope.WholeFormation;
         public Vector3 selfSpinAxis = Vector3.up;
         public float selfSpinDegreesPerSecond;
         public bool alternateSelfSpin;
+        [Min(0f)] public float activationDelayStep;
+        [Min(0f)] public float activeDuration;
+        public bool reverseActivationOrder;
 
         [Header("Manual Instances")]
         public List<SpliceFxManualInstance> manualInstances = new();
@@ -165,6 +176,15 @@ namespace Splice.FxStudio
                 facing = SpliceFxInstanceFacing.FaceOutward,
                 eulerStep = Vector3.zero
             };
+
+        public float DelayFor(int index, int total)
+        {
+            var safeTotal = Mathf.Max(1, total);
+            var order = reverseActivationOrder
+                ? safeTotal - 1 - Mathf.Clamp(index, 0, safeTotal - 1)
+                : Mathf.Clamp(index, 0, safeTotal - 1);
+            return Mathf.Max(0f, activationDelayStep) * order;
+        }
     }
 
     public readonly struct SpliceFxInstancePose
@@ -186,6 +206,50 @@ namespace Splice.FxStudio
 
     public static class SpliceFxInstanceLayoutSolver
     {
+        public static SpliceFxInstanceLayout ToManual(
+            SpliceFxInstanceLayout source)
+        {
+            var poses = Build(source);
+            var result = new SpliceFxInstanceLayout
+            {
+                mode = SpliceFxInstanceLayoutMode.Manual,
+                highCount = Mathf.Max(1, poses.Count),
+                mediumCount = Mathf.Clamp(
+                    source?.mediumCount ?? poses.Count, 0, poses.Count),
+                lowCount = Mathf.Clamp(
+                    source?.lowCount ?? poses.Count, 0, poses.Count),
+                planeAxis = source?.planeAxis ?? Vector3.up,
+                startDirection = source?.startDirection ?? Vector3.forward,
+                selfSpinAxis = source?.selfSpinAxis ?? Vector3.up,
+                motionScope = source?.motionScope ??
+                              SpliceFxInstanceMotionScope.WholeFormation,
+                selfSpinDegreesPerSecond =
+                    source?.selfSpinDegreesPerSecond ?? 0f,
+                alternateSelfSpin =
+                    source?.alternateSelfSpin ?? false,
+                activationDelayStep =
+                    source?.activationDelayStep ?? 0f,
+                activeDuration = source?.activeDuration ?? 0f,
+                reverseActivationOrder =
+                    source?.reverseActivationOrder ?? false,
+                manualInstances = new List<SpliceFxManualInstance>(
+                    poses.Count)
+            };
+            for (var i = 0; i < poses.Count; i++)
+            {
+                var pose = poses[i];
+                result.manualInstances.Add(new SpliceFxManualInstance
+                {
+                    label = $"Instance {i + 1}",
+                    enabled = pose.Enabled,
+                    localPosition = pose.Position,
+                    localEulerAngles = pose.Rotation.eulerAngles,
+                    localScale = pose.Scale
+                });
+            }
+            return result;
+        }
+
         public static List<SpliceFxInstancePose> Build(
             SpliceFxInstanceLayout layout)
         {
