@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1
+
+- Fixed Unity Object Picker selections being reported as `ExitGUIException` errors by allowing Unity's intentional IMGUI control-flow exception to propagate normally.
+- Added regression coverage so real authoring exceptions remain visible while `ExitGUIException` is never swallowed by the FX Studio window.
+
 ## 0.9.0
 
 - Gradient, Stroke and Outer Glow now auto-upgrade compatible Mesh, Line and Trail renderers in Preview and exported prefabs without modifying the source template.

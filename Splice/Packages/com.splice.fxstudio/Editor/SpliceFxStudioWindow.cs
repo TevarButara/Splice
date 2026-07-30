@@ -114,6 +114,8 @@ namespace Splice.FxStudio.Editor
                         }
                     }
                     catch (Exception exception)
+                        when (!IsGuiControlFlowException(
+                            exception.GetType()))
                     {
                         EditorGUILayout.HelpBox(exception.Message,
                             MessageType.Error);
@@ -138,6 +140,14 @@ namespace Splice.FxStudio.Editor
                 SplitterWidth - 6f);
             return Mathf.Clamp(value,
                 MinimumSettingsPaneWidth, maximum);
+        }
+
+        internal static bool IsGuiControlFlowException(
+            Type exceptionType)
+        {
+            return exceptionType != null &&
+                   typeof(ExitGUIException).IsAssignableFrom(
+                       exceptionType);
         }
 
         private void DrawPaneSplitter()

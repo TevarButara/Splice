@@ -6,6 +6,19 @@ namespace Splice.FxStudio.Editor.Tests
     public sealed class SpliceFxStudioEditModeTests
     {
         [Test]
+        public void Window_DoesNotCatchUnityExitGuiControlFlow()
+        {
+            Assert.That(
+                SpliceFxStudioWindow.IsGuiControlFlowException(
+                    typeof(ExitGUIException)),
+                Is.True);
+            Assert.That(
+                SpliceFxStudioWindow.IsGuiControlFlowException(
+                    typeof(System.InvalidOperationException)),
+                Is.False);
+        }
+
+        [Test]
         public void LuminanceAlpha_ProducesTransparentBlackAndOpaqueWhite()
         {
             var pixels = new[]
