@@ -62,10 +62,16 @@ built into the exported pooled prefab.
 The main visual supports Solid, Vertical, Horizontal, Radial Inside-Out and
 Radial Outside-In gradient modes. Static Sprite / Instance Card uses the
 FX Studio Gradient Stroke Card shader and supports Solid, Soft Glow and Dashed
-outlines. Other custom templates must expose the same shader properties or the
-validator reports a compatibility warning.
+outlines. Compatible Mesh, Line and Trail templates are upgraded automatically
+inside Preview and exported prefabs; their source prefab and material are not
+modified.
 
 Color authoring is exclusive: `Solid` uses Main Color, while Vertical,
 Horizontal and Radial modes use Main Gradient and ignore Main Color. Stroke is
 derived from the source image alpha; transparent padding around the image gives
 the outer outline room to render clearly.
+
+Outer Glow adds a shader-based halo with independent Color, Intensity, Radius
+and Softness controls, so it remains visible in Live Preview even without
+post-processing. Emission is a separate control intended to feed URP Bloom in
+game scenes where Bloom is enabled.

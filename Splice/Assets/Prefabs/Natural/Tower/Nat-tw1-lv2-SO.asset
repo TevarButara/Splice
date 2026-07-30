@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: Thorn Snare lv2
   maxHealth: 1400
   attackDamage: 20
-  attackRange: 16
+  attackRange: 40
   attackCooldown: 0.5
   armor: 60
   maxTargets: 2

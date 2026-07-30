@@ -230,10 +230,12 @@ namespace Splice.FxStudio.Editor
             if ((subFx.gradientMode !=
                  SpliceFxGradientMode.Solid ||
                  subFx.strokeMode !=
-                 SpliceFxStrokeMode.None) &&
-                !SupportsGradientStroke(subFx.EffectiveTemplate))
+                 SpliceFxStrokeMode.None ||
+                 subFx.outerGlowEnabled) &&
+                !SpliceFxVisualFactory.CanRenderAdvancedCardVisuals(
+                    subFx.EffectiveTemplate))
                 result.Warning("FX_GRADIENT_SHADER_UNSUPPORTED",
-                    $"SubFX '{subFx.subFxId}' enables a spatial gradient or stroke, but its template material does not expose FX Studio gradient properties. Use Static Sprite / Instance Card or a compatible custom shader.",
+                    $"SubFX '{subFx.subFxId}' enables a spatial gradient, stroke or outer glow, but its template has no compatible Mesh, Line or Trail renderer.",
                     subFx);
             if (subFx.visualLayers == null) return;
             if (subFx.visualLayers.Count > 8)
@@ -299,19 +301,6 @@ namespace Splice.FxStudio.Editor
                 result.Warning("FX_VISUAL_LAYER_PARTICLE_BUDGET",
                     $"SubFX '{subFx.subFxId}' additional layers may render up to {estimatedParticles} particles. Target 1024 or fewer for mid-range mobile.",
                     subFx);
-        }
-
-        private static bool SupportsGradientStroke(
-            GameObject template)
-        {
-            if (template == null) return false;
-            foreach (var renderer in
-                     template.GetComponentsInChildren<Renderer>(true))
-                if (renderer.sharedMaterial != null &&
-                    renderer.sharedMaterial.HasProperty(
-                        "_GradientMap"))
-                    return true;
-            return false;
         }
 
         private static void ValidateInstanceLayout(

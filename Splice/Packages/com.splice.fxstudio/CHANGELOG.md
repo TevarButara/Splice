@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.0
+
+- Gradient, Stroke and Outer Glow now auto-upgrade compatible Mesh, Line and Trail renderers in Preview and exported prefabs without modifying the source template.
+- Added shader-based Outer Glow with independent color, intensity, radius and softness controls.
+- Outer Glow remains visible in Live Preview without post-processing; Emission remains independent for URP Bloom in game scenes.
+- Updated compatibility validation and added regression coverage for material auto-upgrade and all Outer Glow shader properties.
+
 ## 0.8.0
 
 - Added first-class Sprite (2D and UI) input for the main SubFX source and every Trail/Particle visual layer.

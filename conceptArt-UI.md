@@ -458,6 +458,48 @@ Gentle vignette at the edges. No objects, no characters, no text. Portrait 9:16.
 
 ---
 
+# 9) COMBAT / RAID HUD BUTTONS — ปุ่มตอนรบ (sheet เดียว) ⭐
+
+> ปุ่มควบคุมตอนบุก/เรด **รวมแผ่นเดียว** grid 3×3 = 9 ช่อง. **7 ช่องแรก = ปุ่มวงกลม มีสัญลักษณ์ในตัว** (พร้อมกดใช้), **2 ช่องท้าย = glyph เปล่า** (ไอคอนบอกสถานะ ไม่ใช่ปุ่ม). สไตล์ dark-glass เดียวกับ ref ไอคอน — วงกลมกระจกดำ + สัญลักษณ์ขาว + ริง accent ตามหน้าที่
+
+```
+[UI STYLE BLOCK]
+[CHROMA addendum]
+The asset is a COMBAT HUD BUTTON SHEET for a modern mobile game (clean Pokémon-GO
+/ app style): a grid of 3 columns x 3 rows = 9 items on a pure flat GREEN
+background (#00FF00 chroma, so each can be cut out), evenly spaced with clear
+gaps, nothing overlapping. Items 1–7 are all the SAME circular button: a glossy
+dark-charcoal glass CIRCLE with a soft top sheen, a soft drop shadow, a thin
+colored ACCENT ring, and a clean simple WHITE symbol centered on it. Items 8–9
+are NOT buttons — they are just clean WHITE glyph icons alone (no circle, no
+background). All share the exact same clean minimal lighting and finish so they
+look like one matched set, readable at small size. NO thick cartoon outline, NO
+halftone, NO text/letters/numbers.
+The 9 items, left to right, top row first:
+1. LOCK TARGET (enemy) — a targeting reticle / crosshair over a small creature
+   silhouette; RED accent ring.
+2. LOCK TOWER — a targeting reticle / crosshair over a small tower shape; ORANGE
+   accent ring.
+3. REBORN / RESPAWN — a circular revive arrow (loop) with an upward spark or a
+   phoenix feather; CYAN accent ring.
+4. REPAIR — a wrench (or wrench + hammer cross); GREEN accent ring.
+5. UPGRADE — an upward chevron / level-up arrow; BLUE accent ring.
+6. SELL — a coin with a small outgoing arrow (trade the coin away); GOLD accent
+   ring.
+7. HOME / RETURN TO BASE — a simple house symbol; SKY-BLUE accent ring.
+8. CAMERA SWITCH — a clean white glyph ONLY (no circle): a small camera with two
+   curved rotate arrows around it (switch camera angle).
+9. TIME REMAINING — a clean white glyph ONLY (no circle): a simple hourglass (or
+   a clock) meaning time left.
+Pure flat GREEN background so every item can be keyed out. No frame, no text.
+```
+
+> **สี accent ring** = โค้ดสีตามหน้าที่ให้แยกออกในสนามรบ (แดง=โจมตี / เขียว=ซ่อม / ฟ้า=อัพ / ทอง=ขาย ฯลฯ) — ฐานวงกลมเป็น dark-glass เหมือนกันหมดจึงยังดูเป็นชุดเดียว
+> **glyph 8–9 (กล้อง/เวลา)** ทำเป็นสีขาวล้วนไม่มีวงกลม → เอาไปวางบนปุ่มอื่น/มุมจอ/ข้างตัวเลขเวลาได้อิสระ
+> ถ้าจะทำ **สถานะ locked (กำลังล็อกเป้าอยู่)** → gen ซ้ำเติม *"reticle glowing brighter, active locked-on state"*
+
+---
+
 ## 🟢 Unity import settings
 
 **ชิ้น UI (ไอคอน/badge ที่คีย์ chroma แล้ว):**

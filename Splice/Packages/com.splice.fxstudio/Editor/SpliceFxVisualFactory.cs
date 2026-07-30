@@ -52,6 +52,7 @@ namespace Splice.FxStudio.Editor
                     pose.Rotation * authoredRotation;
                 clone.transform.localScale = Vector3.Scale(
                     authoredScale, pose.Scale);
+                ApplyCompatibleCardMaterial(clone, subFx);
                 clone.SetActive(pose.Enabled);
                 transforms.Add(clone.transform);
                 enabledStates.Add(pose.Enabled);
@@ -78,6 +79,67 @@ namespace Splice.FxStudio.Editor
             group.ConfigureEditor(subFx, transforms, enabledStates);
             root.SetActive(true);
             return root;
+        }
+
+        internal static bool CanRenderAdvancedCardVisuals(
+            GameObject template)
+        {
+            if (template == null) return false;
+            foreach (var renderer in
+                     template.GetComponentsInChildren<Renderer>(true))
+            {
+                if (HasAdvancedCardMaterial(renderer))
+                    return true;
+                if (IsUpgradeableCardRenderer(renderer))
+                    return true;
+            }
+            return false;
+        }
+
+        private static void ApplyCompatibleCardMaterial(
+            GameObject clone, SpliceFxSubEffectDefinition subFx)
+        {
+            if (clone == null || subFx == null ||
+                (subFx.gradientMode == SpliceFxGradientMode.Solid &&
+                 subFx.strokeMode == SpliceFxStrokeMode.None &&
+                 !subFx.outerGlowEnabled))
+                return;
+
+            var compatible = AssetDatabase.LoadAssetAtPath<Material>(
+                SpliceFxStarterLibrary.Root +
+                "/Materials/M_FXStudio_InstanceCard.mat");
+            if (compatible == null ||
+                !compatible.HasProperty("_GradientMap"))
+                return;
+
+            foreach (var renderer in
+                     clone.GetComponentsInChildren<Renderer>(true))
+            {
+                if (HasAdvancedCardMaterial(renderer) ||
+                    !IsUpgradeableCardRenderer(renderer))
+                    continue;
+                var materials = renderer.sharedMaterials;
+                for (var i = 0; i < materials.Length; i++)
+                    materials[i] = compatible;
+                renderer.sharedMaterials = materials;
+            }
+        }
+
+        private static bool HasAdvancedCardMaterial(Renderer renderer)
+        {
+            if (renderer == null) return false;
+            foreach (var material in renderer.sharedMaterials)
+                if (material != null &&
+                    material.HasProperty("_GradientMap"))
+                    return true;
+            return false;
+        }
+
+        private static bool IsUpgradeableCardRenderer(Renderer renderer)
+        {
+            return renderer is MeshRenderer ||
+                   renderer is LineRenderer ||
+                   renderer is TrailRenderer;
         }
 
         private static void BuildVisualLayers(

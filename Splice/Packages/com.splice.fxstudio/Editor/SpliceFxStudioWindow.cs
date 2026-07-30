@@ -338,7 +338,10 @@ namespace Splice.FxStudio.Editor
                 "processedTexture",
                 "mainColor", "gradientMode", "mainGradient",
                 "reverseGradient", "strokeMode", "strokeColor",
-                "strokeWidth", "strokeDashFrequency");
+                "strokeWidth", "strokeDashFrequency",
+                "outerGlowEnabled", "outerGlowColor",
+                "outerGlowIntensity", "outerGlowRadius",
+                "outerGlowSoftness");
             DrawSourceImageInput(subFx);
             DrawCommonVisualAppearance(subFx);
             DrawInstanceLayout(subFx);
@@ -492,25 +495,46 @@ namespace Splice.FxStudio.Editor
                     MessageType.None);
             }
 
-            if (!SupportsGradientStroke(value.EffectiveTemplate))
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("Outer Glow",
+                EditorStyles.miniBoldLabel);
+            var outerGlow =
+                serialized.FindProperty("outerGlowEnabled");
+            EditorGUILayout.PropertyField(outerGlow,
+                new GUIContent("Enable Outer Glow"));
+            if (outerGlow.boolValue)
+            {
+                EditorGUILayout.PropertyField(
+                    serialized.FindProperty("outerGlowColor"),
+                    new GUIContent("Glow Color"));
+                EditorGUILayout.PropertyField(
+                    serialized.FindProperty("outerGlowIntensity"),
+                    new GUIContent("Glow Intensity"));
+                EditorGUILayout.PropertyField(
+                    serialized.FindProperty("outerGlowRadius"),
+                    new GUIContent("Glow Radius (Pixels)"));
+                EditorGUILayout.PropertyField(
+                    serialized.FindProperty("outerGlowSoftness"),
+                    new GUIContent("Glow Softness"));
                 EditorGUILayout.HelpBox(
-                    "This template material cannot render spatial Gradient or Stroke. Use the Static Sprite / Instance Card preset, or a custom material exposing FX Studio gradient properties.",
+                    "Outer Glow creates a visible soft halo in Live Preview. Emission remains separate and drives URP Bloom when Bloom is enabled on the game camera.",
+                    MessageType.Info);
+            }
+
+            var needsAdvancedMaterial =
+                gradientMode != SpliceFxGradientMode.Solid ||
+                (SpliceFxStrokeMode)strokeMode.enumValueIndex !=
+                SpliceFxStrokeMode.None ||
+                outerGlow.boolValue;
+            if (needsAdvancedMaterial &&
+                !SpliceFxVisualFactory.CanRenderAdvancedCardVisuals(
+                    value.EffectiveTemplate))
+                EditorGUILayout.HelpBox(
+                    "This template has no card-compatible renderer for Gradient, Stroke or Outer Glow. Use a Mesh, Line or Trail renderer, the Static Sprite / Instance Card preset, or a compatible custom shader.",
                     MessageType.Warning);
 
             if (serialized.ApplyModifiedProperties())
                 EditorUtility.SetDirty(value);
-        }
-
-        private static bool SupportsGradientStroke(GameObject template)
-        {
-            if (template == null) return false;
-            foreach (var renderer in
-                     template.GetComponentsInChildren<Renderer>(true))
-                if (renderer.sharedMaterial != null &&
-                    renderer.sharedMaterial.HasProperty(
-                        "_GradientMap"))
-                    return true;
-            return false;
         }
 
         private void DrawBlend()

@@ -459,6 +459,18 @@ namespace Splice.FxStudio
                 propertyBlock.SetFloat("_StrokeDashFrequency",
                     Mathf.Max(1f,
                         definition.strokeDashFrequency));
+                propertyBlock.SetFloat("_OuterGlowEnabled",
+                    definition.outerGlowEnabled ? 1f : 0f);
+                propertyBlock.SetColor("_OuterGlowColor",
+                    definition.outerGlowColor);
+                propertyBlock.SetFloat("_OuterGlowIntensity",
+                    Mathf.Max(0f,
+                        definition.outerGlowIntensity));
+                propertyBlock.SetFloat("_OuterGlowRadius",
+                    Mathf.Max(0f, definition.outerGlowRadius));
+                propertyBlock.SetFloat("_OuterGlowSoftness",
+                    Mathf.Max(0.25f,
+                        definition.outerGlowSoftness));
             }
             renderer.SetPropertyBlock(propertyBlock);
         }

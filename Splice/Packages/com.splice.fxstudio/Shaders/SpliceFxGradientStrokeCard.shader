@@ -12,6 +12,11 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
         _StrokeColor("Stroke Color", Color) = (1,0.3,0.05,1)
         _StrokeWidth("Stroke Width", Range(0,16)) = 0
         _StrokeDashFrequency("Dash Frequency", Range(1,32)) = 8
+        _OuterGlowEnabled("Outer Glow Enabled", Float) = 0
+        [HDR] _OuterGlowColor("Outer Glow Color", Color) = (1,0.28,0.04,0.8)
+        _OuterGlowIntensity("Outer Glow Intensity", Range(0,8)) = 1.5
+        _OuterGlowRadius("Outer Glow Radius", Range(0,32)) = 8
+        _OuterGlowSoftness("Outer Glow Softness", Range(0.25,4)) = 1.4
     }
 
     SubShader
@@ -47,12 +52,17 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
                 float4 _BaseMap_TexelSize;
                 half4 _BaseColor;
                 half4 _StrokeColor;
+                half4 _OuterGlowColor;
                 float _GradientMode;
                 float _GradientReverse;
                 float _FxEmission;
                 float _StrokeMode;
                 float _StrokeWidth;
                 float _StrokeDashFrequency;
+                float _OuterGlowEnabled;
+                float _OuterGlowIntensity;
+                float _OuterGlowRadius;
+                float _OuterGlowSoftness;
             CBUFFER_END
 
             struct Attributes
@@ -107,6 +117,32 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
                     clamp(uv, minimumUv, maximumUv)).a;
             }
 
+            half MaxAlpha4(float2 uv, float2 pixel)
+            {
+                half nearby = 0;
+                nearby = max(nearby,
+                    AlphaAt(uv + float2(pixel.x, 0)));
+                nearby = max(nearby,
+                    AlphaAt(uv - float2(pixel.x, 0)));
+                nearby = max(nearby,
+                    AlphaAt(uv + float2(0, pixel.y)));
+                nearby = max(nearby,
+                    AlphaAt(uv - float2(0, pixel.y)));
+                return nearby;
+            }
+
+            half MaxAlpha8(float2 uv, float2 pixel)
+            {
+                half nearby = MaxAlpha4(uv, pixel);
+                nearby = max(nearby, AlphaAt(uv + pixel));
+                nearby = max(nearby, AlphaAt(uv - pixel));
+                nearby = max(nearby,
+                    AlphaAt(uv + float2(pixel.x, -pixel.y)));
+                nearby = max(nearby,
+                    AlphaAt(uv + float2(-pixel.x, pixel.y)));
+                return nearby;
+            }
+
             half4 Frag(Varyings input) : SV_Target
             {
                 half4 source = SAMPLE_TEXTURE2D(
@@ -142,23 +178,7 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
                 {
                     float2 pixel =
                         _BaseMap_TexelSize.xy * _StrokeWidth;
-                    half nearby = 0;
-                    nearby = max(nearby,
-                        AlphaAt(input.uv + float2(pixel.x, 0)));
-                    nearby = max(nearby,
-                        AlphaAt(input.uv - float2(pixel.x, 0)));
-                    nearby = max(nearby,
-                        AlphaAt(input.uv + float2(0, pixel.y)));
-                    nearby = max(nearby,
-                        AlphaAt(input.uv - float2(0, pixel.y)));
-                    nearby = max(nearby,
-                        AlphaAt(input.uv + pixel));
-                    nearby = max(nearby,
-                        AlphaAt(input.uv - pixel));
-                    nearby = max(nearby,
-                        AlphaAt(input.uv + float2(pixel.x, -pixel.y)));
-                    nearby = max(nearby,
-                        AlphaAt(input.uv + float2(-pixel.x, pixel.y)));
+                    half nearby = MaxAlpha8(input.uv, pixel);
                     stroke = saturate(nearby - source.a);
 
                     if (_StrokeMode > 1.5 && _StrokeMode < 2.5)
@@ -173,12 +193,37 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
                     }
                 }
 
+                half glow = 0;
+                if (_OuterGlowEnabled > 0.5 &&
+                    _OuterGlowRadius > 0.001 &&
+                    _OuterGlowIntensity > 0.001)
+                {
+                    float2 glowPixel =
+                        _BaseMap_TexelSize.xy * _OuterGlowRadius;
+                    half nearGlow = MaxAlpha4(
+                        input.uv, glowPixel * 0.34);
+                    half middleGlow = MaxAlpha4(
+                        input.uv, glowPixel * 0.67);
+                    half farGlow = MaxAlpha8(
+                        input.uv, glowPixel);
+                    glow = max(nearGlow,
+                        max(middleGlow * 0.68h,
+                            farGlow * 0.36h));
+                    glow = saturate(glow - source.a);
+                    glow = pow(max(glow, 0.0001h),
+                        max(0.25h, (half)_OuterGlowSoftness));
+                }
+
                 half strokeAlpha = stroke * _StrokeColor.a;
+                half glowAlpha =
+                    glow * _OuterGlowColor.a * input.color.a;
                 half outputAlpha =
-                    saturate(sourceAlpha + strokeAlpha);
+                    saturate(sourceAlpha + strokeAlpha + glowAlpha);
                 half3 premultiplied =
                     sourceRgb * sourceAlpha +
-                    _StrokeColor.rgb * strokeAlpha;
+                    _StrokeColor.rgb * strokeAlpha +
+                    _OuterGlowColor.rgb * glowAlpha *
+                    max(0.0, _OuterGlowIntensity);
                 half3 outputRgb = premultiplied /
                     max(outputAlpha, 0.0001h);
                 return half4(outputRgb, outputAlpha);

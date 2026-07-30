@@ -252,6 +252,11 @@ namespace Splice.FxStudio.Editor.Tests
                     SpliceFxGradientMode.Vertical;
                 definition.strokeMode = SpliceFxStrokeMode.Solid;
                 definition.strokeWidth = 3f;
+                definition.outerGlowEnabled = true;
+                definition.outerGlowColor = Color.yellow;
+                definition.outerGlowIntensity = 2.5f;
+                definition.outerGlowRadius = 12f;
+                definition.outerGlowSoftness = 1.75f;
                 var driver =
                     root.AddComponent<SpliceFxPropertyDriver>();
                 driver.Configure(definition);
@@ -264,6 +269,16 @@ namespace Splice.FxStudio.Editor.Tests
                     Is.EqualTo(1f));
                 Assert.That(block.GetFloat("_StrokeWidth"),
                     Is.EqualTo(3f));
+                Assert.That(block.GetFloat("_OuterGlowEnabled"),
+                    Is.EqualTo(1f));
+                Assert.That(block.GetColor("_OuterGlowColor"),
+                    Is.EqualTo(Color.yellow));
+                Assert.That(block.GetFloat("_OuterGlowIntensity"),
+                    Is.EqualTo(2.5f));
+                Assert.That(block.GetFloat("_OuterGlowRadius"),
+                    Is.EqualTo(12f));
+                Assert.That(block.GetFloat("_OuterGlowSoftness"),
+                    Is.EqualTo(1.75f));
                 Assert.That(block.GetTexture("_GradientMap"),
                     Is.Not.Null);
                 Assert.That(block.GetColor("_BaseColor"),
@@ -281,6 +296,56 @@ namespace Splice.FxStudio.Editor.Tests
                 Object.DestroyImmediate(material);
                 Object.DestroyImmediate(texture);
                 Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void VisualFactory_AutoUpgradesMeshMaterialForGradient()
+        {
+            var template =
+                GameObject.CreatePrimitive(PrimitiveType.Quad);
+            var originalShader = Shader.Find(
+                "Universal Render Pipeline/Particles/Unlit");
+            Assert.That(originalShader, Is.Not.Null);
+            var originalMaterial = new Material(originalShader);
+            var definition =
+                ScriptableObject.CreateInstance<
+                    SpliceFxSubEffectDefinition>();
+            GameObject built = null;
+            try
+            {
+                var templateRenderer =
+                    template.GetComponent<MeshRenderer>();
+                templateRenderer.sharedMaterial = originalMaterial;
+                definition.templateOverride = template;
+                definition.sourceTexture = Texture2D.whiteTexture;
+                definition.gradientMode =
+                    SpliceFxGradientMode.RadialInsideOut;
+                definition.outerGlowEnabled = true;
+
+                built = SpliceFxVisualFactory.Build(definition);
+
+                var builtRenderer =
+                    built.GetComponentInChildren<MeshRenderer>(true);
+                Assert.That(builtRenderer, Is.Not.Null);
+                Assert.That(
+                    builtRenderer.sharedMaterial.HasProperty(
+                        "_GradientMap"),
+                    Is.True);
+                Assert.That(
+                    builtRenderer.sharedMaterial.HasProperty(
+                        "_OuterGlowEnabled"),
+                    Is.True);
+                Assert.That(templateRenderer.sharedMaterial,
+                    Is.SameAs(originalMaterial),
+                    "Preview/export compatibility must not alter the source prefab.");
+            }
+            finally
+            {
+                if (built != null) Object.DestroyImmediate(built);
+                Object.DestroyImmediate(definition);
+                Object.DestroyImmediate(originalMaterial);
+                Object.DestroyImmediate(template);
             }
         }
 

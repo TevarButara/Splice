@@ -18,8 +18,8 @@ MonoBehaviour:
   icon: {fileID: 0}
   castType: 2
   targeting: 0
-  castRange: 24
-  effectRadius: 4
+  castRange: 10
+  effectRadius: 2
   effect: 0
   damageMode: 0
   damage: 700
@@ -28,7 +28,7 @@ MonoBehaviour:
   healing: 0
   movementDistance: 0
   manaCost: 40
-  cooldownSeconds: 15
+  cooldownSeconds: 3
   execution: {fileID: 11400000, guid: 5ce40f75482204044a24a11fad177c80, type: 2}
   animationState: Skill3
   castEffectPrefab: {fileID: 1835876825148838861, guid: 61ddfc2bb35044b4bbb0abb41a07c0f2, type: 3}
@@ -64,7 +64,7 @@ MonoBehaviour:
     localOffset: {x: 0, y: 0, z: 0}
     groundOffset: 0.06
     orientToCastDirection: 1
-    travelDurationSeconds: 0.2
+    travelDurationSeconds: 1
   impactVfx:
     enabled: 1
     prefab: {fileID: 2647773867139500038, guid: acd0827170d584eaaaa7154015bc3693, type: 3}

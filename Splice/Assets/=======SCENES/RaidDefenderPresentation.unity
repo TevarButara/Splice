@@ -313,8 +313,8 @@ MonoBehaviour:
   maxHeight: 30
   orthoZoomStep: 0.2
   pinchScreenFraction: 0.15
-  minOrthoSize: 3
-  maxOrthoSize: 20
+  minOrthoSize: 25
+  maxOrthoSize: 80
   orthoPanMultiplier: 1
   tiltAngle: 55
   topDownAngle: 90

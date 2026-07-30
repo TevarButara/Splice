@@ -61,6 +61,15 @@ namespace Splice.FxStudio
         [Range(0f, 16f)] public float strokeWidth = 2f;
         [Range(1f, 32f)] public float strokeDashFrequency = 8f;
 
+        [Header("Outer Glow")]
+        [Tooltip("Adds a soft halo around the source alpha. This is visible in Live Preview even when scene Bloom is disabled.")]
+        public bool outerGlowEnabled;
+        public Color outerGlowColor =
+            new(1f, 0.28f, 0.04f, 0.8f);
+        [Range(0f, 8f)] public float outerGlowIntensity = 1.5f;
+        [Range(0f, 32f)] public float outerGlowRadius = 8f;
+        [Range(0.25f, 4f)] public float outerGlowSoftness = 1.4f;
+
         [Header("Additional Visual Layers")]
         public List<SpliceFxVisualLayerDefinition> visualLayers = new();
 
@@ -157,6 +166,12 @@ namespace Splice.FxStudio
                     motion.axis = Vector3.up;
             }
             mainGradient ??= CreateDefaultGradient();
+            outerGlowIntensity =
+                Mathf.Clamp(outerGlowIntensity, 0f, 8f);
+            outerGlowRadius =
+                Mathf.Clamp(outerGlowRadius, 0f, 32f);
+            outerGlowSoftness =
+                Mathf.Clamp(outerGlowSoftness, 0.25f, 4f);
             visualLayers ??=
                 new List<SpliceFxVisualLayerDefinition>();
             foreach (var layer in visualLayers)

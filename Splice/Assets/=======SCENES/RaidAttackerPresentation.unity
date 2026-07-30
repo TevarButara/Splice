@@ -129,6 +129,7 @@ GameObject:
   m_Component:
   - component: {fileID: 111587482}
   - component: {fileID: 111587481}
+  - component: {fileID: 111587483}
   m_Layer: 0
   m_Name: Presentation Directional Light
   m_TagString: Untagged
@@ -216,6 +217,35 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &111587483
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 111587480}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
+  m_UsePipelineSettings: 1
+  m_AdditionalLightsShadowResolutionTier: 2
+  m_CustomShadowLayers: 0
+  m_LightCookieSize: {x: 1, y: 1}
+  m_LightCookieOffset: {x: 0, y: 0}
+  m_SoftShadowQuality: 0
+  m_RenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_ShadowRenderingLayersMask:
+    serializedVersion: 0
+    m_Bits: 1
+  m_Version: 4
+  m_LightLayerMask: 1
+  m_ShadowLayerMask: 1
+  m_RenderingLayers: 1
+  m_ShadowRenderingLayers: 1
 --- !u!1 &512291373
 GameObject:
   m_ObjectHideFlags: 0
@@ -299,22 +329,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8ecb58ddea8bd45d48bba69817b1f009, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Splice.Input.CameraPanController
-  panSpeed: 0.08
+  panSpeed: 1
   panBounds: {fileID: 0}
-  homeThreshold: 0.3
+  homeThreshold: 5
   homeReturnSpeed: 500
   followOwnedHeroInManualMode: 1
   followOwnedHeroInAutoMode: 1
   clampHeroFollowToPanBounds: 0
-  heroFollowSpeed: 30
+  heroFollowSpeed: 100
   heroFollowResumeDelay: 1.25
-  zoomSpeed: 1
-  minHeight: 3
-  maxHeight: 30
+  zoomSpeed: 20
+  minHeight: 30
+  maxHeight: 300
   orthoZoomStep: 0.2
   pinchScreenFraction: 0.15
-  minOrthoSize: 3
-  maxOrthoSize: 20
+  minOrthoSize: 25
+  maxOrthoSize: 80
   orthoPanMultiplier: 1
   tiltAngle: 55
   topDownAngle: 90
