@@ -30,3 +30,13 @@ each item and use Move/Rotate/Scale (W/E/R). Drag its marker for fast editing,
 or enter exact XYZ Position/Rotation/Scale values for full non-uniform control.
 `Delay Per Item`, `Visible Duration`, `Reverse Order`, and `Motion Stack
 Applies To` create sequential reveal or per-item motion without custom code.
+
+The authoring and Live Preview panes are separated by a draggable splitter.
+Drag it to allocate space and double-click it to restore the balanced width;
+the selected width is saved across Unity sessions.
+
+Every Motion Stack layer uses an explicit duration. Spin is authored as
+**Angle / Complete Angle In**, so `360` degrees over `2` seconds produces
+`180°/s`. Pulse, Float, Orbit, Flicker, UV Scroll and Shake specify how many
+cycles or movement units happen inside their duration. Each layer displays a
+plain-language timing summary and can either loop or hold its final state.

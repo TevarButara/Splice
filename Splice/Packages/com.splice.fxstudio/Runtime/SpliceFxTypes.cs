@@ -417,7 +417,7 @@ namespace Splice.FxStudio
         public string label = "Motion";
         public bool enabled = true;
         public SpliceFxMotionType type;
-        [Tooltip("Spin uses degrees/second. Oscillating motions use cycles/second.")]
+        [Tooltip("Spin: degrees completed in Duration. Cyclic motions: cycles completed in Duration. Kept as 'speed' for serialized asset compatibility.")]
         public float speed = 1f;
         [Min(0f)] public float amount = 0.2f;
         [Min(0f)] public float delaySeconds;
@@ -440,8 +440,9 @@ namespace Splice.FxStudio
             switch (motionType)
             {
                 case SpliceFxMotionType.Spin:
-                    result.speed = 90f;
+                    result.speed = 360f;
                     result.amount = 1f;
+                    result.durationSeconds = 4f;
                     break;
                 case SpliceFxMotionType.Pulse:
                     result.speed = 1.5f;

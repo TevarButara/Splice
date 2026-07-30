@@ -7,6 +7,12 @@ namespace Splice.FxStudio.Editor
 {
     public sealed class SpliceFxStudioWindow : EditorWindow
     {
+        private const string SettingsPaneWidthKey =
+            "Splice.FxStudio.SettingsPaneWidth";
+        private const float SplitterWidth = 8f;
+        private const float MinimumSettingsPaneWidth = 420f;
+        private const float MinimumPreviewPaneWidth = 310f;
+
         private enum Tab
         {
             Create,
@@ -38,6 +44,8 @@ namespace Splice.FxStudio.Editor
         private int previewStageIndex;
         private SpliceFxMotionType motionToAdd =
             SpliceFxMotionType.Spin;
+        private float settingsPaneWidth;
+        private bool draggingSplitter;
 
         [MenuItem("Splice/FX Studio/Open Studio", priority = 1700)]
         public static void Open()
@@ -54,10 +62,14 @@ namespace Splice.FxStudio.Editor
                 AssetDatabase.LoadAssetAtPath<SpliceFxPresetRegistry>(
                     SpliceFxStarterLibrary.RegistryPath);
             previewViewport ??= new SpliceFxPreviewViewport(Repaint);
+            settingsPaneWidth = EditorPrefs.GetFloat(
+                SettingsPaneWidthKey, 610f);
         }
 
         private void OnDisable()
         {
+            EditorPrefs.SetFloat(
+                SettingsPaneWidthKey, settingsPaneWidth);
             previewViewport?.Dispose();
             previewViewport = null;
         }
@@ -68,10 +80,16 @@ namespace Splice.FxStudio.Editor
             tab = (Tab)GUILayout.Toolbar((int)tab, TabLabels,
                 GUILayout.Height(30f));
             EditorGUILayout.Space(6f);
+            settingsPaneWidth = ClampSettingsPaneWidth(
+                settingsPaneWidth, position.width);
+            var previewPaneWidth = Mathf.Max(
+                MinimumPreviewPaneWidth,
+                position.width - settingsPaneWidth -
+                SplitterWidth - 6f);
             using (new EditorGUILayout.HorizontalScope())
             {
                 using (new EditorGUILayout.VerticalScope(
-                           GUILayout.MinWidth(560f)))
+                           GUILayout.Width(settingsPaneWidth)))
                 {
                     scroll = EditorGUILayout.BeginScrollView(scroll);
                     try
@@ -106,8 +124,76 @@ namespace Splice.FxStudio.Editor
                         EditorGUILayout.EndScrollView();
                     }
                 }
-                DrawPreviewPanel();
+                DrawPaneSplitter();
+                DrawPreviewPanel(previewPaneWidth);
             }
+        }
+
+        internal static float ClampSettingsPaneWidth(
+            float value, float windowWidth)
+        {
+            var maximum = Mathf.Max(
+                MinimumSettingsPaneWidth,
+                windowWidth - MinimumPreviewPaneWidth -
+                SplitterWidth - 6f);
+            return Mathf.Clamp(value,
+                MinimumSettingsPaneWidth, maximum);
+        }
+
+        private void DrawPaneSplitter()
+        {
+            var rect = GUILayoutUtility.GetRect(
+                SplitterWidth, 1f,
+                GUILayout.Width(SplitterWidth),
+                GUILayout.ExpandHeight(true));
+            EditorGUIUtility.AddCursorRect(
+                rect, MouseCursor.ResizeHorizontal);
+            if (Event.current.type == EventType.Repaint)
+                EditorGUI.DrawRect(
+                    new Rect(rect.center.x - 1f, rect.y,
+                        2f, rect.height),
+                    draggingSplitter
+                        ? new Color(1f, 0.55f, 0.12f, 0.95f)
+                        : new Color(0.25f, 0.58f, 0.75f, 0.65f));
+
+            var current = Event.current;
+            if (current.type == EventType.MouseDown &&
+                current.button == 0 && rect.Contains(
+                    current.mousePosition))
+            {
+                if (current.clickCount == 2)
+                {
+                    settingsPaneWidth = ClampSettingsPaneWidth(
+                        position.width * 0.58f, position.width);
+                    EditorPrefs.SetFloat(
+                        SettingsPaneWidthKey, settingsPaneWidth);
+                }
+                else
+                {
+                    draggingSplitter = true;
+                }
+                current.Use();
+                Repaint();
+                return;
+            }
+            if (draggingSplitter &&
+                current.type == EventType.MouseDrag &&
+                current.button == 0)
+            {
+                settingsPaneWidth = ClampSettingsPaneWidth(
+                    settingsPaneWidth + current.delta.x,
+                    position.width);
+                current.Use();
+                Repaint();
+                return;
+            }
+            if (!draggingSplitter ||
+                current.rawType != EventType.MouseUp) return;
+            draggingSplitter = false;
+            EditorPrefs.SetFloat(
+                SettingsPaneWidthKey, settingsPaneWidth);
+            current.Use();
+            Repaint();
         }
 
         private static void DrawHeader()
@@ -840,27 +926,28 @@ namespace Splice.FxStudio.Editor
             var uvSpeed = item.FindPropertyRelative("uvSpeed");
             var curve = item.FindPropertyRelative("curve");
 
-            EditorGUILayout.PropertyField(speed,
-                new GUIContent(type == SpliceFxMotionType.Spin
-                    ? "Degrees / Second"
-                    : "Speed"));
+            if (type == SpliceFxMotionType.Spin)
+                EditorGUILayout.PropertyField(speed,
+                    new GUIContent("Angle (Degrees)",
+                        "Total angle completed within the Duration below. Use a negative value to reverse direction."));
+            else if (UsesCycleTiming(type))
+                EditorGUILayout.PropertyField(speed,
+                    new GUIContent(CycleCountLabel(type),
+                        "How many cycles or movement units are completed within the Duration below."));
             if (type != SpliceFxMotionType.UvScroll &&
                 type != SpliceFxMotionType.Spin)
                 EditorGUILayout.PropertyField(amount,
                     new GUIContent(MotionAmountLabel(type)));
             EditorGUILayout.PropertyField(delay,
                 new GUIContent("Start Delay"));
+            EditorGUILayout.PropertyField(duration,
+                new GUIContent(DurationLabel(type),
+                    DurationTooltip(type)));
 
-            if (type is SpliceFxMotionType.Expand or
-                SpliceFxMotionType.Contract or
-                SpliceFxMotionType.FadeIn or
-                SpliceFxMotionType.FadeOut)
+            if (UsesCurve(type))
             {
-                EditorGUILayout.PropertyField(duration,
-                    new GUIContent("Duration"));
                 EditorGUILayout.PropertyField(curve,
                     new GUIContent("Motion Curve"));
-                EditorGUILayout.PropertyField(loop);
             }
             else if (type is SpliceFxMotionType.Pulse or
                      SpliceFxMotionType.Float or
@@ -869,6 +956,9 @@ namespace Splice.FxStudio.Editor
                 EditorGUILayout.PropertyField(phase,
                     new GUIContent("Phase Offset"));
             }
+            EditorGUILayout.PropertyField(loop,
+                new GUIContent("Loop",
+                    "Repeat after Duration. Disable to stop and hold the final evaluated state."));
 
             if (type is SpliceFxMotionType.Spin or
                 SpliceFxMotionType.Float or
@@ -877,7 +967,85 @@ namespace Splice.FxStudio.Editor
                     new GUIContent("Axis"));
             if (type == SpliceFxMotionType.UvScroll)
                 EditorGUILayout.PropertyField(uvSpeed,
-                    new GUIContent("UV Direction / Speed"));
+                    new GUIContent("UV Direction / Distance"));
+
+            EditorGUILayout.HelpBox(
+                MotionTimingSummary(type, speed.floatValue,
+                    duration.floatValue),
+                MessageType.None);
+        }
+
+        private static bool UsesCycleTiming(
+            SpliceFxMotionType type) =>
+            type is SpliceFxMotionType.Pulse or
+                SpliceFxMotionType.Float or
+                SpliceFxMotionType.Orbit or
+                SpliceFxMotionType.Flicker or
+                SpliceFxMotionType.UvScroll or
+                SpliceFxMotionType.Shake;
+
+        private static bool UsesCurve(
+            SpliceFxMotionType type) =>
+            type is SpliceFxMotionType.Expand or
+                SpliceFxMotionType.Contract or
+                SpliceFxMotionType.FadeIn or
+                SpliceFxMotionType.FadeOut;
+
+        private static string CycleCountLabel(
+            SpliceFxMotionType type) =>
+            type switch
+            {
+                SpliceFxMotionType.Orbit =>
+                    "Revolutions In Duration",
+                SpliceFxMotionType.UvScroll =>
+                    "Distance Multiplier",
+                SpliceFxMotionType.Shake =>
+                    "Noise Cycles In Duration",
+                _ => "Cycles In Duration"
+            };
+
+        private static string DurationLabel(
+            SpliceFxMotionType type) =>
+            type switch
+            {
+                SpliceFxMotionType.Spin =>
+                    "Complete Angle In (Seconds)",
+                SpliceFxMotionType.Orbit =>
+                    "Complete Revolutions In (Seconds)",
+                SpliceFxMotionType.Expand or
+                    SpliceFxMotionType.Contract or
+                    SpliceFxMotionType.FadeIn or
+                    SpliceFxMotionType.FadeOut =>
+                    "Complete Motion In (Seconds)",
+                _ => "Cycle Window (Seconds)"
+            };
+
+        private static string DurationTooltip(
+            SpliceFxMotionType type) =>
+            type == SpliceFxMotionType.Spin
+                ? "Example: Angle 360 and Duration 2 rotates at 180 degrees per second."
+                : "All speed/frequency values above are evaluated across this many seconds.";
+
+        internal static string MotionTimingSummary(
+            SpliceFxMotionType type, float speed, float duration)
+        {
+            duration = Mathf.Max(0.01f, duration);
+            return type switch
+            {
+                SpliceFxMotionType.Spin =>
+                    $"{speed:0.##}° / {duration:0.##}s = " +
+                    $"{speed / duration:0.##}° per second",
+                SpliceFxMotionType.Expand or
+                    SpliceFxMotionType.Contract or
+                    SpliceFxMotionType.FadeIn or
+                    SpliceFxMotionType.FadeOut =>
+                    $"Completes once in {duration:0.##} seconds",
+                SpliceFxMotionType.Orbit =>
+                    $"{speed:0.##} revolution(s) in " +
+                    $"{duration:0.##} seconds",
+                _ => $"{speed:0.##} cycle/unit(s) in " +
+                     $"{duration:0.##} seconds"
+            };
         }
 
         private static string MotionAmountLabel(
@@ -1042,7 +1210,7 @@ namespace Splice.FxStudio.Editor
                 });
         }
 
-        private void DrawPreviewPanel()
+        private void DrawPreviewPanel(float width)
         {
             previewViewport ??= new SpliceFxPreviewViewport(Repaint);
             switch (tab)
@@ -1084,7 +1252,7 @@ namespace Splice.FxStudio.Editor
                             SpliceFxPreviewSourceKind.SubFx);
                     break;
             }
-            previewViewport.Draw();
+            previewViewport.Draw(width);
         }
     }
 }

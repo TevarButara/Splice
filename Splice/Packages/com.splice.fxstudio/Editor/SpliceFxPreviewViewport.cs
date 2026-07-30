@@ -436,7 +436,7 @@ namespace Splice.FxStudio.Editor
         private GameObject BuildSubFx(SpliceFxSubEffectDefinition value)
         {
             if (value?.EffectiveTemplate == null) return null;
-            duration = Mathf.Max(0.05f, value.lifetime);
+            duration = CalculateSubFxPreviewDuration(value);
             var result = SpliceFxVisualFactory.Build(value);
             var allowed =
                 (value.quality & SpliceFxQuality.MaskFor(quality)) != 0;
@@ -447,7 +447,9 @@ namespace Splice.FxStudio.Editor
         private GameObject BuildBlend(SpliceFxBlendSequence value)
         {
             if (value == null) return null;
-            duration = Mathf.Max(0.05f, value.DurationSeconds);
+            var sequenceDuration =
+                Mathf.Max(0.05f, value.DurationSeconds);
+            duration = sequenceDuration;
             var result = new GameObject("Preview Blend");
             var layers = new List<SpliceFxRuntimeLayer>();
             foreach (var clip in value.clips)
@@ -476,7 +478,24 @@ namespace Splice.FxStudio.Editor
                 });
             }
             var runtime = result.AddComponent<SpliceFxSequenceRuntime>();
-            runtime.ConfigureEditor(layers, duration);
+            duration = sequenceDuration;
+            runtime.ConfigureEditor(layers, sequenceDuration);
+            return result;
+        }
+
+        internal static float CalculateSubFxPreviewDuration(
+            SpliceFxSubEffectDefinition value)
+        {
+            if (value == null) return 1f;
+            var result = Mathf.Max(0.05f, value.lifetime);
+            if (value.motions == null) return result;
+            foreach (var motion in value.motions)
+            {
+                if (motion?.enabled != true) continue;
+                result = Mathf.Max(result,
+                    Mathf.Max(0f, motion.delaySeconds) +
+                    Mathf.Max(0.01f, motion.durationSeconds));
+            }
             return result;
         }
 

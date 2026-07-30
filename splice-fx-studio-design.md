@@ -70,6 +70,8 @@ Splice > FX Studio > Open Studio
 
 Preview ใช้ `PreviewRenderUtility` และ object แบบ `HideAndDontSave` จึงไม่เพิ่ม GameObject ลง Scene, ไม่ทำให้ Scene dirty และไม่แก้ source prefab
 
+เส้นแบ่งระหว่างหน้าตั้งค่าและ Live Preview เป็น draggable splitter ผู้ใช้ลากกำหนดพื้นที่เองได้ ระบบจำความกว้างผ่าน `EditorPrefs` และ double-click เพื่อคืนสัดส่วนสมดุล
+
 ## Starter Presets
 
 ชุดเริ่มต้นติดตั้งแล้ว:
@@ -169,6 +171,8 @@ Quick FX:
 - `Floating Aura` = Float + Pulse + Flicker
 
 Motion Stack ทำงานทั้งใน Live Preview และ `SpliceFxMotionPlayer` บน exported pooled prefab จึงไม่ใช่ animation เฉพาะ Editor
+
+Timing ของ Motion Stack ใช้หลัก “ปริมาณงานภายในระยะเวลา” ทุกชนิด เช่น Spin กำหนด `Angle 360` และ `Complete Angle In 2 Seconds` เท่ากับ 180 องศาต่อวินาที ส่วน Pulse/Float/Orbit/Flicker/UV Scroll/Shake กำหนดจำนวน cycle หรือ movement unit ภายใน Duration ทำให้ปรับความเร็วได้โดยไม่ต้องคำนวณค่าต่อวินาทีเอง Expand/Contract/Fade ใช้เวลาจบ motion โดยตรง และทุกชนิดเลือก Loop หรือค้างสถานะสุดท้ายได้
 
 ## SubFX Instance Layout
 

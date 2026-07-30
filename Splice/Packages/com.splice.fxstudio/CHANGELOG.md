@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0
+
+- Added a draggable splitter between the authoring controls and Live Preview; its width persists across Editor sessions.
+- Double-clicking the splitter restores a balanced layout.
+- Motion timing is now duration-based and visible for every Motion Stack type.
+- Spin uses Angle / Duration (for example 360 degrees in 2 seconds) instead of requiring mental conversion to degrees per second.
+- Pulse, Float, Orbit, Flicker, UV Scroll and Shake express cycles or movement units within a configurable duration.
+- Expand, Contract, Fade In and Fade Out continue to use their explicit completion duration.
+- Added an inline timing summary and Loop control to every motion layer.
+- Live Preview automatically expands its timeline to include the longest motion duration and start delay.
+- Existing assets retain their previous effective speed when their serialized duration is the default one second.
+- Added regression coverage for duration-based Spin/Pulse and splitter constraints.
+
 ## 0.5.0
 
 - Static Sprite / Instance Card now uses its own two-sided transparent material, so swords and other flat images remain visible from either camera side.

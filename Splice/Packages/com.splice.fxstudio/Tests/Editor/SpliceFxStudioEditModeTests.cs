@@ -209,7 +209,7 @@ namespace Splice.FxStudio.Editor.Tests
         }
 
         [Test]
-        public void MotionPlayer_PulseAnimatesImageScaleAtExactTime()
+        public void MotionPlayer_PulseCompletesCyclesWithinDuration()
         {
             var root = new GameObject("Pulse");
             var definition =
@@ -221,11 +221,12 @@ namespace Splice.FxStudio.Editor.Tests
                 pulse.speed = 1f;
                 pulse.amount = 0.5f;
                 pulse.phase = 0f;
+                pulse.durationSeconds = 2f;
                 definition.motions.Add(pulse);
                 var player = root.AddComponent<SpliceFxMotionPlayer>();
                 player.Configure(definition);
 
-                player.EvaluatePreview(0.25f);
+                player.EvaluatePreview(0.5f);
 
                 Assert.That(root.transform.localScale.x,
                     Is.EqualTo(1.5f).Within(0.001f));
@@ -238,7 +239,7 @@ namespace Splice.FxStudio.Editor.Tests
         }
 
         [Test]
-        public void MotionPlayer_SpinUsesDegreesPerSecond()
+        public void MotionPlayer_SpinCompletesAngleWithinDuration()
         {
             var root = new GameObject("Spin");
             var definition =
@@ -247,7 +248,9 @@ namespace Splice.FxStudio.Editor.Tests
             {
                 var spin = SpliceFxMotionLayer.Create(
                     SpliceFxMotionType.Spin);
-                spin.speed = 90f;
+                spin.speed = 360f;
+                spin.durationSeconds = 2f;
+                spin.loop = false;
                 definition.motions.Add(spin);
                 var player = root.AddComponent<SpliceFxMotionPlayer>();
                 player.Configure(definition);
@@ -257,11 +260,59 @@ namespace Splice.FxStudio.Editor.Tests
                 Assert.That(Quaternion.Angle(
                         Quaternion.identity,
                         root.transform.localRotation),
-                    Is.EqualTo(90f).Within(0.1f));
+                    Is.EqualTo(180f).Within(0.1f));
             }
             finally
             {
                 Object.DestroyImmediate(root);
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void StudioSplitter_ClampsBothPaneMinimumWidths()
+        {
+            Assert.That(
+                SpliceFxStudioWindow.ClampSettingsPaneWidth(
+                    100f, 1040f),
+                Is.EqualTo(420f));
+            Assert.That(
+                SpliceFxStudioWindow.ClampSettingsPaneWidth(
+                    1000f, 1040f),
+                Is.EqualTo(716f));
+        }
+
+        [Test]
+        public void MotionTimingSummary_ExplainsSpinRate()
+        {
+            Assert.That(
+                SpliceFxStudioWindow.MotionTimingSummary(
+                    SpliceFxMotionType.Spin, 360f, 2f),
+                Does.Contain("180"));
+        }
+
+        [Test]
+        public void PreviewDuration_IncludesLongestMotionCycle()
+        {
+            var definition =
+                ScriptableObject.CreateInstance<
+                    SpliceFxSubEffectDefinition>();
+            try
+            {
+                definition.lifetime = 1f;
+                var spin = SpliceFxMotionLayer.Create(
+                    SpliceFxMotionType.Spin);
+                spin.delaySeconds = 0.5f;
+                spin.durationSeconds = 4f;
+                definition.motions.Add(spin);
+
+                Assert.That(
+                    SpliceFxPreviewViewport
+                        .CalculateSubFxPreviewDuration(definition),
+                    Is.EqualTo(4.5f).Within(0.001f));
+            }
+            finally
+            {
                 Object.DestroyImmediate(definition);
             }
         }

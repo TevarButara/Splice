@@ -454,8 +454,9 @@ namespace Splice.FxStudio
             var axis = motion.axis.sqrMagnitude > 0.0001f
                 ? motion.axis.normalized
                 : Vector3.up;
+            var timeInDuration = motionTime / duration;
             var wave = Mathf.Sin(
-                (motionTime * motion.speed + motion.phase) *
+                (timeInDuration * motion.speed + motion.phase) *
                 Mathf.PI * 2f);
             var amount = Mathf.Max(0f, motion.amount);
 
@@ -463,7 +464,7 @@ namespace Splice.FxStudio
             {
                 case SpliceFxMotionType.Spin:
                     rotation *= Quaternion.AngleAxis(
-                        motion.speed * motionTime, axis);
+                        motion.speed * timeInDuration, axis);
                     break;
                 case SpliceFxMotionType.Pulse:
                     scale *= Mathf.Max(0.001f, 1f + wave * amount);
@@ -483,7 +484,7 @@ namespace Splice.FxStudio
                     if (reference.sqrMagnitude < 0.0001f)
                         reference = Vector3.Cross(axis, Vector3.right);
                     position += Quaternion.AngleAxis(
-                                    motion.speed * motionTime * 360f,
+                                    motion.speed * timeInDuration * 360f,
                                     axis) *
                                 reference.normalized * amount;
                     break;
@@ -503,11 +504,11 @@ namespace Splice.FxStudio
                     break;
                 case SpliceFxMotionType.UvScroll:
                     uvOffset += motion.uvSpeed *
-                                (motion.speed * motionTime);
+                                (motion.speed * timeInDuration);
                     break;
                 case SpliceFxMotionType.Shake:
                 {
-                    var sample = motionTime * Mathf.Max(
+                    var sample = timeInDuration * Mathf.Max(
                         0.01f, Mathf.Abs(motion.speed));
                     position += new Vector3(
                         Mathf.PerlinNoise(sample, 0.17f) * 2f - 1f,
