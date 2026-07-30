@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- Static Sprite / Instance Card now uses its own two-sided transparent material, so swords and other flat images remain visible from either camera side.
+- Live Preview Edit mode now supports Move, Rotate and Scale tools for each individual item.
+- Added compact Position, Rotation and Scale fields for precise per-item editing, including non-uniform scale and full XYZ rotation.
+- Added W/E/R shortcuts and direct marker drag gestures for moving, rotating and uniformly resizing the selected item.
+- Added regression coverage for two-sided card materials and non-destructive manual transform editing.
+
 ## 0.4.0
 
 - Fixed unstable Live Preview playback by giving Editor preview exclusive timeline control and deterministic Particle/VFX seeds.

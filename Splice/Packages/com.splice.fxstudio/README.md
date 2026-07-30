@@ -22,8 +22,11 @@ deterministic Random Ring and fully Manual positioning. The exported pooled
 prefab contains the final copies; playback does not instantiate them.
 
 For a single stable image such as a sword, use the **Static Sprite / Instance
-Card** preset. Particle presets intentionally emit short-lived copies and are
-not a replacement for an instance card. In Live Preview, press **Edit** to
-convert the current formation to Manual, then drag item markers directly.
+Card** preset. It uses a dedicated two-sided material, so the card remains
+visible from either camera side. Particle presets intentionally emit
+short-lived copies and are not a replacement for an instance card. In Live
+Preview, press **Edit** to convert the current formation to Manual, then select
+each item and use Move/Rotate/Scale (W/E/R). Drag its marker for fast editing,
+or enter exact XYZ Position/Rotation/Scale values for full non-uniform control.
 `Delay Per Item`, `Visible Duration`, `Reverse Order`, and `Motion Stack
 Applies To` create sequential reveal or per-item motion without custom code.

@@ -1,6 +1,6 @@
 {
   "name": "com.splice.fxstudio",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "displayName": "Splice FX Studio",
   "description": "Preset-driven SubFX authoring, alpha processing, blend sequencing, ability binding, export and mobile validation for Splice.",
   "unity": "6000.0",

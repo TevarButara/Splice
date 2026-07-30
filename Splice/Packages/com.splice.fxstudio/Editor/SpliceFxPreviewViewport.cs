@@ -19,6 +19,13 @@ namespace Splice.FxStudio.Editor
         SkillStage
     }
 
+    internal enum SpliceFxInstanceEditTool
+    {
+        Move,
+        Rotate,
+        Scale
+    }
+
     internal sealed class SpliceFxPreviewViewport : IDisposable
     {
         private readonly Action requestRepaint;
@@ -43,6 +50,8 @@ namespace Splice.FxStudio.Editor
         private bool editInstances;
         private bool draggingInstance;
         private int selectedInstanceIndex = -1;
+        private SpliceFxInstanceEditTool instanceEditTool =
+            SpliceFxInstanceEditTool.Move;
 
         public SpliceFxPreviewViewport(Action repaint)
         {
@@ -104,13 +113,15 @@ namespace Splice.FxStudio.Editor
                 using (new EditorGUILayout.HorizontalScope())
                 {
                     GUILayout.Label(editInstances
-                            ? "Drag marker: move • Alt/Right drag: orbit"
+                            ? InstanceEditHint()
                             : "Drag: orbit  •  Wheel: zoom",
                         EditorStyles.miniLabel);
                     GUILayout.FlexibleSpace();
                     if (GUILayout.Button("Focus", GUILayout.Width(58f)))
                         FocusContent();
                 }
+
+                DrawSelectedInstanceControls();
 
                 var next = EditorGUILayout.Slider(
                     "Time", previewTime, 0f, Mathf.Max(0.05f, duration));
@@ -200,6 +211,102 @@ namespace Splice.FxStudio.Editor
                 draggingInstance = false;
                 requestRepaint?.Invoke();
             }
+        }
+
+        private string InstanceEditHint()
+        {
+            return instanceEditTool switch
+            {
+                SpliceFxInstanceEditTool.Rotate =>
+                    "Drag marker: rotate • Alt/Right drag: orbit",
+                SpliceFxInstanceEditTool.Scale =>
+                    "Drag marker: resize • Alt/Right drag: orbit",
+                _ => "Drag marker: move • Alt/Right drag: orbit"
+            };
+        }
+
+        private void DrawSelectedInstanceControls()
+        {
+            if (!editInstances ||
+                source is not SpliceFxSubEffectDefinition subFx ||
+                subFx.instanceLayout?.mode !=
+                SpliceFxInstanceLayoutMode.Manual)
+                return;
+
+            var group = EditableGroup();
+            var instances = subFx.instanceLayout.manualInstances;
+            if (group == null || instances == null ||
+                instances.Count == 0)
+                return;
+
+            selectedInstanceIndex = Mathf.Clamp(
+                selectedInstanceIndex, 0,
+                Mathf.Min(instances.Count, group.Instances.Count) - 1);
+            if (selectedInstanceIndex < 0) return;
+
+            using (new EditorGUILayout.VerticalScope(
+                       EditorStyles.helpBox))
+            {
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    EditorGUILayout.LabelField(
+                        $"ITEM {selectedInstanceIndex + 1}",
+                        EditorStyles.miniBoldLabel,
+                        GUILayout.Width(58f));
+                    DrawEditToolButton(
+                        SpliceFxInstanceEditTool.Move, "Move");
+                    DrawEditToolButton(
+                        SpliceFxInstanceEditTool.Rotate, "Rotate");
+                    DrawEditToolButton(
+                        SpliceFxInstanceEditTool.Scale, "Scale");
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label("W / E / R",
+                        EditorStyles.centeredGreyMiniLabel);
+                }
+
+                var manual = instances[selectedInstanceIndex];
+                var instance = group.Instances[selectedInstanceIndex];
+                DrawManualVectorField(subFx, instance, manual,
+                    "Position", manual.localPosition,
+                    ApplyManualPosition);
+                DrawManualVectorField(subFx, instance, manual,
+                    "Rotation", manual.localEulerAngles,
+                    ApplyManualRotation);
+                DrawManualVectorField(subFx, instance, manual,
+                    "Scale", manual.localScale,
+                    ApplyManualScale);
+            }
+        }
+
+        private void DrawEditToolButton(
+            SpliceFxInstanceEditTool tool, string label)
+        {
+            var selected = instanceEditTool == tool;
+            var next = GUILayout.Toggle(
+                selected, label, "Button", GUILayout.Width(58f));
+            if (next && !selected)
+            {
+                instanceEditTool = tool;
+                requestRepaint?.Invoke();
+            }
+        }
+
+        private delegate void ManualTransformApplier(
+            Transform instance, SpliceFxManualInstance manual,
+            Vector3 value);
+
+        private static void DrawManualVectorField(
+            SpliceFxSubEffectDefinition subFx, Transform instance,
+            SpliceFxManualInstance manual, string label, Vector3 value,
+            ManualTransformApplier apply)
+        {
+            EditorGUI.BeginChangeCheck();
+            var next = EditorGUILayout.Vector3Field(label, value);
+            if (!EditorGUI.EndChangeCheck()) return;
+            Undo.RecordObject(subFx, $"Edit FX Instance {label}");
+            apply(instance, manual, next);
+            EditorUtility.SetDirty(subFx);
+            GUI.changed = true;
         }
 
         private void DrawPreview(Rect rect)
@@ -784,7 +891,8 @@ namespace Splice.FxStudio.Editor
                 if (hit < 0) return false;
                 selectedInstanceIndex = hit;
                 draggingInstance = true;
-                Undo.RecordObject(subFx, "Move FX Instance");
+                Undo.RecordObject(subFx,
+                    $"{instanceEditTool} FX Instance");
                 current.Use();
                 requestRepaint?.Invoke();
                 return true;
@@ -798,27 +906,96 @@ namespace Splice.FxStudio.Editor
                 subFx.instanceLayout.manualInstances.Count)
                 return false;
 
-            var axis = subFx.instanceLayout.planeAxis;
-            if (axis.sqrMagnitude < 0.0001f) axis = Vector3.up;
-            var plane = new Plane(
-                group.transform.TransformDirection(axis.normalized),
-                group.transform.position);
-            var ray = GuiPointToRay(rect, current.mousePosition);
-            if (!plane.Raycast(ray, out var distance)) return false;
-            var local = group.transform.InverseTransformPoint(
-                ray.GetPoint(distance));
             var manual = subFx.instanceLayout
                 .manualInstances[selectedInstanceIndex];
-            var delta = local - manual.localPosition;
-            manual.localPosition = local;
             var instance = group.Instances[selectedInstanceIndex];
-            if (instance != null)
-                instance.localPosition += delta;
+            var axis = subFx.instanceLayout.planeAxis;
+            if (axis.sqrMagnitude < 0.0001f) axis = Vector3.up;
+            axis.Normalize();
+
+            switch (instanceEditTool)
+            {
+                case SpliceFxInstanceEditTool.Rotate:
+                {
+                    var rotation = Quaternion.AngleAxis(
+                        current.delta.x * 0.75f, axis) *
+                                   Quaternion.Euler(
+                                       manual.localEulerAngles);
+                    ApplyManualRotation(
+                        instance, manual, rotation.eulerAngles);
+                    break;
+                }
+                case SpliceFxInstanceEditTool.Scale:
+                {
+                    var factor = Mathf.Exp(
+                        (current.delta.x - current.delta.y) * 0.012f);
+                    ApplyManualScale(instance, manual,
+                        manual.localScale * factor);
+                    break;
+                }
+                default:
+                {
+                    var plane = new Plane(
+                        group.transform.TransformDirection(axis),
+                        group.transform.position);
+                    var ray = GuiPointToRay(
+                        rect, current.mousePosition);
+                    if (!plane.Raycast(ray, out var distance))
+                        return false;
+                    var local = group.transform.InverseTransformPoint(
+                        ray.GetPoint(distance));
+                    ApplyManualPosition(instance, manual, local);
+                    break;
+                }
+            }
             EditorUtility.SetDirty(subFx);
             GUI.changed = true;
             current.Use();
             requestRepaint?.Invoke();
             return true;
+        }
+
+        internal static void ApplyManualPosition(
+            Transform instance, SpliceFxManualInstance manual,
+            Vector3 value)
+        {
+            if (manual == null) return;
+            var delta = value - manual.localPosition;
+            manual.localPosition = value;
+            if (instance != null)
+                instance.localPosition += delta;
+        }
+
+        internal static void ApplyManualRotation(
+            Transform instance, SpliceFxManualInstance manual,
+            Vector3 value)
+        {
+            if (manual == null) return;
+            var previous = Quaternion.Euler(
+                manual.localEulerAngles);
+            var next = Quaternion.Euler(value);
+            manual.localEulerAngles = value;
+            if (instance != null)
+                instance.localRotation =
+                    next * Quaternion.Inverse(previous) *
+                    instance.localRotation;
+        }
+
+        internal static void ApplyManualScale(
+            Transform instance, SpliceFxManualInstance manual,
+            Vector3 value)
+        {
+            if (manual == null) return;
+            var next = SanitizeScale(value);
+            var previous = SanitizeScale(manual.localScale);
+            manual.localScale = next;
+            if (instance == null) return;
+            instance.localScale = Vector3.Scale(
+                instance.localScale,
+                new Vector3(
+                    next.x / previous.x,
+                    next.y / previous.y,
+                    next.z / previous.z));
         }
 
         private SpliceFxInstanceGroup EditableGroup()
@@ -872,6 +1049,34 @@ namespace Splice.FxStudio.Editor
         {
             var current = Event.current;
             if (!rect.Contains(current.mousePosition)) return;
+            if (editInstances && current.type == EventType.KeyDown)
+            {
+                var handled = true;
+                switch (current.keyCode)
+                {
+                    case KeyCode.W:
+                        instanceEditTool =
+                            SpliceFxInstanceEditTool.Move;
+                        break;
+                    case KeyCode.E:
+                        instanceEditTool =
+                            SpliceFxInstanceEditTool.Rotate;
+                        break;
+                    case KeyCode.R:
+                        instanceEditTool =
+                            SpliceFxInstanceEditTool.Scale;
+                        break;
+                    default:
+                        handled = false;
+                        break;
+                }
+                if (handled)
+                {
+                    current.Use();
+                    requestRepaint?.Invoke();
+                    return;
+                }
+            }
             if (current.type == EventType.MouseDrag &&
                 ((!editInstances && current.button == 0) ||
                  (editInstances &&

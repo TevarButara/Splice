@@ -119,6 +119,8 @@ namespace Splice.FxStudio.Editor
             SpliceFxAlphaProcessor.EnsureAssetFolder(Root + "/Generated");
 
             var material = LoadOrCreateMaterial();
+            var instanceCardMaterial =
+                LoadOrCreateInstanceCardMaterial(material);
             var registry =
                 AssetDatabase.LoadAssetAtPath<SpliceFxPresetRegistry>(
                     RegistryPath);
@@ -148,16 +150,26 @@ namespace Splice.FxStudio.Editor
                     preset.budget.maxParticles = starter.maxParticles;
                     preset.budget.maxRenderers = starter.maxRenderers;
                     preset.templatePrefab =
-                        LoadOrCreateTemplate(starter, material);
+                        LoadOrCreateTemplate(starter,
+                            starter.staticCard
+                                ? instanceCardMaterial
+                                : material);
                     AddDefaultSchemas(preset);
                     AssetDatabase.CreateAsset(preset, presetPath);
                 }
                 else if (preset.templatePrefab == null)
                 {
                     preset.templatePrefab =
-                        LoadOrCreateTemplate(starter, material);
+                        LoadOrCreateTemplate(starter,
+                            starter.staticCard
+                                ? instanceCardMaterial
+                                : material);
                     EditorUtility.SetDirty(preset);
                 }
+                if (starter.staticCard &&
+                    preset.templatePrefab != null)
+                    EnsureTemplateMaterial(
+                        preset.templatePrefab, instanceCardMaterial);
                 if (!registry.presets.Contains(preset))
                 {
                     registry.presets.Add(preset);
@@ -195,6 +207,62 @@ namespace Splice.FxStudio.Editor
                 material.SetFloat("_ZWrite", 0f);
             AssetDatabase.CreateAsset(material, path);
             return material;
+        }
+
+        private static Material LoadOrCreateInstanceCardMaterial(
+            Material source)
+        {
+            var path =
+                Root + "/Materials/M_FXStudio_InstanceCard.mat";
+            var material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
+            {
+                material = new Material(source)
+                {
+                    name = "M_FXStudio_InstanceCard"
+                };
+                AssetDatabase.CreateAsset(material, path);
+            }
+            ConfigureTwoSided(material);
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        internal static void ConfigureTwoSided(Material material)
+        {
+            if (material == null) return;
+            if (material.HasProperty("_Cull"))
+                material.SetFloat("_Cull", (float)CullMode.Off);
+            if (material.HasProperty("_CullMode"))
+                material.SetFloat("_CullMode", (float)CullMode.Off);
+            if (material.HasProperty("_RenderFace"))
+                material.SetFloat("_RenderFace", 2f);
+            material.doubleSidedGI = true;
+        }
+
+        private static void EnsureTemplateMaterial(
+            GameObject prefab, Material material)
+        {
+            var path = AssetDatabase.GetAssetPath(prefab);
+            if (string.IsNullOrWhiteSpace(path)) return;
+            var root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                var changed = false;
+                foreach (var renderer in
+                         root.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    if (renderer.sharedMaterial == material) continue;
+                    renderer.sharedMaterial = material;
+                    changed = true;
+                }
+                if (changed)
+                    PrefabUtility.SaveAsPrefabAsset(root, path);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(root);
+            }
         }
 
         private static GameObject LoadOrCreateTemplate(Starter starter,

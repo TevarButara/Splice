@@ -483,6 +483,70 @@ namespace Splice.FxStudio.Editor.Tests
         }
 
         [Test]
+        public void InstanceCardMaterial_IsConfiguredTwoSided()
+        {
+            var shader =
+                Shader.Find("Universal Render Pipeline/Particles/Unlit") ??
+                Shader.Find("Universal Render Pipeline/Unlit");
+            Assert.That(shader, Is.Not.Null);
+            var material = new Material(shader);
+            try
+            {
+                SpliceFxStarterLibrary.ConfigureTwoSided(material);
+
+                Assert.That(material.doubleSidedGI, Is.True);
+                if (material.HasProperty("_Cull"))
+                    Assert.That(material.GetFloat("_Cull"),
+                        Is.EqualTo(0f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void ManualPreviewEditing_AppliesMoveRotateAndScaleDeltas()
+        {
+            var root = new GameObject("Manual Preview Instance");
+            var manual = new SpliceFxManualInstance
+            {
+                localPosition = new Vector3(1f, 0f, 0f),
+                localEulerAngles = new Vector3(0f, 10f, 0f),
+                localScale = new Vector3(2f, 2f, 2f)
+            };
+            try
+            {
+                root.transform.localPosition =
+                    new Vector3(1.5f, 0f, 0f);
+                root.transform.localRotation =
+                    Quaternion.Euler(0f, 25f, 0f);
+                root.transform.localScale =
+                    new Vector3(4f, 2f, 2f);
+
+                SpliceFxPreviewViewport.ApplyManualPosition(
+                    root.transform, manual, new Vector3(3f, 1f, 0f));
+                SpliceFxPreviewViewport.ApplyManualRotation(
+                    root.transform, manual, new Vector3(0f, 40f, 0f));
+                SpliceFxPreviewViewport.ApplyManualScale(
+                    root.transform, manual, new Vector3(1f, 3f, 4f));
+
+                Assert.That(root.transform.localPosition,
+                    Is.EqualTo(new Vector3(3.5f, 1f, 0f)));
+                Assert.That(Quaternion.Angle(
+                        root.transform.localRotation,
+                        Quaternion.Euler(0f, 55f, 0f)),
+                    Is.LessThan(0.01f));
+                Assert.That(root.transform.localScale,
+                    Is.EqualTo(new Vector3(2f, 3f, 4f)));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
         public void ReverseStagger_StartsFromLastInstance()
         {
             var layout = SpliceFxInstanceLayout.RadialFive();
