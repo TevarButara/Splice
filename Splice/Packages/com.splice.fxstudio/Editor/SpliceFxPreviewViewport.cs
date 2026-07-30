@@ -533,6 +533,10 @@ namespace Splice.FxStudio.Editor
         internal static void SimulateVisual(GameObject root, float time,
             SpliceFxQualityTier qualityTier)
         {
+            foreach (var gate in
+                     root.GetComponentsInChildren<
+                         SpliceFxQualityGate>(true))
+                gate.Evaluate(qualityTier);
             var groups =
                 root.GetComponentsInChildren<SpliceFxInstanceGroup>(true);
             foreach (var group in groups)

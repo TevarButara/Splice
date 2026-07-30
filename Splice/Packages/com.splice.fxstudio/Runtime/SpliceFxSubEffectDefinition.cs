@@ -10,7 +10,7 @@ namespace Splice.FxStudio
         [Header("Identity")]
         public string subFxId = "new_sub_fx";
         public string displayName = "New SubFX";
-        [Min(1)] public int schemaVersion = 1;
+        [Min(1)] public int schemaVersion = 2;
 
         [Header("Preset")]
         public SpliceFxPresetDefinition preset;
@@ -36,6 +36,10 @@ namespace Splice.FxStudio
 
         [Header("Common Visual Values")]
         public Color mainColor = Color.white;
+        public SpliceFxGradientMode gradientMode =
+            SpliceFxGradientMode.Solid;
+        public Gradient mainGradient = CreateDefaultGradient();
+        public bool reverseGradient;
         [Min(0f)] public float emission = 3f;
         [Min(0.01f)] public float lifetime = 1f;
         [Min(0f)] public float spawnRate = 32f;
@@ -45,6 +49,17 @@ namespace Splice.FxStudio
         public float rotationSpeed = 30f;
         [Min(0f)] public float noiseStrength;
         public SpliceFxQualityMask quality = SpliceFxQualityMask.All;
+
+        [Header("Stroke / Outline")]
+        public SpliceFxStrokeMode strokeMode =
+            SpliceFxStrokeMode.None;
+        public Color strokeColor =
+            new(1f, 0.35f, 0.05f, 1f);
+        [Range(0f, 16f)] public float strokeWidth = 2f;
+        [Range(1f, 32f)] public float strokeDashFrequency = 8f;
+
+        [Header("Additional Visual Layers")]
+        public List<SpliceFxVisualLayerDefinition> visualLayers = new();
 
         [Header("Custom Exposed Values")]
         public List<SpliceFxPropertyValue> customValues = new();
@@ -75,6 +90,52 @@ namespace Splice.FxStudio
                 if (motion.axis.sqrMagnitude < 0.0001f)
                     motion.axis = Vector3.up;
             }
+            mainGradient ??= CreateDefaultGradient();
+            visualLayers ??=
+                new List<SpliceFxVisualLayerDefinition>();
+            foreach (var layer in visualLayers)
+            {
+                if (layer == null) continue;
+                layer.color ??= CreateDefaultGradient();
+                layer.emission = Mathf.Max(0f, layer.emission);
+                layer.localScale = SanitizeScale(layer.localScale);
+                layer.instanceLayout ??= new SpliceFxInstanceLayout();
+                layer.motions ??= new List<SpliceFxMotionLayer>();
+                foreach (var motion in layer.motions)
+                {
+                    if (motion == null) continue;
+                    motion.amount = Mathf.Max(0f, motion.amount);
+                    motion.delaySeconds =
+                        Mathf.Max(0f, motion.delaySeconds);
+                    motion.durationSeconds =
+                        Mathf.Max(0.01f,
+                            motion.durationSeconds);
+                    if (motion.axis.sqrMagnitude < 0.0001f)
+                        motion.axis = Vector3.up;
+                }
+                layer.trailTime = Mathf.Max(0.01f, layer.trailTime);
+                layer.trailStartWidth =
+                    Mathf.Max(0.001f, layer.trailStartWidth);
+                layer.trailEndWidth =
+                    Mathf.Max(0f, layer.trailEndWidth);
+                layer.trailMinVertexDistance =
+                    Mathf.Max(0.001f,
+                        layer.trailMinVertexDistance);
+                layer.particleMaxCount =
+                    Mathf.Clamp(layer.particleMaxCount, 1, 2048);
+                layer.particleRate =
+                    Mathf.Max(0f, layer.particleRate);
+                layer.particleBurstCount =
+                    Mathf.Clamp(layer.particleBurstCount, 1, 512);
+                layer.particleLifetime =
+                    Mathf.Max(0.01f, layer.particleLifetime);
+                layer.particleSpeed =
+                    Mathf.Max(0f, layer.particleSpeed);
+                layer.particleSize =
+                    Mathf.Max(0.001f, layer.particleSize);
+                layer.particleShapeRadius =
+                    Mathf.Max(0f, layer.particleShapeRadius);
+            }
             instanceLayout ??= new SpliceFxInstanceLayout();
             instanceLayout.highCount =
                 Mathf.Clamp(instanceLayout.highCount, 1, 64);
@@ -95,5 +156,27 @@ namespace Splice.FxStudio
             instanceLayout.activeDuration =
                 Mathf.Max(0f, instanceLayout.activeDuration);
         }
+
+        private static Gradient CreateDefaultGradient()
+        {
+            var result = new Gradient();
+            result.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(Color.white, 0f),
+                    new GradientColorKey(Color.white, 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(1f, 1f)
+                });
+            return result;
+        }
+
+        private static Vector3 SanitizeScale(Vector3 value) =>
+            new(Mathf.Max(0.001f, Mathf.Abs(value.x)),
+                Mathf.Max(0.001f, Mathf.Abs(value.y)),
+                Mathf.Max(0.001f, Mathf.Abs(value.z)));
     }
 }

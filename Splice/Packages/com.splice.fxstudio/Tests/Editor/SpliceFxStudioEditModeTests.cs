@@ -168,6 +168,233 @@ namespace Splice.FxStudio.Editor.Tests
         }
 
         [Test]
+        public void VisualFactory_BuildsMultipleTrailAndParticleLayers()
+        {
+            var template = new GameObject("Template");
+            var definition =
+                ScriptableObject.CreateInstance<
+                    SpliceFxSubEffectDefinition>();
+            GameObject built = null;
+            try
+            {
+                definition.templateOverride = template;
+                var trail =
+                    SpliceFxVisualLayerDefinition.CreateTrail();
+                trail.texture = Texture2D.whiteTexture;
+                trail.instanceLayout.mode =
+                    SpliceFxInstanceLayoutMode.Radial;
+                trail.instanceLayout.highCount = 3;
+                trail.instanceLayout.mediumCount = 2;
+                trail.instanceLayout.lowCount = 1;
+                var particle =
+                    SpliceFxVisualLayerDefinition.CreateParticle();
+                particle.texture = Texture2D.whiteTexture;
+                definition.visualLayers.Add(trail);
+                definition.visualLayers.Add(particle);
+
+                built = SpliceFxVisualFactory.Build(definition);
+
+                Assert.That(
+                    built.GetComponentsInChildren<TrailRenderer>(true),
+                    Has.Length.EqualTo(3));
+                Assert.That(
+                    built.GetComponentsInChildren<ParticleSystem>(true),
+                    Has.Length.EqualTo(1));
+                Assert.That(
+                    built.GetComponentsInChildren<
+                        SpliceFxAuxiliaryLayerMarker>(true),
+                    Has.Length.EqualTo(2));
+            }
+            finally
+            {
+                if (built != null) Object.DestroyImmediate(built);
+                Object.DestroyImmediate(definition);
+                Object.DestroyImmediate(template);
+            }
+        }
+
+        [Test]
+        public void GradientStrokeDriver_SendsShaderProperties()
+        {
+            var shader = Shader.Find(
+                "Splice/FX Studio/Gradient Stroke Card");
+            Assert.That(shader, Is.Not.Null);
+            var root = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            var material = new Material(shader);
+            var definition =
+                ScriptableObject.CreateInstance<
+                    SpliceFxSubEffectDefinition>();
+            try
+            {
+                root.GetComponent<Renderer>().sharedMaterial = material;
+                definition.gradientMode =
+                    SpliceFxGradientMode.Vertical;
+                definition.strokeMode = SpliceFxStrokeMode.Solid;
+                definition.strokeWidth = 3f;
+                var driver =
+                    root.AddComponent<SpliceFxPropertyDriver>();
+                driver.Configure(definition);
+                var block = new MaterialPropertyBlock();
+                root.GetComponent<Renderer>().GetPropertyBlock(block);
+
+                Assert.That(block.GetFloat("_GradientMode"),
+                    Is.EqualTo(1f));
+                Assert.That(block.GetFloat("_StrokeMode"),
+                    Is.EqualTo(1f));
+                Assert.That(block.GetFloat("_StrokeWidth"),
+                    Is.EqualTo(3f));
+                Assert.That(block.GetTexture("_GradientMap"),
+                    Is.Not.Null);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(material);
+                Object.DestroyImmediate(definition);
+            }
+        }
+
+        [Test]
+        public void LayerInlineMotion_RotatesIndependently()
+        {
+            var root = new GameObject("Layer Motion");
+            try
+            {
+                var spin = SpliceFxMotionLayer.Create(
+                    SpliceFxMotionType.Spin);
+                spin.speed = 360f;
+                spin.durationSeconds = 2f;
+                spin.loop = false;
+                var player = root.AddComponent<SpliceFxMotionPlayer>();
+                player.ConfigureInline(
+                    new System.Collections.Generic.List<
+                        SpliceFxMotionLayer> { spin });
+
+                player.EvaluatePreview(1f);
+
+                Assert.That(Quaternion.Angle(
+                        Quaternion.identity,
+                        root.transform.localRotation),
+                    Is.EqualTo(180f).Within(0.1f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void LayerInlineMotion_AppliesFadeAndUvScroll()
+        {
+            var shader = Shader.Find(
+                "Splice/FX Studio/Gradient Stroke Card");
+            Assert.That(shader, Is.Not.Null);
+            var root = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            var material = new Material(shader);
+            try
+            {
+                root.GetComponent<Renderer>().sharedMaterial = material;
+                var fade = SpliceFxMotionLayer.Create(
+                    SpliceFxMotionType.FadeOut);
+                fade.durationSeconds = 1f;
+                fade.amount = 1f;
+                var scroll = SpliceFxMotionLayer.Create(
+                    SpliceFxMotionType.UvScroll);
+                scroll.durationSeconds = 1f;
+                scroll.speed = 1f;
+                scroll.uvSpeed = new Vector2(0.25f, 0.5f);
+                var player = root.AddComponent<SpliceFxMotionPlayer>();
+                player.ConfigureInline(
+                    new System.Collections.Generic.List<
+                        SpliceFxMotionLayer> { fade, scroll });
+
+                player.EvaluatePreview(0.5f);
+
+                var block = new MaterialPropertyBlock();
+                root.GetComponent<Renderer>().GetPropertyBlock(block);
+                Assert.That(block.GetColor("_BaseColor").a,
+                    Is.EqualTo(0.5f).Within(0.01f));
+                var textureTransform =
+                    block.GetVector("_BaseMap_ST");
+                Assert.That(textureTransform.z,
+                    Is.EqualTo(0.125f).Within(0.001f));
+                Assert.That(textureTransform.w,
+                    Is.EqualTo(0.25f).Within(0.001f));
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+                Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void VisualLayerQualityGate_TracksPreviewTier()
+        {
+            var root = new GameObject("Quality Gate");
+            var target = new GameObject("Visuals");
+            target.transform.SetParent(root.transform);
+            try
+            {
+                var gate = root.AddComponent<SpliceFxQualityGate>();
+                gate.Configure(SpliceFxQualityMask.Low, target);
+
+                gate.Evaluate(SpliceFxQualityTier.High);
+                Assert.That(target.activeSelf, Is.False);
+                gate.Evaluate(SpliceFxQualityTier.Low);
+                Assert.That(target.activeSelf, Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+        }
+
+        [Test]
+        public void Validator_AcceptsConfiguredTrailAndParticleLayers()
+        {
+            var template = GameObject.CreatePrimitive(
+                PrimitiveType.Quad);
+            var shader = Shader.Find(
+                "Splice/FX Studio/Gradient Stroke Card");
+            var material = new Material(shader);
+            template.GetComponent<Renderer>().sharedMaterial = material;
+            var definition =
+                ScriptableObject.CreateInstance<
+                    SpliceFxSubEffectDefinition>();
+            var preset =
+                ScriptableObject.CreateInstance<
+                    SpliceFxPresetDefinition>();
+            try
+            {
+                definition.subFxId = "valid-layer-test";
+                preset.templatePrefab = template;
+                definition.preset = preset;
+                definition.templateOverride = template;
+                var trail =
+                    SpliceFxVisualLayerDefinition.CreateTrail();
+                trail.texture = Texture2D.whiteTexture;
+                var particle =
+                    SpliceFxVisualLayerDefinition.CreateParticle();
+                particle.texture = Texture2D.whiteTexture;
+                definition.visualLayers.Add(trail);
+                definition.visualLayers.Add(particle);
+                var result = new SpliceFxValidationResult();
+
+                SpliceFxValidator.ValidateSubFx(definition, result);
+
+                Assert.That(result.IsValid, Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(definition);
+                Object.DestroyImmediate(preset);
+                Object.DestroyImmediate(template);
+                Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
         public void SequencePreview_RespectsTimeAndQualityMask()
         {
             var root = new GameObject("Sequence");

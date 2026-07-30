@@ -40,3 +40,17 @@ Every Motion Stack layer uses an explicit duration. Spin is authored as
 `180°/s`. Pulse, Float, Orbit, Flicker, UV Scroll and Shake specify how many
 cycles or movement units happen inside their duration. Each layer displays a
 plain-language timing summary and can either loop or hold its final state.
+
+SubFX Lab also contains **Additional Visual Layers**. Add as many Trail or
+Particle layers as the mobile budget allows. Each layer owns a texture,
+gradient, emission, transform, quality mask, Instance Layout and an independent
+Layer Motion Stack. Trail layers configure width, lifetime, tiling and
+alignment. Particle layers configure continuous/burst emission, shape, count,
+rate, lifetime, speed, size, force and simulation space. These layers are
+built into the exported pooled prefab.
+
+The main visual supports Solid, Vertical, Horizontal, Radial Inside-Out and
+Radial Outside-In gradient modes. Static Sprite / Instance Card uses the
+FX Studio Gradient Stroke Card shader and supports Solid, Soft Glow and Dashed
+outlines. Other custom templates must expose the same shader properties or the
+validator reports a compatibility warning.

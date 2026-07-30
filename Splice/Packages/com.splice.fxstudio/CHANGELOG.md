@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0
+
+- Added Additional Visual Layers inside SubFX Lab.
+- A SubFX can contain multiple Trail and Particle layers without creating separate prefabs manually.
+- Every layer supports its own image/texture, HDR-style gradient, emission, transform, quality mask and Instance Layout.
+- Layer Instance Layouts support multiple copies, stagger, manual placement and independent self-spin like the main sprite-card workflow.
+- Added an independent Layer Motion Stack with the same duration-based Spin, Pulse, Float, Orbit, Shake and other motion controls.
+- Trail layers expose lifetime, start/end width, vertex distance, texture tiling mode and alignment.
+- Particle layers expose continuous/burst emission, shape, loop, mobile maximum count, rate/burst count, lifetime, speed, size, radius, force and local/world simulation.
+- Main visual color now supports Solid, Vertical, Horizontal, Radial Inside-Out and Radial Outside-In gradients with optional reversal.
+- Added None, Solid, Soft Glow and Dashed stroke styles with editable color, width and dash frequency.
+- Added a dedicated URP transparent Gradient/Stroke Card shader for Static Sprite / Instance Card.
+- Added native Trail and Particle gradient application plus quality gates and mobile validation for auxiliary layers.
+- Exported pooled prefabs include all configured visual layers; runtime spawning does not rebuild their layer layout.
+- Added regression coverage for layer construction, gradient/stroke shader properties and independent layer motion.
+
 ## 0.6.0
 
 - Added a draggable splitter between the authoring controls and Live Preview; its width persists across Editor sessions.

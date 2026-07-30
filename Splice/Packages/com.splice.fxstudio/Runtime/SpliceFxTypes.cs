@@ -59,6 +59,43 @@ namespace Splice.FxStudio
         Shake
     }
 
+    public enum SpliceFxGradientMode
+    {
+        Solid,
+        Vertical,
+        Horizontal,
+        RadialInsideOut,
+        RadialOutsideIn
+    }
+
+    public enum SpliceFxStrokeMode
+    {
+        None,
+        Solid,
+        SoftGlow,
+        Dashed
+    }
+
+    public enum SpliceFxVisualLayerType
+    {
+        Trail,
+        Particle
+    }
+
+    public enum SpliceFxParticleEmissionMode
+    {
+        Continuous,
+        Burst
+    }
+
+    public enum SpliceFxParticleShape
+    {
+        Sphere,
+        Circle,
+        Cone,
+        Box
+    }
+
     public enum SpliceFxInstanceLayoutMode
     {
         Single,
@@ -482,6 +519,87 @@ namespace Splice.FxStudio
                     result.amount = 0.08f;
                     break;
             }
+            return result;
+        }
+    }
+
+    [Serializable]
+    public sealed class SpliceFxVisualLayerDefinition
+    {
+        public string label = "Visual Layer";
+        public bool enabled = true;
+        public SpliceFxVisualLayerType type =
+            SpliceFxVisualLayerType.Trail;
+        public Texture2D texture;
+        public Gradient color = CreateDefaultGradient();
+        [Min(0f)] public float emission = 1f;
+        public SpliceFxQualityMask quality = SpliceFxQualityMask.All;
+
+        [Header("Transform / Copies")]
+        public Vector3 localPosition;
+        public Vector3 localEulerAngles;
+        public Vector3 localScale = Vector3.one;
+        public SpliceFxInstanceLayout instanceLayout = new();
+        public List<SpliceFxMotionLayer> motions = new();
+
+        [Header("Trail")]
+        [Min(0.01f)] public float trailTime = 0.45f;
+        [Min(0.001f)] public float trailStartWidth = 0.45f;
+        [Min(0f)] public float trailEndWidth = 0.02f;
+        [Min(0.001f)] public float trailMinVertexDistance = 0.04f;
+        public LineTextureMode trailTextureMode =
+            LineTextureMode.Tile;
+        public LineAlignment trailAlignment =
+            LineAlignment.TransformZ;
+
+        [Header("Particle")]
+        public SpliceFxParticleEmissionMode particleEmission =
+            SpliceFxParticleEmissionMode.Continuous;
+        public SpliceFxParticleShape particleShape =
+            SpliceFxParticleShape.Sphere;
+        public bool particleLoop = true;
+        [Range(1, 2048)] public int particleMaxCount = 128;
+        [Min(0f)] public float particleRate = 24f;
+        [Range(1, 512)] public int particleBurstCount = 24;
+        [Min(0.01f)] public float particleLifetime = 0.8f;
+        [Min(0f)] public float particleSpeed = 0.5f;
+        [Min(0.001f)] public float particleSize = 0.25f;
+        [Min(0f)] public float particleShapeRadius = 0.25f;
+        public Vector3 particleGravity;
+        public bool particleWorldSpace;
+
+        public static SpliceFxVisualLayerDefinition CreateTrail() =>
+            new()
+            {
+                label = "Trail",
+                type = SpliceFxVisualLayerType.Trail,
+                instanceLayout = new SpliceFxInstanceLayout()
+            };
+
+        public static SpliceFxVisualLayerDefinition CreateParticle() =>
+            new()
+            {
+                label = "Particle",
+                type = SpliceFxVisualLayerType.Particle,
+                instanceLayout = new SpliceFxInstanceLayout(),
+                trailStartWidth = 0.45f
+            };
+
+        private static Gradient CreateDefaultGradient()
+        {
+            var result = new Gradient();
+            result.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(Color.white, 0f),
+                    new GradientColorKey(
+                        new Color(1f, 0.45f, 0.08f), 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(0f, 1f)
+                });
             return result;
         }
     }

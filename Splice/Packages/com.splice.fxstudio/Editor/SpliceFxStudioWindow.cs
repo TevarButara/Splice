@@ -333,8 +333,9 @@ namespace Splice.FxStudio.Editor
             }
 
             DrawSerializedAsset(subFx, "motions", "motionModifiers",
-                "instanceLayout");
+                "instanceLayout", "visualLayers");
             DrawInstanceLayout(subFx);
+            DrawVisualLayers(subFx);
             DrawMotionStack(subFx);
             EditorGUILayout.Space(8f);
             using (new EditorGUILayout.HorizontalScope())
@@ -632,6 +633,268 @@ namespace Splice.FxStudio.Editor
             }
             if (serialized.ApplyModifiedProperties())
                 EditorUtility.SetDirty(value);
+        }
+
+        private void DrawVisualLayers(
+            SpliceFxSubEffectDefinition value)
+        {
+            EditorGUILayout.Space(10f);
+            Section("Additional Visual Layers");
+            EditorGUILayout.HelpBox(
+                "Add multiple Trail or Particle layers inside this SubFX. Each layer has its own texture, gradient, transform and Instance Layout. The main Motion Stack moves the complete SubFX; layer self-spin and stagger live inside its Instance Layout.",
+                MessageType.Info);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("+ Add Trail",
+                        GUILayout.Height(28f)))
+                {
+                    Undo.RecordObject(value, "Add FX Trail Layer");
+                    value.visualLayers ??=
+                        new List<SpliceFxVisualLayerDefinition>();
+                    value.visualLayers.Add(
+                        SpliceFxVisualLayerDefinition.CreateTrail());
+                    EditorUtility.SetDirty(value);
+                }
+                if (GUILayout.Button("+ Add Particle",
+                        GUILayout.Height(28f)))
+                {
+                    Undo.RecordObject(value, "Add FX Particle Layer");
+                    value.visualLayers ??=
+                        new List<SpliceFxVisualLayerDefinition>();
+                    value.visualLayers.Add(
+                        SpliceFxVisualLayerDefinition.CreateParticle());
+                    EditorUtility.SetDirty(value);
+                }
+            }
+
+            var serialized = new SerializedObject(value);
+            serialized.Update();
+            var list = serialized.FindProperty("visualLayers");
+            if (list == null || list.arraySize == 0)
+            {
+                EditorGUILayout.HelpBox(
+                    "No extra visual layers. The main SubFX remains unchanged.",
+                    MessageType.None);
+                return;
+            }
+
+            for (var i = 0; i < list.arraySize; i++)
+            {
+                var item = list.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(
+                           EditorStyles.helpBox))
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        EditorGUILayout.PropertyField(
+                            item.FindPropertyRelative("enabled"),
+                            GUIContent.none, GUILayout.Width(18f));
+                        EditorGUILayout.PropertyField(
+                            item.FindPropertyRelative("label"),
+                            GUIContent.none);
+                        EditorGUILayout.PropertyField(
+                            item.FindPropertyRelative("type"),
+                            GUIContent.none, GUILayout.Width(86f));
+                        using (new EditorGUI.DisabledScope(i == 0))
+                            if (GUILayout.Button("↑",
+                                    GUILayout.Width(24f)))
+                            {
+                                list.MoveArrayElement(i, i - 1);
+                                serialized.ApplyModifiedProperties();
+                                return;
+                            }
+                        using (new EditorGUI.DisabledScope(
+                                   i >= list.arraySize - 1))
+                            if (GUILayout.Button("↓",
+                                    GUILayout.Width(24f)))
+                            {
+                                list.MoveArrayElement(i, i + 1);
+                                serialized.ApplyModifiedProperties();
+                                return;
+                            }
+                        if (GUILayout.Button("×", GUILayout.Width(24f)))
+                        {
+                            list.DeleteArrayElementAtIndex(i);
+                            serialized.ApplyModifiedProperties();
+                            return;
+                        }
+                    }
+                    DrawVisualLayerFields(item);
+                }
+            }
+            if (serialized.ApplyModifiedProperties())
+                EditorUtility.SetDirty(value);
+        }
+
+        private void DrawVisualLayerFields(
+            SerializedProperty item)
+        {
+            var type = (SpliceFxVisualLayerType)item
+                .FindPropertyRelative("type").enumValueIndex;
+            EditorGUILayout.PropertyField(
+                item.FindPropertyRelative("texture"),
+                new GUIContent("Image / Texture",
+                    "Optional image used by the trail strip or particle billboard. Keep the source image alpha-enabled."));
+            EditorGUILayout.PropertyField(
+                item.FindPropertyRelative("color"),
+                new GUIContent("Color Gradient"));
+            EditorGUILayout.PropertyField(
+                item.FindPropertyRelative("emission"),
+                new GUIContent("Glow / Emission"));
+            EditorGUILayout.PropertyField(
+                item.FindPropertyRelative("quality"),
+                new GUIContent("Quality Tiers"));
+
+            EditorGUILayout.Space(3f);
+            EditorGUILayout.LabelField("Transform / Copies",
+                EditorStyles.miniBoldLabel);
+            EditorGUILayout.PropertyField(
+                item.FindPropertyRelative("localPosition"),
+                new GUIContent("Position"));
+            EditorGUILayout.PropertyField(
+                item.FindPropertyRelative("localEulerAngles"),
+                new GUIContent("Rotation"));
+            EditorGUILayout.PropertyField(
+                item.FindPropertyRelative("localScale"),
+                new GUIContent("Scale"));
+            EditorGUILayout.PropertyField(
+                item.FindPropertyRelative("instanceLayout"),
+                new GUIContent("Instance Layout"), true);
+            DrawLayerMotionStack(
+                item.FindPropertyRelative("motions"));
+
+            EditorGUILayout.Space(3f);
+            if (type == SpliceFxVisualLayerType.Trail)
+            {
+                EditorGUILayout.LabelField("Trail Settings",
+                    EditorStyles.miniBoldLabel);
+                DrawRelative(item, "trailTime", "Trail Lifetime");
+                DrawRelative(item, "trailStartWidth", "Start Width");
+                DrawRelative(item, "trailEndWidth", "End Width");
+                DrawRelative(item, "trailMinVertexDistance",
+                    "Vertex Distance");
+                DrawRelative(item, "trailTextureMode",
+                    "Texture Mode");
+                DrawRelative(item, "trailAlignment", "Alignment");
+                EditorGUILayout.HelpBox(
+                    "A Trail becomes visible while this SubFX or its layer instances move. Add Orbit/Float/Shake in Motion Stack, or attach the exported SubFX to a moving hero/projectile.",
+                    MessageType.None);
+                return;
+            }
+
+            EditorGUILayout.LabelField("Particle Settings",
+                EditorStyles.miniBoldLabel);
+            var emission = item.FindPropertyRelative(
+                "particleEmission");
+            EditorGUILayout.PropertyField(emission,
+                new GUIContent("Emission Mode"));
+            DrawRelative(item, "particleShape", "Shape");
+            DrawRelative(item, "particleLoop", "Loop");
+            DrawRelative(item, "particleMaxCount", "Maximum Count");
+            if ((SpliceFxParticleEmissionMode)emission.enumValueIndex ==
+                SpliceFxParticleEmissionMode.Burst)
+                DrawRelative(item, "particleBurstCount",
+                    "Burst Count");
+            else
+                DrawRelative(item, "particleRate",
+                    "Particles / Second");
+            DrawRelative(item, "particleLifetime",
+                "Particle Lifetime");
+            DrawRelative(item, "particleSpeed", "Start Speed");
+            DrawRelative(item, "particleSize", "Start Size");
+            DrawRelative(item, "particleShapeRadius",
+                "Shape Radius");
+            DrawRelative(item, "particleGravity",
+                "Force / Gravity");
+            DrawRelative(item, "particleWorldSpace",
+                "World Space");
+        }
+
+        private void DrawLayerMotionStack(
+            SerializedProperty list)
+        {
+            EditorGUILayout.Space(3f);
+            EditorGUILayout.LabelField("Layer Motion Stack",
+                EditorStyles.miniBoldLabel);
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                motionToAdd =
+                    (SpliceFxMotionType)EditorGUILayout.EnumPopup(
+                        motionToAdd);
+                if (GUILayout.Button("+ Add",
+                        GUILayout.Width(62f)))
+                {
+                    var index = list.arraySize;
+                    list.InsertArrayElementAtIndex(index);
+                    WriteMotion(
+                        list.GetArrayElementAtIndex(index),
+                        SpliceFxMotionLayer.Create(motionToAdd));
+                }
+            }
+            for (var i = 0; i < list.arraySize; i++)
+            {
+                var motion = list.GetArrayElementAtIndex(i);
+                using (new EditorGUILayout.VerticalScope(
+                           EditorStyles.helpBox))
+                {
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        EditorGUILayout.PropertyField(
+                            motion.FindPropertyRelative("enabled"),
+                            GUIContent.none, GUILayout.Width(18f));
+                        EditorGUILayout.PropertyField(
+                            motion.FindPropertyRelative("label"),
+                            GUIContent.none);
+                        EditorGUILayout.PropertyField(
+                            motion.FindPropertyRelative("type"),
+                            GUIContent.none, GUILayout.Width(86f));
+                        if (GUILayout.Button("×",
+                                GUILayout.Width(24f)))
+                        {
+                            list.DeleteArrayElementAtIndex(i);
+                            break;
+                        }
+                    }
+                    DrawMotionFields(motion);
+                }
+            }
+        }
+
+        private static void WriteMotion(
+            SerializedProperty target, SpliceFxMotionLayer source)
+        {
+            target.FindPropertyRelative("label").stringValue =
+                source.label;
+            target.FindPropertyRelative("enabled").boolValue =
+                source.enabled;
+            target.FindPropertyRelative("type").enumValueIndex =
+                (int)source.type;
+            target.FindPropertyRelative("speed").floatValue =
+                source.speed;
+            target.FindPropertyRelative("amount").floatValue =
+                source.amount;
+            target.FindPropertyRelative("delaySeconds").floatValue =
+                source.delaySeconds;
+            target.FindPropertyRelative("durationSeconds").floatValue =
+                source.durationSeconds;
+            target.FindPropertyRelative("phase").floatValue =
+                source.phase;
+            target.FindPropertyRelative("loop").boolValue =
+                source.loop;
+            target.FindPropertyRelative("axis").vector3Value =
+                source.axis;
+            target.FindPropertyRelative("uvSpeed").vector2Value =
+                source.uvSpeed;
+            target.FindPropertyRelative("curve").animationCurveValue =
+                source.curve;
+        }
+
+        private static void DrawRelative(
+            SerializedProperty parent, string name, string label)
+        {
+            EditorGUILayout.PropertyField(
+                parent.FindPropertyRelative(name),
+                new GUIContent(label));
         }
 
         private static void DrawInstanceLayout(

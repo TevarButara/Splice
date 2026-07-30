@@ -223,6 +223,11 @@ namespace Splice.FxStudio.Editor
                 };
                 AssetDatabase.CreateAsset(material, path);
             }
+            var gradientShader = Shader.Find(
+                "Splice/FX Studio/Gradient Stroke Card");
+            if (gradientShader != null &&
+                material.shader != gradientShader)
+                material.shader = gradientShader;
             ConfigureTwoSided(material);
             EditorUtility.SetDirty(material);
             return material;

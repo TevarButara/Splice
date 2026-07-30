@@ -174,6 +174,20 @@ Motion Stack ทำงานทั้งใน Live Preview และ `SpliceFxM
 
 Timing ของ Motion Stack ใช้หลัก “ปริมาณงานภายในระยะเวลา” ทุกชนิด เช่น Spin กำหนด `Angle 360` และ `Complete Angle In 2 Seconds` เท่ากับ 180 องศาต่อวินาที ส่วน Pulse/Float/Orbit/Flicker/UV Scroll/Shake กำหนดจำนวน cycle หรือ movement unit ภายใน Duration ทำให้ปรับความเร็วได้โดยไม่ต้องคำนวณค่าต่อวินาทีเอง Expand/Contract/Fade ใช้เวลาจบ motion โดยตรง และทุกชนิดเลือก Loop หรือค้างสถานะสุดท้ายได้
 
+## Additional Visual Layers
+
+SubFX หนึ่งตัวมี Trail และ Particle ได้หลาย Layer โดยไม่ต้องสร้าง prefab ย่อยเอง แต่ละ Layer มี texture, Gradient, emission, transform, quality mask, Instance Layout และ Layer Motion Stack ของตัวเอง จึงทำ trail ห้าชิ้นรอบตัว, ฝุ่นหลายจุด, ดาวกระจาย หรือเอฟเฟกต์ประกอบหลายชนิดใน SubFX เดียวได้
+
+Trail Layer กำหนด lifetime, ความกว้างต้น/ปลาย, ระยะ vertex, texture tiling และ alignment ภาพที่ลากเข้ามาจะใช้เป็นลายบนเส้น Trail ส่วน Particle Layer เลือก Continuous/Burst, Sphere/Circle/Cone/Box, จำนวนสูงสุด, rate/burst count, lifetime, speed, size, radius, force และ Local/World simulation ได้
+
+Visual Factory สร้าง Layer และ Instance ทั้งหมดไว้ใน exported pooled prefab ล่วงหน้า ไม่ Instantiate สำเนาใหม่ทุกเฟรม Quality Gate ปิดทั้ง Layer ตาม Low/Medium/High tier และ Validator คำนวณจำนวน instance/particle รวมสำหรับมือถือระดับกลาง
+
+## Spatial Gradient และ Stroke
+
+Common Visual Values รองรับ `Solid`, `Vertical`, `Horizontal`, `Radial Inside-Out` และ `Radial Outside-In` พร้อม Reverse โดยใช้ Gradient LUT ขนาดเล็กที่ cache ต่อรูปแบบ Gradient ส่วน Static Sprite / Instance Card ใช้ URP shader `Splice/FX Studio/Gradient Stroke Card`
+
+Stroke มี `None`, `Solid`, `Soft Glow`, `Dashed` ปรับสี ความหนา และความถี่เส้นประได้ Shader ทำงานแบบ transparent two-sided และอ่าน alpha รอบภาพเพื่อสร้างขอบ จึงต้องใช้ภาพที่มี alpha ที่ถูกต้อง Template อื่นที่ไม่รองรับ property ชุดนี้จะได้รับคำเตือนจาก Validator
+
 ## SubFX Instance Layout
 
 SubFX หนึ่งตัวสามารถใช้ภาพหรือ prefab ต้นฉบับเพียงชิ้นเดียวแล้วสร้างเป็นหลาย instance ได้ โดยมีรูปแบบ:

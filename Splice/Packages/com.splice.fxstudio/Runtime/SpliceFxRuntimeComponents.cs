@@ -5,11 +5,101 @@ using UnityEngine.VFX;
 
 namespace Splice.FxStudio
 {
+    public sealed class SpliceFxAuxiliaryLayerMarker : MonoBehaviour
+    {
+    }
+
+    [ExecuteAlways]
+    [DisallowMultipleComponent]
+    public sealed class SpliceFxQualityGate : MonoBehaviour
+    {
+        [SerializeField] private SpliceFxQualityMask quality =
+            SpliceFxQualityMask.All;
+        [SerializeField] private GameObject target;
+
+        public void Configure(
+            SpliceFxQualityMask mask, GameObject value)
+        {
+            quality = mask == SpliceFxQualityMask.None
+                ? SpliceFxQualityMask.All
+                : mask;
+            target = value;
+            Evaluate(SpliceFxQuality.Current);
+        }
+
+        public void Evaluate(SpliceFxQualityTier tier)
+        {
+            if (target == null) return;
+            target.SetActive(
+                (quality & SpliceFxQuality.MaskFor(tier)) != 0);
+        }
+
+        private void OnEnable() =>
+            Evaluate(SpliceFxQuality.Current);
+
+        private void Update() =>
+            Evaluate(SpliceFxQuality.Current);
+    }
+
+    internal static class SpliceFxGradientTextureCache
+    {
+        private static readonly Dictionary<int, Texture2D> Cache = new();
+
+        public static Texture2D Get(Gradient gradient)
+        {
+            gradient ??= new Gradient();
+            var key = Fingerprint(gradient);
+            if (Cache.TryGetValue(key, out var texture) &&
+                texture != null)
+                return texture;
+
+            const int width = 128;
+            texture = new Texture2D(
+                width, 1, TextureFormat.RGBA32, false, true)
+            {
+                name = $"FX_Gradient_{key:X8}",
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            var pixels = new Color[width];
+            for (var i = 0; i < width; i++)
+                pixels[i] = gradient.Evaluate(
+                    i / (float)(width - 1));
+            texture.SetPixels(pixels);
+            texture.Apply(false, true);
+            Cache[key] = texture;
+            return texture;
+        }
+
+        internal static int Fingerprint(Gradient gradient)
+        {
+            if (gradient == null) return 0;
+            unchecked
+            {
+                var hash = 17;
+                foreach (var key in gradient.colorKeys)
+                {
+                    hash = hash * 31 ^ key.color.GetHashCode();
+                    hash = hash * 31 ^ key.time.GetHashCode();
+                }
+                foreach (var key in gradient.alphaKeys)
+                {
+                    hash = hash * 31 ^ key.alpha.GetHashCode();
+                    hash = hash * 31 ^ key.time.GetHashCode();
+                }
+                return hash;
+            }
+        }
+    }
+
     [ExecuteAlways]
     [DisallowMultipleComponent]
     public sealed class SpliceFxInstanceGroup : MonoBehaviour
     {
         [SerializeField] private SpliceFxSubEffectDefinition definition;
+        [SerializeField] private bool useInlineLayout;
+        [SerializeField] private SpliceFxInstanceLayout inlineLayout;
         [SerializeField] private List<Transform> instances = new();
         [SerializeField] private List<bool> layoutEnabled = new();
         private readonly List<Quaternion> baseRotations = new();
@@ -26,6 +116,23 @@ namespace Splice.FxStudio
             List<bool> enabledStates)
         {
             definition = value;
+            useInlineLayout = false;
+            inlineLayout = null;
+            instances = instanceTransforms ?? new List<Transform>();
+            layoutEnabled = enabledStates ?? new List<bool>();
+            CaptureRotations();
+            startedAt = Now;
+            EvaluatePreview(0f, SpliceFxQuality.Current);
+        }
+
+        public void ConfigureLayer(
+            SpliceFxInstanceLayout layout,
+            List<Transform> instanceTransforms,
+            List<bool> enabledStates)
+        {
+            definition = null;
+            useInlineLayout = true;
+            inlineLayout = layout ?? new SpliceFxInstanceLayout();
             instances = instanceTransforms ?? new List<Transform>();
             layoutEnabled = enabledStates ?? new List<bool>();
             CaptureRotations();
@@ -47,7 +154,7 @@ namespace Splice.FxStudio
             Transform descendant, float elapsedSeconds)
         {
             if (descendant == null) return Mathf.Max(0f, elapsedSeconds);
-            var layout = definition?.instanceLayout;
+            var layout = Layout;
             for (var i = 0; i < instances.Count; i++)
             {
                 var instance = instances[i];
@@ -68,7 +175,7 @@ namespace Splice.FxStudio
             SpliceFxQualityTier quality)
         {
             EnsureRotations();
-            var layout = definition?.instanceLayout;
+            var layout = Layout;
             var visibleCount = layout != null
                 ? layout.CountFor(quality)
                 : instances.Count;
@@ -149,6 +256,11 @@ namespace Splice.FxStudio
                 CaptureRotations();
         }
 
+        private SpliceFxInstanceLayout Layout =>
+            useInlineLayout
+                ? inlineLayout
+                : definition?.instanceLayout;
+
         private static double Now =>
             Time.realtimeSinceStartupAsDouble;
     }
@@ -175,11 +287,33 @@ namespace Splice.FxStudio
         {
             if (definition == null) return;
             foreach (var visual in GetComponentsInChildren<VisualEffect>(true))
+            {
+                if (visual.GetComponentInParent<
+                        SpliceFxAuxiliaryLayerMarker>() != null)
+                    continue;
                 ApplyVisualEffect(visual);
+            }
             foreach (var particle in GetComponentsInChildren<ParticleSystem>(true))
+            {
+                if (particle.GetComponentInParent<
+                        SpliceFxAuxiliaryLayerMarker>() != null)
+                    continue;
                 ApplyParticleSystem(particle);
+            }
+            foreach (var trail in GetComponentsInChildren<TrailRenderer>(true))
+            {
+                if (trail.GetComponentInParent<
+                        SpliceFxAuxiliaryLayerMarker>() != null)
+                    continue;
+                ApplyTrail(trail);
+            }
             foreach (var renderer in GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer.GetComponentInParent<
+                        SpliceFxAuxiliaryLayerMarker>() != null)
+                    continue;
                 ApplyRenderer(renderer);
+            }
         }
 
         private void ApplyVisualEffect(VisualEffect visual)
@@ -190,6 +324,11 @@ namespace Splice.FxStudio
                 definition.EffectiveTexture);
             SetVector4(visual, Property(preset?.mainColorProperty, "MainColor"),
                 definition.mainColor * Mathf.Max(1f, definition.emission));
+            var gradientId = Shader.PropertyToID("MainGradient");
+            if (visual.HasGradient(gradientId))
+                visual.SetGradient(gradientId, definition.mainGradient);
+            SetFloat(visual, "GradientMode",
+                (float)definition.gradientMode);
             SetFloat(visual, Property(preset?.emissionProperty, "Emission"),
                 definition.emission);
             SetFloat(visual, Property(preset?.lifetimeProperty, "Lifetime"),
@@ -216,7 +355,10 @@ namespace Splice.FxStudio
         {
             if (particle == null) return;
             var main = particle.main;
-            main.startColor = definition.mainColor;
+            main.startColor = definition.gradientMode ==
+                              SpliceFxGradientMode.Solid
+                ? definition.mainColor
+                : Color.white;
             main.startLifetime = Mathf.Max(0.01f, definition.lifetime);
             main.startSpeed = Mathf.Max(0f, definition.speed);
             main.startSize = Mathf.Max(0.001f, definition.size);
@@ -231,6 +373,24 @@ namespace Splice.FxStudio
             var noise = particle.noise;
             if (noise.enabled)
                 noise.strength = Mathf.Max(0f, definition.noiseStrength);
+
+            var colorOverLifetime = particle.colorOverLifetime;
+            colorOverLifetime.enabled =
+                definition.gradientMode !=
+                SpliceFxGradientMode.Solid;
+            if (colorOverLifetime.enabled)
+                colorOverLifetime.color =
+                    new ParticleSystem.MinMaxGradient(
+                        definition.mainGradient);
+        }
+
+        private void ApplyTrail(TrailRenderer trail)
+        {
+            trail.colorGradient =
+                definition.gradientMode ==
+                SpliceFxGradientMode.Solid
+                    ? SolidGradient(definition.mainColor)
+                    : definition.mainGradient;
         }
 
         private void ApplyRenderer(Renderer renderer)
@@ -244,12 +404,55 @@ namespace Splice.FxStudio
                 propertyBlock.SetTexture("_BaseMap", texture);
                 propertyBlock.SetTexture("_MainTex", texture);
             }
-            var color = definition.mainColor *
-                        Mathf.Max(1f, definition.emission);
+            var supportsGradient = renderer.sharedMaterial != null &&
+                                   renderer.sharedMaterial.HasProperty(
+                                       "_GradientMap");
+            var color = supportsGradient
+                ? definition.mainColor
+                : definition.mainColor *
+                  Mathf.Max(1f, definition.emission);
             propertyBlock.SetColor("_BaseColor", color);
             propertyBlock.SetColor("_Color", color);
             propertyBlock.SetColor("_EmissionColor", color);
+            if (supportsGradient)
+            {
+                propertyBlock.SetTexture("_GradientMap",
+                    SpliceFxGradientTextureCache.Get(
+                        definition.mainGradient));
+                propertyBlock.SetFloat("_GradientMode",
+                    (float)definition.gradientMode);
+                propertyBlock.SetFloat("_GradientReverse",
+                    definition.reverseGradient ? 1f : 0f);
+                propertyBlock.SetFloat("_FxEmission",
+                    Mathf.Max(0f, definition.emission));
+                propertyBlock.SetFloat("_StrokeMode",
+                    (float)definition.strokeMode);
+                propertyBlock.SetColor("_StrokeColor",
+                    definition.strokeColor);
+                propertyBlock.SetFloat("_StrokeWidth",
+                    Mathf.Max(0f, definition.strokeWidth));
+                propertyBlock.SetFloat("_StrokeDashFrequency",
+                    Mathf.Max(1f,
+                        definition.strokeDashFrequency));
+            }
             renderer.SetPropertyBlock(propertyBlock);
+        }
+
+        private static Gradient SolidGradient(Color color)
+        {
+            var result = new Gradient();
+            result.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(color, 0f),
+                    new GradientColorKey(color, 1f)
+                },
+                new[]
+                {
+                    new GradientAlphaKey(color.a, 0f),
+                    new GradientAlphaKey(color.a, 1f)
+                });
+            return result;
         }
 
         private static void ApplyCustom(VisualEffect visual,
@@ -337,6 +540,9 @@ namespace Splice.FxStudio
     public sealed class SpliceFxMotionPlayer : MonoBehaviour
     {
         [SerializeField] private SpliceFxSubEffectDefinition definition;
+        [SerializeField] private bool useInlineMotions;
+        [SerializeField] private List<SpliceFxMotionLayer> inlineMotions =
+            new();
         private Vector3 basePosition;
         private Quaternion baseRotation;
         private Vector3 baseScale;
@@ -351,6 +557,18 @@ namespace Splice.FxStudio
         public void Configure(SpliceFxSubEffectDefinition value)
         {
             definition = value;
+            useInlineMotions = false;
+            inlineMotions.Clear();
+            CaptureCurrentAsBase();
+            RestartMotion();
+        }
+
+        public void ConfigureInline(
+            List<SpliceFxMotionLayer> motions)
+        {
+            definition = null;
+            useInlineMotions = true;
+            inlineMotions = motions ?? new List<SpliceFxMotionLayer>();
             CaptureCurrentAsBase();
             RestartMotion();
         }
@@ -396,13 +614,15 @@ namespace Splice.FxStudio
 
         private void Update()
         {
-            if (definition == null || externalTimeControl) return;
+            if ((definition == null && !useInlineMotions) ||
+                externalTimeControl) return;
             Evaluate((float)(Now - startedAt));
         }
 
         private void Evaluate(float elapsed)
         {
-            if (definition == null || !captured) return;
+            if ((definition == null && !useInlineMotions) ||
+                !captured) return;
             var position = basePosition;
             var rotation = baseRotation;
             var scaleMultiplier = 1f;
@@ -410,10 +630,12 @@ namespace Splice.FxStudio
             var opacity = 1f;
             var uvOffset = Vector2.zero;
 
-            if (definition.motions != null &&
-                definition.motions.Count > 0)
+            var motions = useInlineMotions
+                ? inlineMotions
+                : definition?.motions;
+            if (motions != null && motions.Count > 0)
             {
-                foreach (var motion in definition.motions)
+                foreach (var motion in motions)
                 {
                     if (motion?.enabled != true) continue;
                     ApplyMotion(motion, elapsed, ref position,
@@ -421,7 +643,7 @@ namespace Splice.FxStudio
                         ref brightness, ref opacity, ref uvOffset);
                 }
             }
-            else
+            else if (definition != null)
             {
                 ApplyLegacy(definition.motionModifiers, elapsed,
                     ref rotation, ref scaleMultiplier,
@@ -548,11 +770,20 @@ namespace Splice.FxStudio
         private void ApplyVisuals(float brightness, float opacity,
             Vector2 uvOffset)
         {
-            if (definition == null) return;
-            var color = definition.mainColor *
+            // Inline visual-layer motions do not own a SubFX definition.
+            // Use white as a neutral multiplier so Fade/Flicker/UV Scroll
+            // can animate Trail and Particle layers without replacing their
+            // authored gradients or texture property blocks.
+            var authoredColor = definition != null
+                ? definition.mainColor
+                : Color.white;
+            var authoredEmission = definition != null
+                ? Mathf.Max(1f, definition.emission)
+                : 1f;
+            var color = authoredColor *
                         (Mathf.Max(0f, brightness) *
-                         Mathf.Max(1f, definition.emission));
-            color.a = definition.mainColor.a *
+                         authoredEmission);
+            color.a = authoredColor.a *
                       Mathf.Clamp01(opacity);
             propertyBlock ??= new MaterialPropertyBlock();
 
@@ -584,7 +815,7 @@ namespace Splice.FxStudio
             {
                 if (visual.visualEffectAsset == null) continue;
                 var colorProperty = string.IsNullOrWhiteSpace(
-                    definition.preset?.mainColorProperty)
+                    definition?.preset?.mainColorProperty)
                     ? "MainColor"
                     : definition.preset.mainColorProperty;
                 var colorId = Shader.PropertyToID(colorProperty);

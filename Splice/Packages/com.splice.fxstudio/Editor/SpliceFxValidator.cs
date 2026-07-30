@@ -214,7 +214,93 @@ namespace Splice.FxStudio.Editor
                             subFx);
                 }
             }
+            ValidateVisualLayers(subFx, result);
             ValidateInstanceLayout(subFx, result);
+        }
+
+        private static void ValidateVisualLayers(
+            SpliceFxSubEffectDefinition subFx,
+            SpliceFxValidationResult result)
+        {
+            if ((subFx.gradientMode !=
+                 SpliceFxGradientMode.Solid ||
+                 subFx.strokeMode !=
+                 SpliceFxStrokeMode.None) &&
+                !SupportsGradientStroke(subFx.EffectiveTemplate))
+                result.Warning("FX_GRADIENT_SHADER_UNSUPPORTED",
+                    $"SubFX '{subFx.subFxId}' enables a spatial gradient or stroke, but its template material does not expose FX Studio gradient properties. Use Static Sprite / Instance Card or a compatible custom shader.",
+                    subFx);
+            if (subFx.visualLayers == null) return;
+            if (subFx.visualLayers.Count > 8)
+                result.Warning("FX_VISUAL_LAYER_COUNT_HIGH",
+                    $"SubFX '{subFx.subFxId}' has {subFx.visualLayers.Count} additional visual layers. Consider merging layers for mobile.",
+                    subFx);
+            var estimatedParticles = 0;
+            for (var i = 0; i < subFx.visualLayers.Count; i++)
+            {
+                var layer = subFx.visualLayers[i];
+                if (layer == null)
+                {
+                    result.Error("FX_VISUAL_LAYER_NULL",
+                        $"SubFX '{subFx.subFxId}' visual layer {i + 1} is null.",
+                        subFx);
+                    continue;
+                }
+                if (!layer.enabled) continue;
+                if (layer.texture == null)
+                    result.Warning("FX_VISUAL_LAYER_TEXTURE_MISSING",
+                        $"SubFX '{subFx.subFxId}' layer '{layer.label}' has no image; the fallback material may render a plain shape.",
+                        subFx);
+                var count = Mathf.Max(
+                    1, layer.instanceLayout?.MaximumCount ?? 1);
+                if (count > 32)
+                    result.Warning("FX_VISUAL_LAYER_INSTANCE_HIGH",
+                        $"SubFX '{subFx.subFxId}' layer '{layer.label}' uses {count} instances. Keep mobile layers at 32 or fewer.",
+                        subFx);
+                if (layer.type ==
+                    SpliceFxVisualLayerType.Particle)
+                {
+                    estimatedParticles +=
+                        Mathf.Max(1, layer.particleMaxCount) *
+                        count;
+                    if (layer.particleEmission ==
+                            SpliceFxParticleEmissionMode.Continuous &&
+                        layer.particleRate <= 0f)
+                        result.Warning(
+                            "FX_PARTICLE_LAYER_RATE_ZERO",
+                            $"SubFX '{subFx.subFxId}' particle layer '{layer.label}' has zero emission rate.",
+                            subFx);
+                }
+                else if (layer.trailStartWidth <= 0f ||
+                         layer.trailTime <= 0f)
+                {
+                    result.Error("FX_TRAIL_LAYER_INVALID",
+                        $"SubFX '{subFx.subFxId}' trail layer '{layer.label}' requires positive lifetime and start width.",
+                        subFx);
+                }
+                if (layer.motions != null &&
+                    layer.motions.Count > 6)
+                    result.Warning("FX_LAYER_MOTION_COUNT_HIGH",
+                        $"SubFX '{subFx.subFxId}' layer '{layer.label}' has {layer.motions.Count} motions. Simplify it for mobile.",
+                        subFx);
+            }
+            if (estimatedParticles > 1024)
+                result.Warning("FX_VISUAL_LAYER_PARTICLE_BUDGET",
+                    $"SubFX '{subFx.subFxId}' additional layers may render up to {estimatedParticles} particles. Target 1024 or fewer for mid-range mobile.",
+                    subFx);
+        }
+
+        private static bool SupportsGradientStroke(
+            GameObject template)
+        {
+            if (template == null) return false;
+            foreach (var renderer in
+                     template.GetComponentsInChildren<Renderer>(true))
+                if (renderer.sharedMaterial != null &&
+                    renderer.sharedMaterial.HasProperty(
+                        "_GradientMap"))
+                    return true;
+            return false;
         }
 
         private static void ValidateInstanceLayout(
