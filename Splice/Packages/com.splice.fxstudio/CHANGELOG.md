@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1
+
+- Fixed spatial gradients being tinted or hidden by Main Color. Solid mode now uses Main Color, while every spatial Gradient mode uses the authored Gradient as the exclusive color source.
+- Gradient recoloring preserves source alpha and subtle luminance detail without retaining the source image hue.
+- Fixed Stroke sampling when the displayed texture is assigned through a MaterialPropertyBlock by explicitly supplying its texel size.
+- Clamped outline sampling at texture edges to prevent texture wrapping from suppressing the stroke.
+- SubFX Lab now presents Solid/Gradient as mutually exclusive controls and only displays settings relevant to the active mode.
+- Added an in-editor compatibility warning when the selected template material cannot render spatial Gradient or Stroke.
+
 ## 0.7.0
 
 - Added Additional Visual Layers inside SubFX Lab.

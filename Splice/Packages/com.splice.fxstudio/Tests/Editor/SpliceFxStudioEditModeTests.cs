@@ -221,12 +221,15 @@ namespace Splice.FxStudio.Editor.Tests
             Assert.That(shader, Is.Not.Null);
             var root = GameObject.CreatePrimitive(PrimitiveType.Quad);
             var material = new Material(shader);
+            var texture = new Texture2D(32, 16);
             var definition =
                 ScriptableObject.CreateInstance<
                     SpliceFxSubEffectDefinition>();
             try
             {
                 root.GetComponent<Renderer>().sharedMaterial = material;
+                definition.sourceTexture = texture;
+                definition.mainColor = Color.red;
                 definition.gradientMode =
                     SpliceFxGradientMode.Vertical;
                 definition.strokeMode = SpliceFxStrokeMode.Solid;
@@ -245,11 +248,20 @@ namespace Splice.FxStudio.Editor.Tests
                     Is.EqualTo(3f));
                 Assert.That(block.GetTexture("_GradientMap"),
                     Is.Not.Null);
+                Assert.That(block.GetColor("_BaseColor"),
+                    Is.EqualTo(Color.white));
+                var texelSize =
+                    block.GetVector("_BaseMap_TexelSize");
+                Assert.That(texelSize.x,
+                    Is.EqualTo(1f / 32f).Within(0.0001f));
+                Assert.That(texelSize.y,
+                    Is.EqualTo(1f / 16f).Within(0.0001f));
             }
             finally
             {
                 Object.DestroyImmediate(root);
                 Object.DestroyImmediate(material);
+                Object.DestroyImmediate(texture);
                 Object.DestroyImmediate(definition);
             }
         }

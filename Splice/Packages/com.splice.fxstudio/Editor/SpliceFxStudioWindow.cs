@@ -333,7 +333,11 @@ namespace Splice.FxStudio.Editor
             }
 
             DrawSerializedAsset(subFx, "motions", "motionModifiers",
-                "instanceLayout", "visualLayers");
+                "instanceLayout", "visualLayers",
+                "mainColor", "gradientMode", "mainGradient",
+                "reverseGradient", "strokeMode", "strokeColor",
+                "strokeWidth", "strokeDashFrequency");
+            DrawCommonVisualAppearance(subFx);
             DrawInstanceLayout(subFx);
             DrawVisualLayers(subFx);
             DrawMotionStack(subFx);
@@ -364,6 +368,88 @@ namespace Splice.FxStudio.Editor
             EditorGUILayout.HelpBox(
                 "Alpha processing is non-destructive. Source images are never modified; mobile ASTC textures are generated below Assets/SpliceFXStudio/Generated.",
                 MessageType.None);
+        }
+
+        private static void DrawCommonVisualAppearance(
+            SpliceFxSubEffectDefinition value)
+        {
+            EditorGUILayout.Space(8f);
+            Section("Color / Gradient");
+            var serialized = new SerializedObject(value);
+            serialized.Update();
+            var mode = serialized.FindProperty("gradientMode");
+            EditorGUILayout.PropertyField(mode,
+                new GUIContent("Color Mode"));
+            var gradientMode =
+                (SpliceFxGradientMode)mode.enumValueIndex;
+            if (gradientMode == SpliceFxGradientMode.Solid)
+            {
+                EditorGUILayout.PropertyField(
+                    serialized.FindProperty("mainColor"),
+                    new GUIContent("Main Color"));
+                EditorGUILayout.HelpBox(
+                    "Solid uses the source image multiplied by Main Color.",
+                    MessageType.None);
+            }
+            else
+            {
+                EditorGUILayout.PropertyField(
+                    serialized.FindProperty("mainGradient"),
+                    new GUIContent("Main Gradient"));
+                EditorGUILayout.PropertyField(
+                    serialized.FindProperty("reverseGradient"),
+                    new GUIContent("Reverse Gradient"));
+                EditorGUILayout.HelpBox(
+                    "Gradient replaces Main Color. The image alpha and a small amount of its brightness detail are preserved.",
+                    MessageType.Info);
+            }
+
+            EditorGUILayout.Space(4f);
+            EditorGUILayout.LabelField("Stroke / Outline",
+                EditorStyles.miniBoldLabel);
+            var strokeMode =
+                serialized.FindProperty("strokeMode");
+            EditorGUILayout.PropertyField(strokeMode,
+                new GUIContent("Stroke Mode"));
+            if ((SpliceFxStrokeMode)strokeMode.enumValueIndex !=
+                SpliceFxStrokeMode.None)
+            {
+                EditorGUILayout.PropertyField(
+                    serialized.FindProperty("strokeColor"),
+                    new GUIContent("Stroke Color"));
+                EditorGUILayout.PropertyField(
+                    serialized.FindProperty("strokeWidth"),
+                    new GUIContent("Stroke Width (Pixels)"));
+                if ((SpliceFxStrokeMode)strokeMode.enumValueIndex ==
+                    SpliceFxStrokeMode.Dashed)
+                    EditorGUILayout.PropertyField(
+                        serialized.FindProperty(
+                            "strokeDashFrequency"),
+                        new GUIContent("Dash Frequency"));
+                EditorGUILayout.HelpBox(
+                    "Stroke is generated from the image alpha. Leave transparent padding around the image for a clear outer outline.",
+                    MessageType.None);
+            }
+
+            if (!SupportsGradientStroke(value.EffectiveTemplate))
+                EditorGUILayout.HelpBox(
+                    "This template material cannot render spatial Gradient or Stroke. Use the Static Sprite / Instance Card preset, or a custom material exposing FX Studio gradient properties.",
+                    MessageType.Warning);
+
+            if (serialized.ApplyModifiedProperties())
+                EditorUtility.SetDirty(value);
+        }
+
+        private static bool SupportsGradientStroke(GameObject template)
+        {
+            if (template == null) return false;
+            foreach (var renderer in
+                     template.GetComponentsInChildren<Renderer>(true))
+                if (renderer.sharedMaterial != null &&
+                    renderer.sharedMaterial.HasProperty(
+                        "_GradientMap"))
+                    return true;
+            return false;
         }
 
         private void DrawBlend()

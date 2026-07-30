@@ -403,13 +403,28 @@ namespace Splice.FxStudio
             {
                 propertyBlock.SetTexture("_BaseMap", texture);
                 propertyBlock.SetTexture("_MainTex", texture);
+                var width = Mathf.Max(1, texture.width);
+                var height = Mathf.Max(1, texture.height);
+                propertyBlock.SetVector("_BaseMap_TexelSize",
+                    new Vector4(1f / width, 1f / height,
+                        width, height));
             }
             var supportsGradient = renderer.sharedMaterial != null &&
                                    renderer.sharedMaterial.HasProperty(
                                        "_GradientMap");
+            // Main Color and spatial Gradient are exclusive authoring modes.
+            // A neutral white multiplier prevents Main Color from tinting or
+            // hiding the selected gradient.
+            var usesSpatialGradient =
+                supportsGradient &&
+                definition.gradientMode !=
+                SpliceFxGradientMode.Solid;
+            var authoredColor = usesSpatialGradient
+                ? Color.white
+                : definition.mainColor;
             var color = supportsGradient
-                ? definition.mainColor
-                : definition.mainColor *
+                ? authoredColor
+                : authoredColor *
                   Mathf.Max(1f, definition.emission);
             propertyBlock.SetColor("_BaseColor", color);
             propertyBlock.SetColor("_Color", color);

@@ -186,7 +186,11 @@ Visual Factory สร้าง Layer และ Instance ทั้งหมดไ
 
 Common Visual Values รองรับ `Solid`, `Vertical`, `Horizontal`, `Radial Inside-Out` และ `Radial Outside-In` พร้อม Reverse โดยใช้ Gradient LUT ขนาดเล็กที่ cache ต่อรูปแบบ Gradient ส่วน Static Sprite / Instance Card ใช้ URP shader `Splice/FX Studio/Gradient Stroke Card`
 
+กติกาสีเป็นแบบเลือกอย่างใดอย่างหนึ่ง: `Solid` ใช้ Main Color ส่วน Gradient ทุกแบบใช้สีจาก Main Gradient และไม่ถูก Main Color ย้อมทับ ภาพต้นฉบับยังส่งต่อ alpha และรายละเอียดความสว่างเล็กน้อย แต่ไม่ส่งต่อ hue เดิม
+
 Stroke มี `None`, `Solid`, `Soft Glow`, `Dashed` ปรับสี ความหนา และความถี่เส้นประได้ Shader ทำงานแบบ transparent two-sided และอ่าน alpha รอบภาพเพื่อสร้างขอบ จึงต้องใช้ภาพที่มี alpha ที่ถูกต้อง Template อื่นที่ไม่รองรับ property ชุดนี้จะได้รับคำเตือนจาก Validator
+
+Stroke ใช้หน่วยความหนาเป็น pixel ของ texture จริง และต้องมีพื้นที่โปร่งใสรอบวัตถุในภาพเพื่อให้ขอบด้านนอกมีพื้นที่แสดงผล
 
 ## SubFX Instance Layout
 

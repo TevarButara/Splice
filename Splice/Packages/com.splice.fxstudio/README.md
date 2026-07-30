@@ -54,3 +54,8 @@ Radial Outside-In gradient modes. Static Sprite / Instance Card uses the
 FX Studio Gradient Stroke Card shader and supports Solid, Soft Glow and Dashed
 outlines. Other custom templates must expose the same shader properties or the
 validator reports a compatibility warning.
+
+Color authoring is exclusive: `Solid` uses Main Color, while Vertical,
+Horizontal and Radial modes use Main Gradient and ignore Main Color. Stroke is
+derived from the source image alpha; transparent padding around the image gives
+the outer outline room to render clearly.

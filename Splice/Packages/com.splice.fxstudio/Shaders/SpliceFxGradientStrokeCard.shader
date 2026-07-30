@@ -97,7 +97,8 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
             half AlphaAt(float2 uv)
             {
                 return SAMPLE_TEXTURE2D(
-                    _BaseMap, sampler_BaseMap, uv).a;
+                    _BaseMap, sampler_BaseMap,
+                    saturate(uv)).a;
             }
 
             half4 Frag(Varyings input) : SV_Target
@@ -116,9 +117,18 @@ Shader "Splice/FX Studio/Gradient Stroke Card"
                 half sourceAlpha =
                     source.a * _BaseColor.a * gradient.a *
                     input.color.a;
+                // Solid mode preserves the source image and uses Main Color
+                // as a tint. Gradient modes replace that tint and retain only
+                // a small amount of source luminance for image detail.
+                half luminance = dot(source.rgb,
+                    half3(0.2126h, 0.7152h, 0.0722h));
+                half detail = lerp(1.0h, luminance, 0.35h);
+                half3 coloredSource = _GradientMode > 0.5
+                    ? gradient.rgb * detail
+                    : source.rgb * _BaseColor.rgb;
                 half3 sourceRgb =
-                    source.rgb * _BaseColor.rgb * gradient.rgb *
-                    input.color.rgb * max(0.0, _FxEmission);
+                    coloredSource * input.color.rgb *
+                    max(0.0, _FxEmission);
 
                 half stroke = 0;
                 if (_StrokeMode > 0.5 && _StrokeWidth > 0.001)
