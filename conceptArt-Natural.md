@@ -1,862 +1,849 @@
-# Concept Art Prompts — เผ่า NATURAL (Beast) 🌿
+# Concept Art Prompts — NATURAL: The Primal Concord
 
-> ใช้ส่งให้ ChatGPT (GPT-4o image) สร้าง concept art. สไตล์หลัก: **น่ารัก chibi เล่นแล้วสนุกไม่เครียด** (ref: Brawl Stars Spike / Defense Derby chibi / cute monster sticker)
-> เผ่า Natural = ธีมสัตว์ป่า/ไดโนเสาร์/ธรรมชาติดิบ (splice-faction-design.md: Beast) — โทนสีเขียว/น้ำตาล/ดินเผา
-
----
-
-## วิธีใช้
-
-1. **แต่ละ prompt = 1 ภาพ** — copy "STYLE BLOCK" + prompt ของชิ้นนั้นส่งพร้อมกัน (STYLE BLOCK คุมให้ทุกภาพสไตล์เดียวกัน)
-2. แนบภาพ ref (Spike/Defense Derby) ไปด้วยครั้งแรก แล้วบอกให้จำสไตล์ไว้ใช้ทุกภาพในแชทนั้น
-3. ถ้า layout ตาราง (4 แถว × 5 level) เพี้ยน/ตัวทับกัน → สั่งแยกเป็น "ทีละ level, 4 มุมมอง" แทน (มี prompt สำรองท้ายไฟล์)
-4. ภาพจะเอาไป paint ต่อ → เน้นเส้นชัด สีแบน แสงเงาน้อย
+> Production direction: **stylized fantasy MOBA**, not cute, not chibi, not photorealistic sci-fi rendering.  
+> The Natural faction is a coalition of beastfolk, forest spirits, living plants, fossils, stone, and ancient tribal craft. Green is a small linking accent—not the dominant color of every asset.
 
 ---
 
-> ⚠️ **กฎ proportion (rig-friendly):** ทุกตัวละคร **แขน/ขายาวขึ้นกว่า chibi ทั่วไปหน่อย + แยกออกจากลำตัวชัด** (มีช่องว่าง) เพื่อ rig/skin ง่าย ไม่ยืด-แตกตอน animate. กฎนี้อยู่ใน STYLE BLOCK แล้ว → **override คำว่า "stubby/tiny" ในข้อความย่อยทุกจุด**
->
-> ⚠️ **กฎ no-aura (ตัวละครเท่านั้น):** **ห้ามมีออร่า/particle/FX ลอยรอบตัว หรือของหมุนวนรอบตัว (orbiting)** — เพราะปั้น 3D ไม่ได้ ต้องตัดทิ้ง. สื่อพลัง/ความเป็นนักเวทผ่าน **on-body** แทน (ตาเรืองแสง, รูนบนผิว/ขน, แกน/คริสตัลเรืองบนตัว, หมวก/ผ้าคลุม). กฎนี้อยู่ใน STYLE BLOCK แล้ว → **override คำว่า "floating particles / glowing aura around it / orbiting ..." ในข้อความย่อยทุกจุดของบล็อกตัวละคร**. *(props/towers/อาวุธ ไม่ใช่ตัวละคร — "level 5 glowing/magical" ยังได้ปกติ)*
+## 0) Production rules
 
-## 🎨 STYLE BLOCK (แปะหน้า prompt ทุกภาพ)
+### Sheet strategy
 
-```
-Cute chibi mobile game concept art style, like Brawl Stars and Supercell art:
-big heads, rounded bodies, large expressive glossy eyes, soft rounded shapes
-with no sharp scary details, thick clean outlines, flat cel-shaded colors with
-minimal soft shading, playful and friendly mood (kid-friendly, nothing scary
-or gory). IMPORTANT proportions: arms and legs are SLIGHTLY LONGER and clearly
-separated from the torso with a visible gap (rig-friendly, NOT tiny stubs) so
-the character deforms cleanly when animated; keep the cute chibi look but give
-limbs enough length to bend at elbows and knees. NATURAL BEAST faction palette: leafy green, earthy
-brown, terracotta red-orange accents, bone-white details, natural textures
-(scales, fur, leaves, wood, stone) simplified into cute rounded forms.
-IMPORTANT (characters only): NO glowing aura, energy swirls, spell/buff FX, or
-floating particles AROUND the character, and NO objects orbiting/hovering around
-it — keep the character a single clean solid silhouette that can be sculpted as
-one 3D mesh. Show magic via ON-BODY features only (glowing eyes, runes on the
-skin/fur, a glowing core/crystal ON the body, hats/robes). (This does NOT apply
-to separate props/towers/weapons, which may still glow.)
-Pure white background, isolated objects, evenly spaced with clear gaps,
-nothing overlapping, no text, no labels, no watermark, no logo.
-```
+- One asset and one upgrade level per image for better texture and shape consistency.
+- Structure turnaround order is always **front, back, left side, right side**.
+- Towers and buildings: four orthographic views in one horizontal row.
+- Humanoid characters: relaxed **A-pose**, arms angled down 35–45 degrees, open hands, readable joints.
+- Non-humanoid monsters: neutral modeling pose appropriate to anatomy; never force an unnatural humanoid pose.
+- White background, full object visible, equal scale, even spacing, no overlap, no labels or text.
 
----
+### File naming
 
-# 1) TOWERS — ป้อม 5 แบบ × 5 level
+- Faction: `nat` = Natural, `gal` = Galax.
+- Category: `tw` = tower, `res` = resource, `hr` = hero, `mn` = monster.
+- Towers use exactly `lv1`–`lv3`. Other categories keep their own progression count.
+- First Natural tower example: `nat-tw-lv1.png`.
+- Additional numbered assets may use `nat-tw02-lv1.png`, `nat-mn01-lv1.png`, and so on.
+- Never place spaces, Thai characters, or character names in production PNG filenames.
 
-> ทุกแบบ: **1 ภาพ = ตาราง 4 แถว × 5 คอลัมน์** — แถว 1 ด้านหน้า / แถว 2 ด้านหลัง / แถว 3 ด้านข้างซ้าย / แถว 4 ด้านข้างขวา, คอลัมน์เรียง level 1→5 (ซ้าย→ขวา, ใหญ่/อลังขึ้นตาม level). ถ้าป้อมมีสิ่งมีชีวิต/แขน → กาง T-pose, **ไม่มีอาวุธ**
+### Folder routing
 
-### Tower 1 — Thorn Snare (กับดักหนามหิน) `T1 line`
-```
-[STYLE BLOCK]
-Turnaround concept sheet of ONE cute fantasy defense tower design called
-"Thorn Snare": a small round stone mound wrapped in soft cartoon vines with
-chunky rounded thorns, tiny cute leaves on top. Grid layout, 4 rows x 5 columns,
-all cells evenly spaced, no overlapping. Each COLUMN is the same tower at
-upgrade level 1 to 5 from left to right: level 1 tiny simple mound, growing
-bigger and fancier each level, level 5 large mound with glowing flower crown
-and layered vine rings. Each ROW shows a different view of the same level:
-row 1 front view, row 2 back view, row 3 left side view, row 4 right side view.
-Same design and colors in every view. White background, no text, no weapons.
-```
-
-### Tower 2 — Hunter Hut (กระท่อมนักล่า)
-```
-[STYLE BLOCK]
-Turnaround concept sheet of ONE cute wooden hunter hut defense tower:
-a chubby round treehouse-like hut on short thick wooden legs, leaf roof,
-round window like a friendly eye, small rope and bone-white horn decorations.
-Grid layout, 4 rows x 5 columns, evenly spaced, no overlapping.
-Each COLUMN is the same hut at upgrade level 1 to 5 left to right:
-level 1 tiny single hut, each level adds floors, bigger leaf roof, totem
-decorations; level 5 grand three-story hut with big antler crown.
-Each ROW is a view of the same level: row 1 front, row 2 back,
-row 3 left side, row 4 right side. Same design in every view.
-White background, no text, no characters, no weapons.
-```
-
-### Tower 3 — Ancient Totem (โทเทมบรรพกาล)
-```
-[STYLE BLOCK]
-Turnaround concept sheet of ONE cute carved wooden totem pole defense tower:
-stacked chubby round animal faces (bear, boar, owl) with big friendly eyes,
-small leaf and feather decorations, moss patches. Grid layout, 4 rows x 5
-columns, evenly spaced, no overlapping. Each COLUMN is the totem at upgrade
-level 1 to 5 left to right: level 1 single small face block, gaining one more
-stacked face and taller pole each level, level 5 tall five-face totem with
-glowing carved patterns and feather crown. Each ROW is a view of the same
-level: row 1 front, row 2 back, row 3 left side, row 4 right side.
-Same design in every view. White background, no text, no weapons.
-```
-
-### Tower 4 — Bloom Turret (ป้อมดอกไม้ยิงเมล็ด)
-```
-[STYLE BLOCK]
-Turnaround concept sheet of ONE cute giant flower defense tower:
-a chubby cartoon flower with a big round bud head that looks like a friendly
-face, thick short stem, big rounded leaves as a skirt, sitting in a small
-dirt mound pot of stones. Grid layout, 4 rows x 5 columns, evenly spaced,
-no overlapping. Each COLUMN is the flower at upgrade level 1 to 5 left to
-right: level 1 small sprout with closed bud, blooming bigger each level,
-level 5 fully bloomed giant flower with double petal layers and tiny glowing
-pollen orbs floating around. Each ROW is a view of the same level:
-row 1 front, row 2 back, row 3 left side, row 4 right side.
-Same design in every view. White background, no text, no weapons.
-```
-
-### Tower 5 — Titan Bone Tower (ป้อมกระดูกไททัน) `T5 line`
-```
-[STYLE BLOCK]
-Turnaround concept sheet of ONE cute prehistoric bone defense tower:
-rounded bone-white dinosaur ribs and a chubby friendly dino skull (big round
-eye sockets, smiling, NOT scary) stacked into a small tower, moss and tiny
-flowers growing on the bones. Grid layout, 4 rows x 5 columns, evenly spaced,
-no overlapping. Each COLUMN is the tower at upgrade level 1 to 5 left to
-right: level 1 a few small ribs, growing into a larger bone structure each
-level, level 5 grand tower with big smiling titan skull crown and glowing
-green moss runes. Each ROW is a view of the same level: row 1 front,
-row 2 back, row 3 left side, row 4 right side. Same design in every view.
-White background, no text, no weapons.
+```text
+++MOBA Stylize Art/
+├── Natural/
+│   ├── tower/
+│   ├── resource/
+│   ├── hero/
+│   └── monster/
+└── Galax/
+    ├── tower/
+    ├── resource/
+    ├── hero/
+    └── monster/
 ```
 
 ---
 
-# 2) MONSTERS — มอนสเตอร์ 19 ตัว (ถูก → แพง) × 5 level (พัฒนาการ)
+## 1) MASTER STYLE BLOCK
 
-> ทุกตัว: **1 ภาพ = ตาราง 4 แถว × 5 คอลัมน์** — แถว = หน้า/หลัง/ซ้าย/ขวา, คอลัมน์ = **level 1→5 (พัฒนาการ: โตขึ้น + เกราะ/หนาม/ออร่าเพิ่ม แต่ยังเป็นตัวเดียวกัน silhouette เดิม)**. **ยืน T-pose ทุกช่อง**, **ไม่มีอาวุธ** (จะทำใส่ทีหลัง), หน้าตาน่ารักเป็นมิตร
+Paste this before every Natural prompt.
 
-### Monster 1 — Sprout Raptor (แร็ปเตอร์จิ๋ว) `T1 ถูกสุด`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi baby raptor dinosaur monster:
-big round head, huge glossy friendly eyes, leaf sprout growing on top of its
-head, chubby short body, stubby little arms and legs, small rounded tail,
-leafy green scales with cream belly. It WEARS wooden leaf-blade claw-gloves on
-both hands as part of its design (a worn accessory, not a separate held
-weapon), growing bigger with more blades and a green glow at higher levels.
-Grid layout, 4 rows x 5 columns, evenly
-spaced, no overlapping. Each COLUMN is the SAME raptor at evolution level
-1 to 5 left to right, growing slightly bigger each level:
-level 1 tiny hatchling with a single sprout;
-level 2 taller, sprout becomes a small twin-leaf, tiny leaf bracers on wrists;
-level 3 leaf shoulder pads and a flower on the head sprout, small back leaf spikes;
-level 4 wooden bark chest armor, bigger back leaf spikes, striped tail rings;
-level 5 full cute bark-and-leaf armor set, glowing flower crown, small
-glowing green aura leaves floating around it.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, legs straight and slightly apart, facing forward, happy expression.
-Each ROW is a view of the same level: row 1 front view, row 2 back view,
-row 3 left side view, row 4 right side view. Same character in all views.
-Full body visible, white background, no weapons, no text.
-```
+```text
+Premium stylized FANTASY MOBA production concept art with an original visual
+identity. Mature heroic design language, NOT chibi, NOT super-deformed, NOT
+mascot-like, NOT baby-faced, and no oversized glossy eyes. Use bold readable
+silhouettes and a strong large/medium/small shape hierarchy so the asset remains
+clear during fast top-down gameplay.
 
-### Monster 2 — Bramble Boar (หมูป่าหนาม)
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi wild boar monster standing
-upright on two legs: chubby round body, big friendly snout, tiny rounded
-tusks, mohawk of soft cartoon bramble thorns and leaves down its back,
-earthy brown fur with green thorn accents. Grid layout, 4 rows x 5 columns,
-evenly spaced, no overlapping. Each COLUMN is the SAME boar at evolution
-level 1 to 5 left to right, growing slightly bigger each level:
-level 1 small piglet with tiny thorn mohawk;
-level 2 thicker mohawk, rope belt with a wooden charm;
-level 3 tusks grow a bit, bramble shoulder guards, thorn wrist bands;
-level 4 rounded wooden tusk caps, bramble chest harness, bigger back thorns;
-level 5 full bramble armor with cute stone helmet (ears sticking out),
-glowing thorn tips and tiny floating leaf particles.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, legs straight, facing forward, cheerful expression.
-Each ROW is a view of the same level: row 1 front, row 2 back,
-row 3 left side, row 4 right side. Same character in all views.
-Full body visible, white background, no weapons, no text.
-```
+RENDERING: clean hand-painted fantasy MOBA game art with broad confident brush
+strokes, softly blended painterly gradients, simplified faceted planes, crisp
+outer silhouettes, and only a few selectively sharp focal edges. Prioritize three
+large value groups and broad color masses over material realism. Surface texture
+must feel painted into the form rather than generated by dense geometry: use
+subtle brush variation, sparse carved seams, restrained highlights, and almost no
+micro-scratches. Rich enough for 3D material reference but intentionally simpler
+and more illustrative than a polished PBR render. Avoid cinematic PBR rendering,
+ray-traced reflections, realistic product photography, hard procedural texture,
+gritty weathering, excessive bevel lines, repeated panel seams, filigree, and
+dense visual noise.
 
-### Monster 3 — Moss Golemling (โกเลมมอสส์)
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi rock golem monster:
-round boulder body covered in soft green moss patches, stubby stone arms and
-legs, big single friendly glowing eye, cracks glowing soft warm green. Its stone
-fists form built-in stone gauntlets as part of the body (a worn feature, not a
-separate held weapon), growing bigger with glowing runes at higher levels.
-Grid layout, 4 rows x 5 columns, evenly spaced, no overlapping.
-Each COLUMN is the SAME golem at evolution level 1 to 5 left to right,
-growing slightly bigger each level:
-level 1 small pebble body with one moss patch;
-level 2 more moss, tiny mushroom on the head;
-level 3 small flowers bloom on shoulders, extra floating pebble orbiting it;
-level 4 stone shoulder plates, glowing rune carvings, two orbiting pebbles;
-level 5 mini mountain body with a tiny tree growing on its back, bright
-glowing runes and three orbiting glowing stones.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, legs straight, facing forward. Each ROW is a view of the same level:
-row 1 front, row 2 back, row 3 left side, row 4 right side.
-Same character in all views. Full body visible, white background,
-no weapons, no text.
-```
+NATURAL FACTION LANGUAGE: an advanced, refined nature civilization shaped from
+smooth mother-of-pearl stone, polished living hardwood, fossil ivory, woven fiber,
+warm satin gold, jade-green mineral, amber, flowers, fungi, and a few crystals.
+The signature architectural palette is pearlescent ivory as the dominant mass,
+warm gold as clean structural trim, and deep natural jade green as a substantial
+secondary color field—not neon energy and not green covering the entire asset.
+Forms feel grown,
+sculpted, fitted, or ritual-forged rather than factory-machined. Architecture is
+clean and graceful: balanced arches, leaf-inspired curves, calm vertical rhythm,
+and generous negative space. Nature is communicated through material and form,
+not by covering everything with uncontrolled vines or moss. Use green only as a
+small recurring faction accent such as a leaf, rune, gem, moss seam, or energy
+channel. The dominant palette must fit the individual asset and may use tawny
+fur, bark brown, pale sandstone, ivory, ochre, terracotta, charcoal, amber,
+turquoise, crimson, lilac, or moonlit blue. Do NOT make the entire design green.
 
-### Monster 4 — Griffin Chick (ลูกกริฟฟิน)
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi baby griffin monster:
-big fluffy round head with large glossy eyes, small rounded beak, chubby
-lion-cub body standing upright on two legs, puffy wings, soft cream and
-golden-brown feathers with leafy green ribbon accents. It WEARS golden feather
-talon-blades on its claws as part of its design (a worn accessory, not a
-separate held weapon), becoming sharper and glowing at higher levels.
-Grid layout,
-4 rows x 5 columns, evenly spaced, no overlapping. Each COLUMN is the SAME
-griffin at evolution level 1 to 5 left to right, growing slightly bigger
-each level:
-level 1 fluffy chick with tiny stub wings;
-level 2 wings grow real feathers, small head feather tuft;
-level 3 leaf ribbon collar, longer tail with feather tip, ear feathers;
-level 4 golden feather chest guard and wing tip blades of soft gold feathers,
-small feather crest crown;
-level 5 majestic full feather crest, large elegant wings, golden claw caps,
-gentle glowing wind swirls around the wings.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, wings slightly open behind the arms, legs straight, facing forward.
-Each ROW is a view of the same level: row 1 front, row 2 back,
-row 3 left side, row 4 right side. Same character in all views.
-Full body visible, white background, no weapons, no text.
-```
+PRODUCTION DESIGN: broad modular shapes, believable thickness, clear attachment
+points, stable center of gravity, and geometry suitable for clean 3D modeling.
+Avoid thin fragile twigs, tangled vines, random spikes, excessive dangling
+pieces, and forms likely to clip during animation. Magic is localized to an
+embedded rune, crystal, eye, core, blade edge, or weapon chamber; no decorative
+aura or floating particles around character sheets.
 
-### Monster 5 — Little Titan (ไททันจิ๋ว) `T5 แพงสุด`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi ancient forest titan monster:
-looks powerful but adorable — big round dino-like head with tiny rounded
-horns, huge gentle glowing eyes, chubby massive body, thick stubby arms and
-legs, mossy back, deep green and stone-grey palette with warm glowing green
-cracks. Grid layout, 4 rows x 5 columns, evenly spaced, no overlapping.
-Each COLUMN is the SAME titan at evolution level 1 to 5 left to right,
-growing slightly bigger each level:
-level 1 small titan cub with bare mossy back;
-level 2 tiny rocks and grass grow on its shoulders, horn stubs get rings;
-level 3 a small tree sprouts on its back, stone knuckle guards;
-level 4 shoulder boulders like pauldrons, glowing rune belt of vines,
-bigger curved horns;
-level 5 a walking hill — small forest with trees and glowing crystals on
-its back and shoulders, majestic antler-like horns, bright glowing green
-cracks and floating leaf-and-light particles.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, legs straight, facing forward, calm friendly expression.
-Each ROW is a view of the same level: row 1 front, row 2 back,
-row 3 left side, row 4 right side. Same character in all views.
-Full body visible, white background, no weapons, no text.
-```
-
-### Monster 6 — Acorn Scout (กระรอกสอดแนม)
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi squirrel scout monster:
-big fluffy round tail, big glossy friendly eyes, chubby small body, wearing a
-little acorn-cap helmet, a leaf cape and a woven seed satchel. Grid layout,
-4 rows x 5 columns, evenly spaced, no overlapping. Each COLUMN is the SAME
-squirrel at evolution level 1 to 5 left to right, growing slightly bigger and
-gaining more gear each level:
-level 1 tiny squirrel with a small acorn cap and a leaf scarf;
-level 2 bigger acorn helmet and a seed satchel bag;
-level 3 a leaf cape, bark shin guards, acorns clipped on a belt;
-level 4 layered leaf cloak, acorn shoulder pads, twig goggles on the head;
-level 5 full scout regalia: big leaf-feather cape, acorn-crown helmet with
-tiny leaf wings, a satchel of glowing seeds, and striped tail rings.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, legs straight, facing forward, cheerful expression. Each ROW is a view
-of the same level: row 1 front, row 2 back, row 3 left side, row 4 right side.
-Same character in all views. Full body visible, white background, no weapons,
-no text.
-```
-
-### Monster 7 — Spore Shaman (เห็ดหมอผี)
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi walking mushroom shaman monster:
-a round mushroom-cap head, big friendly eyes, chubby little body, stubby legs
-and tiny arms. Grid layout, 4 rows x 5 columns, evenly spaced, no overlapping.
-Each COLUMN is the SAME mushroom at evolution level 1 to 5 left to right,
-growing bigger and gaining shaman gear each level:
-level 1 small plain-cap mushroom sprite;
-level 2 a wide-brim spotted mushroom hat and a small herb pouch belt;
-level 3 a glowing spore necklace and a mossy poncho;
-level 4 a layered fungus robe, several herb pouches, glowing spots on the cap;
-level 5 grand shaman regalia: huge patterned mushroom-cap hat, a robe of
-hanging moss and flowers, a glowing spore aura, and bead-and-bone necklaces.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, legs straight, facing forward. Each ROW is a view of the same level:
-row 1 front, row 2 back, row 3 left side, row 4 right side. Same character in
-all views. Full body visible, white background, no weapons, no text.
-```
-
-### Monster 8 — Blossom Stag (กวางดอกไม้)
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi stag deer monster standing
-upright on two legs: soft fur, big gentle glossy eyes, small rounded antlers,
-slender friendly build. Grid layout, 4 rows x 5 columns, evenly spaced, no
-overlapping. Each COLUMN is the SAME stag at evolution level 1 to 5 left to
-right, growing bigger and more adorned each level:
-level 1 a little fawn with tiny flower-bud antlers;
-level 2 antlers grow with a blooming flower crown and leaf ear tufts;
-level 3 a woven moss cloak, a bead collar, and anklets;
-level 4 a layered flowering antler crown, a vine sash, blossoms on the
-shoulders;
-level 5 grand forest-spirit regalia: a huge blooming antler crown, a flowing
-moss-and-flower cloak, glowing pollen, and ceremonial bead ornaments.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, legs straight, facing forward, gentle expression. Each ROW is a view
-of the same level: row 1 front, row 2 back, row 3 left side, row 4 right side.
-Same character in all views. Full body visible, white background, no weapons,
-no text.
-```
-
-### Monster 9 — Bastion Tortoise (เต่าป้อม)
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi tortoise monster on stubby legs:
-big friendly eyes, a chubby body, and a big mossy shell shaped like a little
-fortress on its back. Grid layout, 4 rows x 5 columns, evenly spaced, no
-overlapping. Each COLUMN is the SAME tortoise at evolution level 1 to 5 left
-to right, its shell-fortress growing grander each level:
-level 1 a small tortoise with a plain mossy shell;
-level 2 the shell grows tiny stone walls and a vine sash;
-level 3 a stone helmet with a leaf plume, little tower bumps and flowers on
-the shell;
-level 4 a fortress shell with mini stone battlements, a moss cloak, and a gem
-brow crown;
-level 5 grand living-fortress: a big shell castle with towers, gardens and a
-tiny waterfall, an ornate stone helmet crown, and a glowing rune sash.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, legs straight, facing forward. Each ROW is a view of the same level:
-row 1 front, row 2 back, row 3 left side, row 4 right side. Same character in
-all views. Full body visible, white background, no weapons, no text.
-```
-
-### Monster 10 — Lumen Moth (มอดเรืองแสง) `แพงสุด`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi luna-moth spirit monster standing
-upright: a fuzzy round body, big gentle eyes, feathery antennae, and big
-glowing patterned wings. Grid layout, 4 rows x 5 columns, evenly spaced, no
-overlapping. Each COLUMN is the SAME moth at evolution level 1 to 5 left to
-right, growing more radiant and adorned each level:
-level 1 a small fuzzy moth with tiny wings and plain antennae;
-level 2 wings gain glowing eye-spot patterns and a pollen scarf;
-level 3 a feathery antenna crown, a pollen-dust cloak, and glowing leg cuffs;
-level 4 layered luminous wing patterns, a pollen-dust mantle, and a gem collar;
-level 5 grand forest-spirit regalia: large glowing patterned wings, a flowing
-pollen-light cloak, an antenna crown of glowing buds, and floating dust-of-
-light particles around it.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, wings slightly open behind, legs straight, facing forward. Each ROW is
-a view of the same level: row 1 front, row 2 back, row 3 left side, row 4
-right side. Same character in all views. Full body visible, white background,
-no weapons, no text.
-```
-
-### Monster 11 — Ronin Tabby (แมวส้มนักดาบ) `T5 นักดาบ`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi orange tabby cat swordsman
-(a wandering ronin cat) standing upright on two legs: big round head, huge
-glossy friendly eyes, small triangular ears, tiny pink nose, fluffy striped
-orange fur with a cream belly, a long expressive striped tail, slim
-rig-friendly arms and legs. Nature-beast ronin theme made of leaf, bamboo,
-bark and rope (NOT metal). Grid layout, 4 rows x 5 columns, evenly spaced,
-no overlapping. Each COLUMN is the SAME cat at evolution level 1 to 5 left to
-right, growing slightly bigger and more armored each level:
-level 1 a small kitten with a simple leaf headband and a cloth sash belt;
-level 2 a short bark-brown haori vest, a rope belt, small wrist wraps;
-level 3 a single leaf-plate shoulder guard, a leaf-crest bandana, bark bracers;
-level 4 bamboo-and-bark lamellar chest armor, striped tail rings, a small
-horned leaf helm;
-level 5 full cute ronin regalia: layered leaf-and-bark lamellar armor, a
-horned kabuto-style helm with a carved wooden crest, a flowing moss cape,
-a soft glowing green aura and floating leaf petals around it.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, EMPTY HANDS, legs straight and slightly apart, facing forward, calm
-confident expression. Each ROW is a view of the same level: row 1 front,
-row 2 back, row 3 left side, row 4 right side. Same character in all views.
-Full body visible, white background, no weapons, no text.
-```
-
-> 🔮 **Monster 12-14 = สาย "นักเวท/Supporter"** (ตรงกับระบบ Supporter ในเกม: Heal / Shield / Buff). ทั้งสามยืน T-pose มือเปล่า — คทา/ไม้กายสิทธิ์เป็น **prop แยก** (หมวด 6A) แต่พลังเวทหลักสื่อผ่าน **ออร่า/สัญลักษณ์เรืองแสงบนตัว** ให้อ่านออกว่าเป็นนักเวทแม้ไม่มีของในมือ
-
-### Monster 12 — Mendcap Mystic (เห็ดหมอเวท) `Lv3 · Supporter (Heal)`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi mushroom healer-mage monster:
-a round glowing mushroom-cap head like a soft lantern dome, big gentle glossy
-eyes, chubby little body, slim rig-friendly arms and legs. A gentle HEALER —
-its cap softly glows warm green-gold from within, and it wears a little leaf
-medic-sash with a glowing heart-shaped spore charm on the chest (worn, part of
-the design). Grid layout, 4 rows x 5 columns, evenly spaced, no overlapping.
-Each COLUMN is the SAME mushroom at evolution level 1 to 5 left to right,
-growing bigger and more radiant each level:
-level 1 a small plain-cap sprite with a faint glow and a leaf sash;
-level 2 the cap glows brighter with soft spots, a herb pouch on the sash;
-level 3 a glowing heart-spore pendant, a mossy medic poncho, glowing spots on the cap;
-level 4 a layered luminous cap, several herb pouches, glowing green runes on the cap;
-level 5 grand healer regalia: a big radiant patterned cap that glows like a
-lantern from within, a flowing moss-and-flower robe, and a bright glowing
-heart-spore pendant on the chest.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, EMPTY HANDS, legs straight, facing forward, gentle caring expression.
-Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left
-side, row 4 right side. Same character in all views. Full body visible,
-white background, no weapons, no text.
-```
-
-### Monster 13 — Wardroot Sprite (ภูติต้นไม้เกราะ) `Lv5 · Supporter (Shield + Heal)`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi tree-spirit (dryad) mage monster:
-a small round wooden-bodied sprite with a friendly bark face, big glossy gentle
-eyes, soft leafy-moss hair, a glowing green heartwood core visible on its chest,
-slim rig-friendly wooden arms and legs. A GUARDIAN mage — its body is
-plated with smooth rounded bark shield-armor, and glowing protective runes trace
-its body (worn, part of the design). Grid layout, 4 rows x 5 columns, evenly
-spaced, no overlapping. Each COLUMN is the SAME sprite at evolution level 1 to 5
-left to right, growing bigger and more armored each level:
-level 1 a little wooden sprite with a faint heartwood glow and a small bark
-chest-plate;
-level 2 leafy-moss hair grows, bark shoulder-plates, tiny glowing runes on the bark;
-level 3 a mossy mantle, layered bark plate-armor, glowing green runes on the plates;
-level 4 bark pauldrons with blooming flowers, a brighter heartwood core, full
-rune-carved bark plate armor;
-level 5 grand forest-guardian regalia: a crown of leaves and blossoms, a big
-glowing heartwood core on the chest, a flowing moss cloak, and full rune-lit
-bark plate armor covering its body.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, EMPTY HANDS, legs straight, facing forward, calm protective expression.
-Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left
-side, row 4 right side. Same character in all views. Full body visible,
-white background, no weapons, no text.
-```
-
-### Monster 14 — Aura Fox (จิ้งจอกเวทเสริมพลัง) `Lv7 · Supporter (Buff)`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute chibi mystical fox-spirit (kitsune) mage
-monster standing upright on two legs: a fluffy round-headed fox with big glossy
-gentle eyes, small pointed ears, a tiny nose, soft cream-and-amber fur with
-leafy-green accents, slim rig-friendly arms and legs. An EMPOWERER mage — it
-has multiple glowing spirit-tails and glowing nature-rune markings on its fur
-(worn, part of the design). Grid layout, 4 rows x 5 columns, evenly spaced, no
-overlapping. Each COLUMN is the SAME fox at evolution level 1 to 5 left to right,
-gaining more tails, brighter glow and more adornment each level:
-level 1 a small fox kit with a single softly-glowing tail and faint rune marks;
-level 2 two glowing tails, a leaf-ribbon collar, brighter rune marks on the fur;
-level 3 three glowing tails, a flower-and-leaf ear crown, glowing rune sashes;
-level 4 five radiant glowing tails, glowing rune sashes, brighter glowing fur markings;
-level 5 grand spirit regalia: many luminous flowing tails fanned out, a crown
-of glowing leaves and crystals, and bright glowing rune markings all over its fur.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, tails fanned behind, EMPTY HANDS, legs straight, facing forward, wise
-friendly expression. Each ROW is a view of the same level: row 1 front,
-row 2 back, row 3 left side, row 4 right side. Same character in all views.
-Full body visible, white background, no weapons, no text.
+Pure white background, isolated subject, full silhouette visible, no crop,
+no scenery, no text, no letters, no numbers, no logo, no signature, no watermark.
 ```
 
 ---
 
-## 🎭 ชุดที่ 2 — "กวนๆ" (Goofy Set) · Monster 15-19
+## 2) TURNAROUND LAYOUT BLOCKS
 
-> ชุดใหม่แยกจากของเดิม เน้น **น่ารัก + กวน/ทะเล้น** และ **silhouette ต่างกันชัดทุกตัว** (ครึ่งบก / พืช / แมลง / ตัวแบกเปลือก / ก้อนเมือก) — เห็นเงาก็แยกออก. ยัง Natural palette + T-pose มือเปล่า ตามกฎเดิม (STYLE BLOCK คุมทั้ง rig-friendly + no-aura ให้แล้ว)
+### Natural architecture block
 
-### Monster 15 — Derp Toad (คางคกยิ้มกว้าง) `T1 ถูกสุด`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute GOOFY chibi toad monster: a pudgy round
-toad with a HUGELY oversized silly grin (its defining feature — a big wide
-goofy smiling mouth almost as wide as its body) and big derpy half-lidded eyes,
-a long springy tongue poking out one side, smooth spotty green-and-cream skin,
-tiny stubby limbs, a little lilypad cap on its head. Playful and dopey looking.
-Grid layout, 4 rows x 5 columns, evenly spaced, no overlapping. Each COLUMN is
-the SAME toad at evolution level 1 to 5 left to right, growing slightly bigger
-and goofier each level:
-level 1 a small toad with a tiny lilypad cap and a cheeky grin;
-level 2 a bigger lilypad hat, a reed necklace, tongue lolling out;
-level 3 a lilypad cloak, cheek warts that look like freckles, a flower behind the ear;
-level 4 a layered lilypad poncho, a cattail reed on its back, puffed cheeks;
-level 5 a grand lilypad-and-reed getup with a flower crown, the widest goofiest
-grin of all and a curled springy tongue.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, legs straight and slightly apart, facing forward, goofy happy expression.
-Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left side,
-row 4 right side. Same character in all views. Full body visible, white
-background, no weapons, no text.
-```
+Paste this after the Master Style Block for every tower, base, resource station,
+gate, fence, or other constructed environment asset.
 
-### Monster 16 — Chompy Sprout (ต้นกินแมลงจอมงับ) `T2`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute GOOFY chibi walking Venus-flytrap plant
-monster: its HEAD is a big rounded flytrap mouth (its defining feature — chunky
-cartoon jaws with soft rounded teeth and two derpy googly eyes sitting inside/on
-top of the trap), a chubby little green bulb body, short leafy vine arms and two
-stubby root legs, a small potted-dirt base clump under its feet. Mischievous,
-always looks like it wants to chomp something. Grid layout, 4 rows x 5 columns,
-evenly spaced, no overlapping. Each COLUMN is the SAME plant at evolution level
-1 to 5 left to right, growing bigger and toothier each level:
-level 1 a small sprout with a little trap-mouth and one leaf;
-level 2 a bigger trap with more rounded teeth, a second pair of leaves;
-level 3 leafy shoulder fronds, tiny thorns on the vines, a flower bud on top;
-level 4 a chunkier double-layered trap, vine bracers, a blooming flower crest;
-level 5 a grand toothy flytrap with a big blossom crown, thicker vines and a
-bark-collar around the neck.
-Standing in a strict T-POSE in EVERY cell: leafy vine arms spread straight out
-to the sides, root legs straight, facing forward, cheeky hungry expression.
-Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left side,
-row 4 right side. Same character in all views. Full body visible, white
-background, no weapons, no text.
+```text
+NATURAL ARCHITECTURE: refined organic high-fantasy construction—broad smooth
+mother-of-pearl stone masses, precisely fitted warm hardwood, restrained satin-
+gold framing, deep jade-green inset planes, and one localized amber crystal or
+rune accent. Use a small number of graceful arches, circular halos, tapered
+pillars, leaf-vein curves, clean stepped foundations, and calm negative space.
+The result must feel cultivated by a sophisticated nature civilization, not a
+primitive pile of rocks, crude tribal hut, tangled root mass, or overgrown ruin.
+
+FRONT/BACK PARITY: front and back are both player-facing hero façades. Preserve
+at least 95 percent of the same silhouette, height, massing, outer pillars,
+central axis, arch/halo shape, material balance, and overall visual quality on
+both sides. Use the same-sized emblem position on both façades: the front may use
+a brighter contained crystal while the back uses a flat or dim version of the
+same emblem. Do not change the main silhouette, column count, arch, crown, base,
+or decoration density between front and back. The rear must never look blank,
+unfinished, or visually cheaper. A player approaching from either direction
+should see an equally beautiful structure while still identifying the front.
+
+TURRET YAW CLEARANCE: every tower that accepts a separate rotating weapon must
+place its circular socket on a broad flat yaw deck. The socket/deck is the highest
+structural plane. Preserve a completely empty vertical cylinder above it and an
+unobstructed 360-degree horizontal sweep around it, sized for a long weapon barrel.
+Every column, capital, halo, crest, fin, ray, arch, wall, branch, and ornament must
+terminate clearly below the yaw-deck surface. Never place a crown, sunburst, arch,
+backplate, pylon, or decoration behind or beside the weapon plane where rotation
+could collide. Show no attached weapon on the tower-body sheet.
+
+Keep ornament extremely restrained and intentional. Build each façade from a few
+large continuous surfaces; allow only one main emblem, one secondary border rhythm,
+and a handful of construction seams. Avoid excessive filigree, repeated little
+panels, stacked moldings, random spikes, broken rubble, dense ivy, chaotic roots,
+giant leaf piles, or details that disappear at MOBA camera distance.
+
+TOWER COLOR OVERRIDE: the mother-of-pearl, gold, jade, amber, and walnut palette
+above is the approved palette for Tower 1 only. For every later tower family,
+retain the same clean painterly discipline and restrained pattern density, but
+wait for the user to specify its palette, silhouette, materials, and gameplay
+ability. Do not automatically recolor another tower to match Tower 1.
 ```
 
-### Monster 17 — Fuzz Bumble (ผึ้งตุ้ยนุ้ยปีกจิ๋ว) `T3`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute GOOFY chibi bumblebee monster: a very
-round fuzzy ball-shaped bee (its defining feature — an almost perfectly round
-chubby striped fuzzy body) with COMICALLY TINY wings far too small to actually
-fly, big innocent confused eyes, a tiny stinger, short stubby arms and legs,
-soft yellow-and-brown fuzz with leafy-green stripe accents. Perpetually looks
-puzzled and adorable. Grid layout, 4 rows x 5 columns, evenly spaced, no
-overlapping. Each COLUMN is the SAME bee at evolution level 1 to 5 left to right,
-growing rounder and fluffier each level:
-level 1 a tiny round bee with tiny stub wings and a confused look;
-level 2 fluffier fuzz, a little pollen basket on its back;
-level 3 a leaf collar, a flower stuck on its head, slightly bigger (still tiny) wings;
-level 4 a honey-pot satchel, layered fuzz, pollen dusting on the cheeks;
-level 5 a grand fuzzy bumble with a flower crown, a big honey-pot backpack and
-a striped scarf — wings still hilariously tiny.
-Standing in a strict T-POSE in EVERY cell: arms spread straight out to the
-sides, tiny wings behind, legs straight, facing forward, puzzled cute expression.
-Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left side,
-row 4 right side. Same character in all views. Full body visible, white
-background, no weapons, no text.
+### Structures and props
+
+```text
+Production turnaround sheet of ONE asset at ONE upgrade level. Show exactly
+4 orthographic views in ONE horizontal row, evenly spaced and non-overlapping,
+left to right: front view, back view, left side view, right side view. Exactly
+the same design, dimensions, materials, wear, colors, and attachments in every
+view. Front and back must share almost the same finished silhouette and visual
+weight while remaining distinguishable through one clear primary-versus-secondary
+detail. The left and right views must be true opposing profiles and confirm the same
+depth and attachment points. Neutral eye-level orthographic camera, no perspective
+distortion and no three-quarter views.
+
+CUTTING SPACE IS MANDATORY: divide the canvas into four equal invisible columns
+and center exactly one complete view inside each column. Scale the subject down
+so the ENTIRE compound—including every satellite pylon, bridge, wing, branch,
+or wide base—occupies no more than 21–22 percent of the total canvas width and
+no more than 82–86 percent of the canvas height. Leave a clean pure-white gutter
+of at least 2.5 percent of total canvas width between neighboring silhouettes,
+plus generous outer and top/bottom margins. No geometry, glow, or cast shadow may
+cross into the neighboring column. The four views must be easy to crop into four
+independent high-detail images without touching or rebuilding any missing edge.
 ```
 
-### Monster 18 — Stump Hermit (ตัวจิ๋วแบกตอไม้) `T4`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute GOOFY chibi little forest critter that
-lives inside a hollow TREE-STUMP shell like a hermit crab (its defining feature
-— it carries/wears a chunky round tree-stump on its back/body and pokes its head
-and stubby limbs out of it). The critter itself is a small round fuzzy brown
-creature with big shy-but-cheeky eyes and tiny paws; the stump shell has moss,
-tiny mushrooms and bark rings. Grid layout, 4 rows x 5 columns, evenly spaced,
-no overlapping. Each COLUMN is the SAME critter at evolution level 1 to 5 left
-to right, its stump shell growing bigger and more overgrown each level:
-level 1 a small critter in a tiny bare stump shell;
-level 2 moss patches and one mushroom grow on the stump;
-level 3 a leaf sprout on top of the stump, a pebble ring, more mushrooms;
-level 4 a mini bush growing from the stump, bark armor plates on the shell;
-level 5 a grand mossy stump-fortress shell with a little tree, glowing mushrooms
-and flowers growing all over it, critter peeking out with a cheeky grin.
-Standing in a strict T-POSE in EVERY cell: little arms spread straight out to
-the sides from the stump, stubby legs straight, facing forward, cheeky shy
-expression. Each ROW is a view of the same level: row 1 front, row 2 back,
-row 3 left side, row 4 right side. Same character in all views. Full body
-visible, white background, no weapons, no text.
+### Humanoid characters
+
+```text
+Production character turnaround sheet of ONE character at ONE upgrade level.
+Show exactly 4 orthographic views in ONE horizontal row: front, back, left side,
+right side. Same character and equipment in every view. Relaxed strict A-POSE:
+arms straight and angled down 35–45 degrees, hands open, fingers separated,
+legs straight and slightly apart. In side views the near arm follows the same
+A-pose angle and the far arm stays aligned behind it; no forward/back arm swing.
+Expose shoulders, elbows, wrists, waist, hips, knees, and ankles for rigging.
 ```
 
-### Monster 19 — Gloop Blob (ก้อนเมือกป่าจอมป่วน) `T5 แพงสุด`
-```
-[STYLE BLOCK]
-Evolution turnaround sheet of ONE cute GOOFY chibi forest SLIME/ooze monster: a
-big wobbly translucent gel blob (its defining feature — a soft jelly-like
-semi-transparent green body with tiny leaves, pebbles, berries and bubbles
-suspended INSIDE it), a wide goofy grinning face on the front, two big derpy
-eyes, little nub arms and a rounded blobby base instead of feet. Looks squishy,
-bouncy and mischievous. Grid layout, 4 rows x 5 columns, evenly spaced, no
-overlapping. Each COLUMN is the SAME slime at evolution level 1 to 5 left to
-right, growing bigger and with more stuff floating inside each level:
-level 1 a small clear-green blob with a couple tiny leaves inside;
-level 2 bigger, a few pebbles and a berry suspended inside, a leaf on top;
-level 3 a mossy rim around its base, small mushrooms floating inside, chubby nub arms;
-level 4 a bark-chunk "crown" half-sunk on its head, more forest bits inside,
-a wider grin;
-level 5 a huge wobbly blob titan with a whole tiny floating garden inside
-(leaves, flowers, pebbles, a mini sapling) and a big goofy toothy grin.
-Standing in a strict T-POSE in EVERY cell: nub arms spread out to the sides,
-blobby base flat on the ground, facing forward, goofy mischievous expression.
-Each ROW is a view of the same level: row 1 front, row 2 back, row 3 left side,
-row 4 right side. Same character in all views. Full body visible, white
-background, no weapons, no text.
+### Upgrade logic
+
+```text
+TOWERS USE EXACTLY THREE LEVELS. Keep the same core identity and construction
+family while making each stage readable at thumbnail size.
+Level 1: intentionally simple low-tier gameplay form—one main tower mass, one
+small core, minimal trim, no satellite architecture.
+Level 2: clear mid-tier form—roughly 12–15 percent larger, one stronger base or
+shoulder tier, and only two short support pillars or one equivalent secondary form.
+Level 3: final form—roughly 20 percent larger than level 2, up to four SHORT
+grounded satellite pillars, one additional halo/crown layer, a larger contained
+core, and controlled on-structure glow. It must feel powerful but never become a
+palace, world monument, giant portal, or visually dense endgame citadel.
 ```
 
 ---
 
-# 3) FENCES — รั้ว 3 แบบ (ถูก → แพง)
+# 3) TOWERS — approved visual system and reserved families
 
-> **1 ภาพ = ตาราง 4 แถว × 3 คอลัมน์** — คอลัมน์ = แบบที่ 1→3 (ถูก→แพง), แถว = หน้า/หลัง/ซ้าย/ขวา. รั้วเป็น "ท่อนตรง 1 segment" (จะเอาไปต่อเรียงเป็นแนวยาวในเกม)
+Each level is generated as its own 4-view sheet: front, back, left side, and right side. Turret weapons remain separate modular props so the tower body can rotate, upgrade, or swap attacks independently.
 
-```
-[STYLE BLOCK]
-Concept sheet of THREE cute fantasy fence segment designs for a nature beast
-faction, each fence is one straight modular segment piece. Grid layout,
-4 rows x 3 columns, evenly spaced, no overlapping.
-Each COLUMN is a different fence tier, cheap to expensive left to right:
-column 1 "Twig Fence" — simple small wooden sticks tied with rope, a few
-leaves; column 2 "Thorn Hedge" — chubby rounded bramble hedge with soft
-cartoon thorns and tiny flowers; column 3 "Stone Fang Wall" — low wall of
-rounded mossy stones with cute bone-white fang shapes and glowing green
-moss runes. Each ROW shows the same segment from a different view:
-row 1 front view, row 2 back view, row 3 left side view, row 4 right side
-view. Same design in every view. White background, no text, no characters.
-```
+## Approved tower-wide visual system
 
----
+- Exactly three levels per tower family.
+- Clean hand-painted stylized fantasy MOBA rendering; never photoreal PBR.
+- Broad readable masses, sparse seams, and generous unpatterned color fields.
+- Restrained original botanical Art Deco inlay covers only about 8–12 percent of
+  selected inset surfaces and becomes slightly richer with each level.
+- Upgrade progression is shown by silhouette, base mass, and a few secondary forms;
+  never by filling every surface with ornament.
+- Tower 1 establishes rendering density only. It does **not** establish the color,
+  overall shape, materials, weapon, projectile, or ability of Towers 2–5.
+- Towers 3–5 remain reserved. Do not design or generate them until the user supplies
+  their palette, core shape language, and gameplay ability.
 
-# 4) MINER + MINER BASE (แบบเดียว × 3 level)
+## Tower 1 — Verdant Halo Bastion
 
-### Miner — คนขุดทอง (ตัวละคร)
-> **1 ภาพ = ตาราง 4 แถว × 3 คอลัมน์** — คอลัมน์ = level 1→3, แถว = หน้า/หลัง/ซ้าย/ขวา, T-pose, ไม่มีอุปกรณ์/อาวุธในมือ
+**Role:** entry control tower / modular arcane turret platform  
+**Palette:** mother-of-pearl ivory, deep natural jade, polished walnut, satin warm gold, amber crystal.
 
-```
-[STYLE BLOCK]
-Character turnaround sheet of ONE cute chibi mole miner creature for a nature
-beast faction: chubby round mole with soft brown fur, big friendly goggles-like
-eyes, pink round nose, big flat digging paws (rounded, not sharp), tiny leaf
-backpack. Grid layout, 4 rows x 3 columns, evenly spaced, no overlapping.
-Each COLUMN is the same mole at upgrade level 1 to 3 left to right:
-level 1 plain little mole, level 2 adds a leaf hard-hat and rope belt,
-level 3 adds a sturdy acorn helmet with tiny lamp and bigger backpack.
-Standing in a strict T-POSE in every cell: arms spread straight out to the
-sides, legs straight, facing forward. Each ROW is a view of the same level:
-row 1 front, row 2 back, row 3 left side, row 4 right side. Same character
-in all views. Empty hands, no tools, no weapons, white background, no text.
-```
+```text
+[MASTER STYLE BLOCK]
+[NATURAL ARCHITECTURE BLOCK]
+[STRUCTURES AND PROPS LAYOUT BLOCK]
+Turnaround of the Natural tower "Verdant Halo Bastion" at upgrade level [N].
+A clean elegant defense pedestal built around one mother-of-pearl ivory shaft with
+broad jade inset planes and a single polished-walnut spine. A restrained warm-gold halo frames the top turret
+socket. Front and back share the same finished silhouette; the front uses an amber
+teardrop crest, while the rear uses a smaller leaf seal. Nature is expressed by
+leaf-vein curvature and material craft, not overgrowth. No attached weapon.
 
-### Miner Base — จุดส่งทอง (สิ่งปลูกสร้าง)
-```
-[STYLE BLOCK]
-Turnaround concept sheet of ONE cute gold deposit burrow building for a
-nature beast faction: a chubby round earth mound with a friendly cave
-entrance like a smiling mouth, wooden support beams, small gold nuggets and
-coins spilling around the entrance, leaves and mushrooms on top.
-Grid layout, 4 rows x 3 columns, evenly spaced, no overlapping.
-Each COLUMN is the same burrow at upgrade level 1 to 3 left to right:
-level 1 small simple dirt mound, level 2 bigger with wooden doorframe and
-gold cart, level 3 large burrow with stone entrance, golden horn decorations
-and glowing lanterns. Each ROW is a view of the same level: row 1 front,
-row 2 back, row 3 left side, row 4 right side. Same design in every view.
-White background, no text, no characters.
+Apply sparse muted-gold botanical Art Deco inlay only inside selected jade panels,
+following the approved 8–12 percent coverage rule and level-based motif progression.
+
+Level 1: one simple octagonal base, one main shaft, one thin halo, one small amber
+crest, minimal bronze trim, no satellite pillars and no crown fins.
+Level 2: about 15 percent taller; wider two-step base, modest projecting shoulder
+collar, exactly two short lateral support pillars reaching one-fifth of main height,
+slightly thicker halo, medium amber crest, restrained sage channels.
+Level 3: about 20 percent taller than level 2; four short grounded satellite
+pillars reaching one-quarter of main height, low connecting rails, two nested
+halo profiles, larger contained amber core, clearer but localized energy channels.
+No tall arches, giant satellite spires, triple crown, wings, or palace-scale base.
 ```
 
----
+## Tower 2 — Petal-Crown Redoubt (shape locked)
 
-# 5) BASE — ฐานหลัก/Fort Core (อันเดียว × 5 level)
+**Status:** numeric option **5** is selected and permanently assigned to Tower 2.
+The other numeric and lettered concepts remain unassigned exploration history;
+they are alternatives, not level 1–3.  
+**Palette:** restored original Natural palette—dominant mother-of-pearl ivory and
+warm cream, satin champagne gold, small dark natural jade-green inset panels,
+warm bronze transitions, and one contained pale-gold/white star crystal. No blue,
+black, indigo, or cyan direction.  
+**Shared engineering:** every candidate uses a broad flat yaw deck and centered
+socket as the absolute highest plane, a completely empty 360-degree weapon sweep,
+near-radial front/back-compatible massing, and a stable MOBA defense-tower base.  
+**Locked core shape:** a rounded, stable MOBA tower base with four thick protective
+petal armor plates, a central body raised about 20 percent from the original option,
+a strong vertical star spine, and a broad unobstructed top yaw deck. Preserve the
+simple large/medium shape hierarchy; do not turn the petals into thin decoration.  
+**Gameplay ability / separate turret / projectile:** USER TO DEFINE. Do not add an
+attack mechanism, beam, projectile, aura, or role-specific device yet.
 
-> **1 ภาพ = ตาราง 4 แถว × 5 คอลัมน์** — คอลัมน์ = level 1→5, แถว = หน้า/หลัง/ซ้าย/ขวา. เป็น "หัวใจเมือง" ต้องดูสำคัญสุดในแมป
+### Shape exploration and selection
 
-```
-[STYLE BLOCK]
-Turnaround concept sheet of ONE cute great tree fortress — the main base
-heart of a nature beast faction city: a chubby giant tree with a big round
-friendly face-like hollow, thick short trunk, fluffy round leaf crown,
-small wooden platforms and rope bridges around it, glowing green heart
-crystal nested in the roots. Grid layout, 4 rows x 5 columns, evenly spaced,
-no overlapping. Each COLUMN is the same tree fortress at upgrade level
-1 to 5 left to right: level 1 small young tree with tiny crystal,
-growing bigger and grander each level — more platforms, stone ring base,
-hanging lanterns, antler-like golden branches; level 5 majestic world-tree
-with triple leaf crown, glowing runes and floating leaf particles.
-Each ROW is a view of the same level: row 1 front, row 2 back,
-row 3 left side, row 4 right side. Same design in every view.
-White background, no text, no characters, no weapons.
-```
+Reference sheet: `Natural/tower/nat-tw02-shape-exploration-v1.png`.
 
----
+| Option | Silhouette direction |
+|---|---|
+| 1 — SHORTLISTED | Sunshield Bastion — low wide fortress body, shield core, four low buttresses; central drum raised 18 percent |
+| 2 | Starlance Pylon — tall narrow faceted obelisk and long vertical star inset |
+| 3 | Twin-Guard Tower — central prism with two chunky integrated side pylons |
+| 4 | Celestial Ziggurat — squat stepped artillery foundation and short central tower |
+| 5 — ASSIGNED TO TW2 | Petal-Crown Redoubt — rounded base with four thick protective petal plates; body raised 20 percent |
+| 6 — SHORTLISTED | Orbital Citadel — cylindrical core with three low curved ground shields; cylinder raised 18 percent |
 
-# 6) WEAPONS & SHIELDS — อาวุธ/โล่ (prop แยก, แยก level ตาม mon/tower)
+All six options are front-view exploration only. Every option uses a top socket as
+the highest plane, a broad flat yaw deck, an empty 360-degree gun sweep, near-radial
+front/back-compatible massing, and a clear MOBA defensive-tower silhouette.
 
-> ตัวละคร T-pose มือเปล่า → พวกนี้เป็น **prop แยก** เอาไป**แปะที่มือ/แขนตอน rig**
-> 🧤 **อาวุธแบบสวม (ถุงมือ/กงเล็บ/gauntlet ที่ติดตัว) = ออกแบบมาในตัวละครเลย** (อยู่ในข้อ 2 แล้ว ไม่ต้อง gen แยก) — หมวดนี้เฉพาะ **อาวุธถือ/แยก** (กระบอง/ค้อน/คทา/ไม้เท้า/หอก). ตัว worn ในตาราง 6A จะ mark ว่า "อยู่ในตัวละครแล้ว"
-> ทุกชิ้น: **isolated prop, ไม่มีตัวละคร, ไม่มีมือถือ, white bg** — layout **3 แถว (หน้า / ข้าง / หลัง) × 5 คอลัมน์ (level 1→5)**, level สูงใหญ่/อลัง/เรืองแสงขึ้น
-> ธีม match กับมอน/ป้อมของมัน (Natural = ไม้/กระดูก/หิน/ใบไม้/เถา/คริสตัล)
+Current shortlist reference:
+`Natural/tower/nat-tw02-shortlist-156-v1.png`. The earlier single-shape options and
+dark/blue palette tests V2–V4 are superseded. Do not produce level progression or
+turnaround sheets until the user defines Tower 2's gameplay ability, separate
+turret, and projectile—or explicitly requests shape-only production sheets.
 
-## 🗡️ WEAPON STYLE addendum (แปะต่อจาก STYLE BLOCK)
-```
-Isolated cute game prop, NO character, NO hands holding it, chunky chibi
-Brawl-Stars-style proportions, thick clean outlines, flat cel-shaded colors.
-Natural beast faction materials only (wood, bone, stone, leaf, vine, crystal)
-in leafy green / earthy brown / bone-white / terracotta. Grid layout,
-3 rows x 5 columns, evenly spaced, no overlapping, no text. Each COLUMN is
-the SAME item at level 1 to 5 left to right, bigger and more ornate each level
-(level 5 glowing/magical). Each ROW is a view: row 1 front, row 2 side,
-row 3 back. Pure white background.
-```
+### Second shape exploration — a / b / c / d / e / f
 
-## Template (ใช้กับทุกช่องในตารางด้านล่าง)
-```
-[STYLE BLOCK]
-[WEAPON STYLE addendum]
-The prop is [ITEM] designed to match the monster/tower "[NAME]".
-Level 1: [L1]. Level 5: [L5]. (levels in between grow gradually.)
-```
+Reference sheet: `Natural/tower/nat-tw02-shape-exploration-af-v1.png`.
 
----
+| Option | Silhouette direction |
+|---|---|
+| a | Heartroot Bastion — tall faceted column with three low root-shield lobes |
+| b — ASSIGNED TO TW3 | Crescentleaf Pylon — tapered prism with two broad lower crescent-leaf fins |
+| c | Blossom Drum Tower — rounded armored drum with four low petal buttresses |
+| d | Cairnstar Sentinel — angular monolith with four chunky corner braces |
+| e | Seedvault Monolith — elongated seed-pod body formed from four large shell plates |
+| f — ASSIGNED TO TW4 | Twinleaf Rampart — twin rounded lower shield-lobes converging into a central tower |
 
-## 6A) อาวุธคู่มอน (Monster Weapons) — 1 ภาพ/มอน (×5 level)
+Every a–f concept follows the same bright pearl-ivory, champagne-gold, jade-green,
+bronze, and pale-star palette. The yaw deck/socket remains the highest plane and
+the weapon sweep stays clear. Do not treat a–f as upgrade levels.
 
-| # | มอน | [ITEM] | Level 1 → Level 5 |
-|---|---|---|---|
-| 1 | Sprout Raptor | 🧤 **worn — อยู่ในตัวละครแล้ว** (wooden leaf-blade claw-glove) | *ไม่ต้อง gen แยก — เติมในตัวละคร (ทำแล้ว)* |
-| 2 | Bramble Boar | thorny wooden club | กิ่งหนามสั้น → กระบองหนามยักษ์ ดอกกุหลาบ+อำพันเรืองแสง |
-| 3 | Moss Golemling | 🧤 **worn — อยู่ในตัวละครแล้ว** (built-in stone gauntlets/หมัดหิน) | *ไม่ต้อง gen แยก — เติมในตัวละคร (ทำแล้ว)* |
-| 4 | Griffin Chick | 🧤 **worn — อยู่ในตัวละครแล้ว** (golden feather talon-blades) | *ไม่ต้อง gen แยก — เติมในตัวละคร (ทำแล้ว)* |
-| 5 | Little Titan | uprooted log-and-stone maul | ท่อนไม้เล็ก → ค้อนไม้+หินยักษ์ มอส+คริสตัลเรืองแสง |
-| 6 | Acorn Scout | acorn-tipped twig spear | ไม้จิ้มลูกโอ๊ก → หอกไม้เพรียว หัวลูกโอ๊กทอง+ใบไม้ |
-| 7 | Spore Shaman | glowing mushroom staff | ไม้เท้าเห็ดเล็ก → ไม้เท้าเห็ดใหญ่ สปอร์เรืองแสง+เถาพัน |
-| 8 | Blossom Stag | blooming branch wand / vine whip | กิ่งดอกไม้เล็ก → คทากิ่งไม้ดอกบานสะพรั่ง เรืองแสงละอองเกสร |
-| 9 | Bastion Tortoise | chunky stone hammer | ค้อนหินเล็ก → ค้อนหินก้อนใหญ่ รูน+มอส+น้ำเรืองแสง |
-| 10 | Lumen Moth | glowing crystal wand | คทาคริสตัลเล็ก → คทาคริสตัลใหญ่ ปีกแสง+ละอองเรืองแสงลอย |
-| 11 | Ronin Tabby | leaf-forged katana (ดาบใบไม้) | ดาบไม้ไผ่ฝึกเล็ก → คาตานะใบไม้-เปลือกไม้ คมเรืองแสงเขียว+กลีบใบปลิว |
-| 12 | Mendcap Mystic | glowing heal staff (คทาเห็ดเยียวยา) | ไม้เท้าเห็ดเล็กเรืองอ่อน → คทาเห็ดโคมใหญ่ สปอร์เยียวยาสีเขียว-ทองลอย |
-| 13 | Wardroot Sprite | rune-branch guardian staff (คทากิ่งไม้รูน) | กิ่งไม้รูนเล็ก → คทากิ่งไม้แกนหัวใจไม้ แผ่นเปลือกไม้-รูนป้องกันลอยรอบ |
-| 14 | Aura Fox | spirit-orb focus wand (คทาลูกแก้ววิญญาณ) | คทาลูกแก้วเล็กเรืองอ่อน → คทาลูกแก้ววิญญาณใหญ่ ออร่าเสริมพลัง+ลางแสงลอย |
-| 15 | Derp Toad | 🦷 **worn/body — สู้ด้วยลิ้น+งับ** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
-| 16 | Chompy Sprout | 🦷 **worn/body — งับด้วยหัวกินแมลง** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
-| 17 | Fuzz Bumble | 🦷 **worn/body — พุ่งชน/เหล็กใน** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
-| 18 | Stump Hermit | 🦷 **worn/body — กระแทกด้วยเปลือกตอไม้** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
-| 19 | Gloop Blob | 🦷 **worn/body — ตบ/กระแทกด้วยเมือก** | *ไม่ต้อง gen แยก (อยู่ในตัวละคร)* |
+```text
+[MASTER STYLE BLOCK]
+[NATURAL ARCHITECTURE BLOCK]
 
-## 6B) โล่คู่มอน (Monster Shields) — 1 ภาพ/มอน (×5 level)
-
-| # | มอน | [ITEM] | Level 1 → Level 5 |
-|---|---|---|---|
-| 1 | Sprout Raptor | round leaf shield (lilypad-like) | ใบไม้กลมแผ่นเดียว → โล่ใบไม้ซ้อนชั้น ดอกไม้กลาง+เรืองแสง |
-| 2 | Bramble Boar | bramble bark round shield | เปลือกไม้กลมเล็ก → โล่เปลือกไม้หนา หนามรอบขอบ+อำพัน |
-| 3 | Moss Golemling | stone slab shield | แผ่นหินเล็ก → โล่หินหนา รูนเรืองแสง+คริสตัลกลาง |
-| 4 | Griffin Chick | golden feather kite shield | โล่ขนนกเล็ก → โล่ทองทรงว่าว ขนเรืองแสง+อัญมณี |
-| 5 | Little Titan | huge boulder shield | ก้อนหินแบน → โล่หินยักษ์ มอส+ต้นไม้จิ๋ว+คริสตัลเรืองแสง |
-| 6 | Acorn Scout | acorn-cap buckler | ฝาลูกโอ๊กเล็ก → โล่ฝาลูกโอ๊กทอง ใบไม้ขอบ+เมล็ดเรืองแสง |
-| 7 | Spore Shaman | giant mushroom-cap shield | หมวกเห็ดเล็ก → โล่หมวกเห็ดใหญ่ ลายจุด+สปอร์เรืองแสง |
-| 8 | Blossom Stag | woven flower-vine shield | โล่เถาสานเล็ก → โล่เถาสานดอกบาน ละอองเกสรเรืองแสง |
-| 9 | Bastion Tortoise | stone tower-shield | โล่หินสูงเล็ก → โล่กำแพงป้อม หอคอยจิ๋ว+รูนเรืองแสง |
-| 10 | Lumen Moth | luminous wing shield | โล่ปีกแสงเล็ก → โล่ปีกผีเสื้อใหญ่ ลายเรืองแสง+ละอองแสง |
-| 11 | Ronin Tabby | *(นักดาบล้วน — ไม่มีโล่ / ถ้าอยากได้: small bark tsuba-guard buckler)* | — (ถ้าทำ: การ์ดดาบเปลือกไม้เล็ก → การ์ดใบไม้-ไม้ไผ่เรืองแสง) |
-| 12 | Mendcap Mystic | *(นักเวท — ไม่มีโล่ถือ; พลังป้องกันคือสเปล)* | — |
-| 13 | Wardroot Sprite | 🛡️ **worn — อยู่ในตัวละครแล้ว** (แผ่นเปลือกไม้-รูนลอยรอบตัว) | *ไม่ต้อง gen แยก — เป็นส่วนหนึ่งของตัวละคร (สื่อว่าเป็นสายโล่)* |
-| 14 | Aura Fox | *(นักเวท — ไม่มีโล่ถือ; พลังคือออร่าบัฟ)* | — |
-
-## 6C) TURRET ป้อม (Tower Turrets) — เครื่องยิงติดป้อม + ฐาน + กระสุน
-
-> ป้อมเป็นโครงสร้าง — "อาวุธ" = **turret (ปืน/เครื่องยิงธนู/เครื่องยิงหิน) ที่วางบนยอดป้อม**
-> **แต่ละ turret มี "ฐานเล็ก" (mounting base/pivot) ในตัว** → วางลงบนป้อมแล้วดูลงตัวสวยงาม
-> **1 ป้อม = 2 ภาพ:** (A) ตัว turret ทั้ง 5 level × 4 มุม / (B) กระสุนของมัน แยกออกมา (เฉพาะหน้า/หลัง)
-> ธีม Natural = ไม้/ไม้ไผ่/กระดูก/หิน/ใบไม้/เถา/เชือก/คริสตัล (ไม่ใช้โลหะแวววาว)
-
-### 🔫 TURRET STYLE addendum (สำหรับ**ภาพ A** — ตัว turret)
-```
-Isolated cute game TURRET prop (a mounted weapon that sits on TOP of a defense
-tower), NO character, NO hands. The turret is ONE SINGLE PIECE: the weapon is
-built directly onto a small round ROTATING TURNTABLE base (a low circular
-swivel disc / drum) so the WHOLE thing can spin in place on the tower — do NOT
-draw a separate detachable mount, the round turntable is part of the turret and
-turns together with it. The turntable is round and symmetrical so it looks
-correct from every angle while rotating. Chunky chibi Brawl-Stars-style
-proportions, thick clean outlines, flat cel-shaded colors. Natural beast
-faction materials only (wood, bamboo, bone, stone, leaf, vine, rope, crystal)
-in leafy green / earthy brown / bone-white / terracotta. Grid layout, 4 rows x
-5 columns, evenly spaced, no overlapping, no text. Each COLUMN is the SAME
-turret at level 1 to 5 left to right, bigger and more ornate each level (level
-5 glowing / magical); the round turntable base also grows fancier each level.
-Each ROW is a view: row 1 front, row 2 back, row 3 left side, row 4 right side.
-Same design and colors in every view. Pure white background.
+Shortlist sheet of exactly three front orthographic MOBA tower alternatives in one
+row, numbered 1, 5, and 6. Preserve the original pearl-ivory, champagne-gold,
+natural-jade, bronze, and pale star palette. Option 1 remains a wide Sunshield
+Bastion but raises its drum 18 percent. Option 5 retains four petal armor plates
+and raises its body 20 percent. Option 6 retains three low curved ground shields
+and raises its cylinder 18 percent. These are alternatives, not upgrade levels.
+Keep every yaw deck and socket as the highest plane with a fully empty 360-degree
+weapon sweep. Clean hand-painted fantasy MOBA art, no weapon or ability effect.
 ```
 
-### 🎯 AMMO STYLE addendum (สำหรับ**ภาพ B** — กระสุน)
-```
-Isolated cute game PROJECTILE / ammo prop that matches its turret, NO
-character, NO hands. Chunky chibi style, thick clean outlines, flat cel-shaded
-colors, same natural materials as the turret. Grid layout, 2 rows x 5 columns,
-evenly spaced, no overlapping, no text. Each COLUMN is the SAME projectile at
-level 1 to 5 left to right, bigger and more magical each level. Row 1 front
-view, row 2 back view. Same design in both views. Pure white background.
-```
+**Approved progression reference:**
+`Natural/tower/nat-tw02-progression-v3.png`. The user approved this LV1–LV3
+Petal-Crown Redoubt progression on 2026-08-04. It supersedes the earlier v1/v2
+progressions, shortlist-only development, and single-shape color tests.
 
-### Template — ภาพ A (turret)
-```
-[STYLE BLOCK]
-[TURRET STYLE addendum]
-The turret is [ITEM] mounted on its small base, designed to sit on the tower
-"[NAME]". Level 1: [L1]. Level 5: [L5]. (levels in between grow gradually.)
-```
+**Produced turnaround sheets:**
 
-### Template — ภาพ B (กระสุน)
-```
-[STYLE BLOCK]
-[AMMO STYLE addendum]
-The projectile is [AMMO] fired by the "[NAME]" turret.
-Level 1: [L1 ammo]. Level 5: [L5 ammo].
-```
+- `Natural/tower/nat-tw02-lv1-turnaround-v1.png`
+- `Natural/tower/nat-tw02-lv2-turnaround-v1.png`
+- `Natural/tower/nat-tw02-lv3-turnaround-v1.png`
 
----
+Each sheet contains front, back, left-side, and right-side views at matched scale.
+Keep the top yaw deck and weapon socket empty until the gameplay ability, separate
+turret, and projectile are defined.
 
-**ตารางสรุป turret + กระสุน ต่อป้อม** (เอา [ITEM]/[AMMO] ไปแทนใน template)
+## Tower 3 — Crescentleaf Pylon (shape locked)
 
-| # | ป้อม | ประเภท | [ITEM] turret (L1 → L5) | [AMMO] กระสุน (L1 → L5) |
+**Selected source:** option **b** from
+`Natural/tower/nat-tw02-shape-exploration-af-v1.png`.  
+**Locked core shape:** a tall tapered central prism on a stable faceted footprint,
+with two broad crescent-leaf armor fins protecting the lower third. Keep a readable
+narrow waist, a clean central vertical spine, and a broad top yaw deck as the
+highest plane. The crescent fins must stay low enough to preserve a fully empty
+360-degree weapon sweep and must read as thick armor, not fragile ornaments.  
+**Current production palette:** provisional pearl ivory, champagne gold, natural
+jade-green and warm bronze from the exploration sheet. This can be recolored when
+the user defines Tower 3's final palette.  
+**Gameplay ability / separate turret / projectile:** USER TO DEFINE. The produced
+base-tower sheets intentionally leave the yaw deck empty.  
+**Generated sheets — awaiting visual approval:**
+
+- `Natural/tower/nat-tw03-progression-v1.png`
+- `Natural/tower/nat-tw03-lv1-turnaround-v1.png`
+- `Natural/tower/nat-tw03-lv2-turnaround-v1.png`
+- `Natural/tower/nat-tw03-lv3-turnaround-v1.png`
+
+**Alternative visual-direction exploration — not yet selected:**
+`Natural/tower/nat-tw03-style-comparison-ref12-v1.png`. The top row tests an
+original sun-gold tribal relic language with restrained vines, jade and low ivory
+tusk motifs. The bottom row tests an ancient stone, sculpted-root and contained
+water-channel language. Both rows show LV1–LV3 and preserve the clear top yaw deck.
+Do not replace the current Crescentleaf production set until the user selects one
+of these directions.
+
+The progression contains exactly three levels. Every turnaround contains front,
+back, left-side and right-side views with a clear top weapon socket.
+
+## Tower 4 — Twinleaf Rampart (shape locked)
+
+**Selected source:** option **f** from
+`Natural/tower/nat-tw02-shape-exploration-af-v1.png`.  
+**Locked core shape:** two large rounded leaf-shield lobes rise symmetrically from
+a wide crescent-like base and converge toward a clear central tower body. Retain
+the strong vertical star spine and a broad top yaw deck as the highest plane.
+Keep the two lobes bold, simple, and front/back compatible; they must not intrude
+into the turret's 360-degree rotation volume.  
+**Current production palette:** provisional pearl ivory, champagne gold, natural
+jade-green and warm bronze from the exploration sheet. This can be recolored when
+the user defines Tower 4's final palette.  
+**Gameplay ability / separate turret / projectile:** USER TO DEFINE. The produced
+base-tower sheets intentionally leave the yaw deck empty.  
+**Generated sheets — awaiting visual approval:**
+
+- `Natural/tower/nat-tw04-progression-v1.png`
+- `Natural/tower/nat-tw04-lv1-turnaround-v1.png`
+- `Natural/tower/nat-tw04-lv2-turnaround-v1.png`
+- `Natural/tower/nat-tw04-lv3-turnaround-v1.png`
+
+The progression contains exactly three levels. Every turnaround contains front,
+back, left-side and right-side views with a clear top weapon socket.
+
+## Tower 5 — Reserved for user direction
+
+| Slot | Palette | Core shape and materials | Gameplay ability | Status |
 |---|---|---|---|---|
-| 1 | Thorn Snare | เครื่องยิงหนาม (ballista เถาวัลย์) | thorn-vine harpoon launcher บนฐานหินมอสกลม: เถาหนามขดเล็กบนแท่นหิน → เครื่องยิงฉมวกเถาหนามใหญ่ ดอกไม้บาน+เรืองแสงเขียว | thorn harpoon dart: หนามไม้เล็ก → ฉมวกหนามใหญ่ ครีบใบไม้+ปลายเรืองแสงเขียว |
-| 2 | Hunter Hut | เครื่องยิงธนู (ballista/หน้าไม้) | wooden bone crossbow ballista บนแท่นไม้กลม+เชือก: หน้าไม้ไม้เล็ก → บัลลิสตาไม้-กระดูกคันคู่ใหญ่ เชือกตึง+เขากวางประดับ | bone-tipped bolt/arrow: ลูกธนูไม้เล็ก → ลูกดอกกระดูกใหญ่ ครีบขนนก+เรืองแสง |
-| 3 | Ancient Totem | ตัวปล่อยลำแสงวิญญาณ | spirit-eye beam emitter บนวงแหวนไม้แกะ: ตาไม้แกะดวงเล็ก → ตาวิญญาณเรืองแสงใหญ่ รัศมีรูน+ขนนกรอบ | spirit orb / rune wisp: ดวงแสงเขียวเล็ก → ลูกวิญญาณเรืองแสงใหญ่ วงแหวนรูนหมุน |
-| 4 | Bloom Turret | ปืนยิงเมล็ด (ดอกไม้) | flower-bud seed cannon บนกระถางดิน-ใบไม้: ดอกตูมปากกระบอกเล็ก → ปืนดอกไม้บานสองชั้นใหญ่ ละอองเกสรเรืองแสง | seed pod shot: เมล็ดกลมเล็ก → ฝักเมล็ดหนามใหญ่ หางละอองเกสรเรืองแสง |
-| 5 | Titan Bone Tower | ปืนใหญ่กระดูก (กะโหลกไดโน) | dino-skull bone cannon บนแท่นซี่โครง: กะโหลกอ้าปากดวงเล็ก → ปืนกะโหลกไดโนยักษ์ (ยิ้ม ไม่หลอน) มอส+รูนเรืองแสง | bone shard / fossil ball: เศษกระดูกเล็ก → ลูกฟอสซิลหินใหญ่ มอส+รูนเรืองแสง |
+| Tower 5 | USER TO DEFINE | USER TO DEFINE | USER TO DEFINE | Do not generate |
 
-> 🔄 **หมุนได้ทั้งก้อน:** ฐานติดมากับตัวปืนเป็นชิ้นเดียว (ไม่ต้อง gen แยก) — ตัวป้อมคือ base อยู่แล้ว
-> turret แค่ **วางบนยอดป้อมแล้วหมุนทั้งชิ้น** (yaw รอบแกนตั้ง) รายละเอียดทรงฐานอยู่ใน addendum ด้านบน
-
-## 6D) อุปกรณ์ขุดของ Miner (Mining Tool) — 1 ภาพ (×3 level)
-
-> Miner มี **3 level** → prop แยก 3 คอลัมน์ (จับคู่กับตัว miner ตัวตุ่นในข้อ 4). isolated prop เหมือนกัน
-
-```
-[STYLE BLOCK]
-[WEAPON STYLE addendum — แต่เปลี่ยน "3 rows x 5 columns" เป็น "3 rows x 3 columns", และ level 1 to 3]
-The prop is a cute mining tool set (a chunky pickaxe/shovel) for the mole
-miner, natural wood-and-stone materials, no character, no hands.
-Grid layout, 3 rows x 3 columns, evenly spaced, no overlapping, no text.
-Each COLUMN is the tool at level 1 to 3 left to right:
-level 1 a small simple wooden pickaxe with a stone tip;
-level 2 a sturdier pickaxe with a leaf-wrapped handle and a small lantern;
-level 3 a big ornate pickaxe with a glowing crystal tip, golden bands and
-tiny gears. Each ROW is a view: row 1 front, row 2 side, row 3 back.
-Pure white background.
-```
-
-> ถ้าอยากได้ทั้ง **จอบ + พลั่ว** แยกด้วย: gen อีกภาพ เปลี่ยน "pickaxe" เป็น "a rounded wooden shovel" (level 1 พลั่วไม้ธรรมดา → level 3 พลั่วโลหะขอบทอง+คริสตัลเรืองแสง)
+When a slot is defined, create its three-level front-view progression sheet first.
+Generate individual front/back/left-side/right-side sheets only after that progression is
+approved. Reuse Tower 1's painterly simplicity and restrained inlay density, while
+following the new tower's user-specified identity instead of copying Tower 1.
 
 ---
 
-# 🔧 Prompt สำรอง (ถ้าตารางใหญ่แล้วภาพเพี้ยน)
+# 4) MONSTERS — nineteen redesigned units
 
-ตาราง 4×5 = 20 ช่อง บางทีโมเดลวาดหลุด/ตัวไม่ตรงกัน — ให้แตกเป็นทีละ level:
+Use the character layout block only for upright humanoid anatomy. Quadrupeds, insects, slimes, and plants use a neutral symmetrical modeling pose with limbs clearly separated.
 
+| # | New name | Role and core silhouette | Individual palette | Level 1 → Level 5 progression |
+|---|---|---|---|---|
+| 01 | Thornscale Prowler | Lean adult raptor skirmisher; long counterbalance tail, bark claw bracers | clay-red scales, cream throat, dark bark, tiny jade marks | unarmored hunter → layered bark harness, longer leaf-blades, controlled jade claw edges |
+| 02 | Cinderback Tusker | Upright boar bruiser; forward shoulders, heavy tusks, bramble ridge | soot brown, burnt orange, ivory, muted olive | hide straps → reinforced root armor and amber-capped tusks |
+| 03 | Cairnmoss Sentinel | Broad stone guardian; single narrow rune eye, separated boulder limbs | granite grey, ochre lichen, pale moss, warm green core | simple cairn → fortress-like shoulder stones and contained heart-rune |
+| 04 | Suncrest Gryphon | Athletic adult gryphon vanguard; readable wings and feline legs | cream, bronze feather, russet, turquoise ribbon | light harness → ceremonial feather plate and gold-edged talons |
+| 05 | Rootbound Colossus | Massive forest titan; hill-like back, long powerful arms | basalt, bark brown, dry grass, amber crystal | bare stone-hide → ancient root armor and a single crystal ridge |
+| 06 | Seedtail Ranger | Agile squirrel beastfolk scout; long tail and compact ranger gear | chestnut, cream, rust leather, sage accent | simple hood → layered hide scout kit and seed-pod tools |
+| 07 | Mycelium Seer | Tall mushroom oracle; bell cap, narrow torso, long sleeve-like gills | wine red, bone, dusty violet, small chartreuse glow | plain pilgrim → layered fungal mantle and luminous cap runes |
+| 08 | Dawnpetal Cervid | Slender stag spirit; upright guardian anatomy, wide antler crown | tawny fur, ivory, coral flowers, teal beads | young antlers → disciplined blossom-antler regalia |
+| 09 | Rampart Shellback | Low powerful tortoise tank; fortress shell and pillar legs | sandstone, dark olive shell, terracotta, tiny jade | plain shell → battlement shell with one strong crest tower |
+| 10 | Moonveil Mothkin | Tall moth caster; broad patterned wings, narrow masked face | midnight blue, pearl, lavender, pale cyan | simple wing cloak → layered moon-eye wing patterns and chest crystal |
+| 11 | Ashstripe Ronin | Adult feline swordsman; lean torso, long striped tail, empty hands | burnt orange, charcoal, cream, burgundy cloth | travel wraps → bark-lamellar ronin armor and horned wood crest |
+| 12 | Lanterncap Mender | Mushroom healer; lantern cap and visible chest charm | ivory, honey gold, salmon, tiny green-gold core | field medic sash → luminous layered cap and organized herb harness |
+| 13 | Ironbark Warden | Treefolk shield mage; broad chest, heartwood core, plate-like bark | dark walnut, copper bark, pale sapwood, turquoise-green rune | simple bark plates → full guardian shell around bright core |
+| 14 | Runeveil Vulpin | Fox spirit buffer; sharp adult face, multiple physical tails | cream, amber, plum cloth, small jade runes | one tail and sash → five clearly separated tails and ritual rune mantle |
+| 15 | Mirejaw Bruiser | Heavy upright toad brawler; wide jaw, long forearms, no comic grin | peat brown, ochre belly, rust spots, reed green accents | bare swamp fighter → layered reed-and-hide armor |
+| 16 | Mawbloom Stalker | Walking flytrap assassin; jaw-shaped head, vine arms, root legs | burgundy, desaturated teal leaves, tan roots, acid-yellow seam | closed hunting bud → armored double jaw and hooked vine guards |
+| 17 | Amberwing Vanguard | Armored bumble warrior; oval torso, four readable wings, strong legs | amber yellow, dark umber, cream fuzz, turquoise pin | light scout bands → resin plate, wing guards, controlled amber core |
+| 18 | Hollowstump Reaver | Forest scavenger living in a stump shell; hunched asymmetrical tank | grey-brown bark, russet fur, bone fungi, moss accent | bare stump shell → reinforced roaming stump-fort with root ram |
+| 19 | Verdant Ooze Ancient | Dense forest slime; heavy translucent mass with stone core | smoky teal gel, amber stones, crimson berries, small green core | compact ooze → massive layered gel body containing a miniature root shrine |
+
+## Monster generation template
+
+```text
+[MASTER STYLE BLOCK]
+[HUMANOID CHARACTER LAYOUT BLOCK, or an anatomy-appropriate neutral layout]
+Evolution turnaround of "[NEW NAME]" at upgrade level [N].
+
+ROLE AND SILHOUETTE: [copy from table].
+PALETTE: [copy from table]. Green remains a small faction accent only.
+LEVEL DESIGN: [describe the selected beat from the progression column].
+
+The character must look mature and combat-capable, with readable anatomy and
+functional equipment. Preserve the same species, face structure, body mass,
+gear attachment points, palette, and signature silhouette across all views.
+No held weapon unless it is explicitly an attached body weapon. No aura,
+floating rocks, orbiting props, ground effects, or decorative particles.
 ```
-[STYLE BLOCK]
-Character turnaround sheet of [ชื่อ+คำอธิบายตัวเดิม] at upgrade level [N]:
-[จุดเด่นของ level นั้น]. 4 views in ONE row, evenly spaced, no overlapping,
-left to right: front view, back view, left side view, right side view.
-Exactly the same design, pose, size and colors in all 4 views.
-[T-POSE ถ้าเป็นตัวละคร]. White background, no weapons, no text.
-```
-
-แล้วบอก ChatGPT เพิ่มว่า: *"same character as the previous image, only change the upgrade level details"* เพื่อคุมให้เป็นตัวเดียวกันทุก level
 
 ---
 
-# 📝 Checklist หลังได้ภาพ
+# 5) RESOURCE STRUCTURES
 
-- [ ] ทุกมุมมอง (หน้า/หลัง/ซ้าย/ขวา) เป็นตัวเดียวกัน สี/สัดส่วนตรงกัน
-- [ ] ตัวละคร T-pose จริง (แขนกางตรง ขาแยกเล็กน้อย) — ถ้าไม่ตรง สั่ง "strict T-pose, arms perfectly horizontal"
-- [ ] ไม่มีอาวุธ/ของในมือ (จะใส่ทีหลัง)
-- [ ] พื้นหลังขาวล้วน ไม่มีเงาพื้นหนาๆ (ถ้ามีเงา สั่ง "no ground shadow")
-- [ ] level 1→5 ไล่ความอลังชัด แต่ยังเป็น "ตัวเดียวกัน" (silhouette เดิม)
-- [ ] โทนน่ารัก ไม่หลอน — ตาโต ยิ้ม ทรงมน (สำคัญ: ธีมฟักไข่)
+These assets are stored in `Natural/resource/`.
 
-> เผ่าถัดไป: `conceptArt-Human.md`, `conceptArt-Galax.md`, `conceptArt-Darkside.md` (โครง prompt เดียวกัน เปลี่ยน palette+ธีม)
+## Natural Main Well — Wellspring Heart
+
+The **Wellspring Heart** is the Natural faction's principal home-base well. It is
+the location where allied heroes spawn, heal, and restore energy. It must read as
+a major faction landmark while remaining smaller and visually calmer than the
+Evergarden Citadel.
+
+**Shared gameplay and production rules:**
+
+- Keep one clearly visible circular or softly faceted healing basin/platform at
+  the center and leave its playable surface open. The circular ground disk should
+  be approximately 1.6 times the outer width of the rear landmark frame, so the
+  broad flat gameplay surface visually dominates the asset.
+- Provide one obvious broad approach with shallow steps or a short ramp. Do not
+  block the approach with roots, pillars, flowers, water streams, or ornament.
+- Build the disk nearly flush with map terrain, using no more than two very shallow
+  front risers. It must be easy to place as a flat circular map module without a
+  thick raised podium or buried lower architecture.
+- Keep magical water contained inside the structure. Water may travel through
+  on-body channels into the basin but must not spill beyond the asset footprint.
+- Use a resolved protective rear frame and balanced side masses so the structure
+  remains attractive from both team-camera directions.
+- Favor pearl ivory or warm pale stone, restrained champagne gold or bronze,
+  natural jade accents, clear aqua-jade water, selective walnut roots, and only a
+  few small fresh leaves. Green is an accent rather than the dominant surface.
+- Build with large and medium shapes suitable for a stylized MOBA camera. Avoid
+  fragile trim, uncontrolled overgrowth, floating crystals, long bridges, giant
+  scenery pieces, excessive stairs, and throne-room scale.
+
+**Exploration sheet:**
+`Natural/resource/nat-main-well-exploration-01-06-v1.png`. The six numbered
+designs are alternatives for selection, not upgrade levels.
+
+| Option | Working name | Silhouette direction |
+|---|---|---|
+| 1 — SELECTED | Leafgate Spring | two elegant split leaf arches frame a low circular basin; minimal and refined |
+| 2 — ARCHIVED SHORTLIST | Halo-Root Well | a broad broken stone halo is supported by two thick roots behind the pool |
+| 3 | Petal Basin Sanctuary | a low wide basin is cradled by four chunky pearl petal buttresses and one modest rear crest |
+| 4 | Sunwell Terrace | a raised octagonal dais, broad front stair and one tall open leaf-flame ceremonial arch |
+| 5 | Twin-Spire Cascade | two separated inward-curving ivory spires feed contained water channels into the central basin |
+| 6 | Heartwood Crownwell | a broad low ring basin sits inside a restrained walnut root cradle with three short pearl crown slabs |
+
+**Expanded shortlist production sheets:**
+
+- `Natural/resource/nat-main-well-01-leafgate-sheet-v1.png`
+- `Natural/resource/nat-main-well-02-halo-root-sheet-v1.png`
+
+Both sheets show one large hero view plus front, back and top views. Their wide
+circular disks, open centers, rear-perimeter landmark frames and shallow terrain
+transitions establish the footprint standard. The user selected option 1,
+**Leafgate Spring**, as the Natural Main Well. Option 2 remains archived as an
+alternate direction and must not be merged into the selected design.
+
+**Selected production turnaround:**
+`Natural/resource/nat-main-well-01-leafgate-turnaround-v1.png`. It contains four
+unlabelled views in this fixed order: front, back, left side, right side. Preserve
+this geometry, wide flat disk, material balance and open center in future work.
+
+**Separate 4K texture-reference sheets:**
+
+- `Natural/resource/nat-main-well-01-leafgate-front-4k-v1.png`
+- `Natural/resource/nat-main-well-01-leafgate-back-4k-v1.png`
+- `Natural/resource/nat-main-well-01-leafgate-left-4k-v1.png`
+- `Natural/resource/nat-main-well-01-leafgate-right-4k-v1.png`
+
+Each file is an unlabelled 4096 × 4096 PNG containing exactly one view on white.
+The images were generated separately for clearer surface and material reference,
+then proportionally resampled and padded to a square canvas without distortion.
+
+**Preferred modular 3D-generation set — supersedes the combined turnaround as
+the primary modeling input:**
+
+Module A, circular ground disk:
+
+- `Natural/resource/nat-main-well-floor-top-4k-v1.png`
+- `Natural/resource/nat-main-well-floor-left-4k-v1.png`
+
+Module B, detachable rear leaf-pillar assembly:
+
+- `Natural/resource/nat-main-well-pillar-front-4k-v3.png`
+- `Natural/resource/nat-main-well-pillar-back-4k-v3.png`
+- `Natural/resource/nat-main-well-pillar-left-4k-v3.png`
+- `Natural/resource/nat-main-well-pillar-right-4k-v3.png`
+
+All six files are unlabelled 4096 × 4096 PNG sheets containing exactly one
+orthographic view on pure white. Generate the two modules as independent meshes:
+the floor sheets must contain no rear pillars, while the pillar sheets must
+contain no circular ground disk. The disk has two shallow rear mounting slots and
+a central water inlet; these align with the two downward mounting keys and the
+water outlet on the pillar assembly's low connecting plinth. Keep shared scale,
+pearl-stone, champagne-gold, jade and aqua-water materials consistent between
+both modules. Do not fuse, bridge or permanently overlap the meshes during
+component generation; assemble and place them together later in Unity. The older
+combined 4K sheets remain appearance and proportion references only. Module B v3
+is pure crafted architecture: it contains no leaves, flowers, vines, moss, grass,
+roots or other vegetation, but otherwise preserves the selected original v1
+design exactly. Keep its softly rounded flowing silhouette, rounded arch tips,
+original stone segmentation, green leaf-panel shapes, gold vein motifs, side
+basins, central water outlet, low plinth and two mounting keys. Do not sharpen,
+redesign, simplify or replace its curves. Module B v1 remains the historical
+appearance reference; the angular v2 experiment is superseded and must not be
+used as production input.
+
+**Optional rear-layer arch-rib exploration — option A selected:**
+`Natural/resource/nat-main-well-rear-arch-ribs-options-a-d-v1.png`.
+Options A–D each contain exactly one large mirrored pair of detached curved bars
+for placement behind Module B. They are silhouette-support modules only: no
+center connector, shrine, plinth, floor, basin, vegetation or scenery. Each bar
+uses a short flat mounting foot, sharp faceted endpoints, pearl-ivory stone,
+champagne-gold trim and restrained jade insets. **Option A is selected**; options
+B–D are archived explorations and must not be mixed into the production shape.
+
+**Selected rear-layer crescent-rib production sheets:**
+
+- `Natural/resource/nat-main-well-rear-arch-a-front-4k-v1.png`
+- `Natural/resource/nat-main-well-rear-arch-a-back-4k-v1.png`
+- `Natural/resource/nat-main-well-rear-arch-a-left-4k-v1.png`
+- `Natural/resource/nat-main-well-rear-arch-a-right-4k-v1.png`
+
+These four unlabelled 4096 × 4096 PNG sheets define one optional rear module made
+from exactly two detached mirrored crescent ribs. Preserve the broad curve, long
+inward-pointing tips, lower angular shoulder breaks, wide empty center and two
+separate short mounting feet. The pair has no center connector. Both ribs occupy
+the same depth plane, so their profiles intentionally overlap in strict left and
+right orthographic views; do not interpret the side sheet as a third center rib.
+Place this module behind, and never fused into, the v3 pillar assembly in Unity.
+
+## Modular fences
+
+| Code | New name | Design | Palette |
+|---|---|---|---|
+| F01 | Wovenwood Boundary | straight polished hardwood fins fitted into a pale-stone rail with matching finished faces | honey oak, ivory stone, muted gold, tiny sage inlay |
+| F02 | Bloomstone Screen | low pearl-stone wall with a restrained carved petal rhythm and one thin living branch | warm ivory, coral inset, walnut, sage accent |
+| F03 | Ivorycrest Rampart | broad warm-grey wall with repeating fossil-ivory arches and bronze cap rails | warm grey, fossil ivory, bronze-gold, amber joints |
+
+```text
+[MASTER STYLE BLOCK]
+[NATURAL ARCHITECTURE BLOCK]
+[STRUCTURES AND PROPS LAYOUT BLOCK]
+Turnaround sheet of ONE straight modular fence segment called "[NAME]".
+It must tile end-to-end, use flat matching end caps, maintain consistent height,
+and contain no corner piece, gate, character, or scenery. The front and back use
+the same premium finished pattern; the back may reveal smaller mounting seams
+but must never look unfinished. Design: [DESIGN].
+```
+
+## Resource worker — Flintnose Delver
+
+An adult mole beastfolk miner with long readable arms, powerful digging hands, a wedge-shaped snout, practical leather-and-canvas workwear, and a removable helmet. Palette: espresso fur, tan canvas, terracotta leather, brass lamp, one tiny green guild badge. Generate levels 1–3 as separate A-pose sheets. Pickaxe is a separate prop.
+
+## Resource station — Amberwell Exchange
+
+A refined two-sided resource pavilion with matching pale-stone receiving arches, a polished walnut ore-weighing frame, covered storage drawers, and restrained bronze-gold trim. Both front and rear are complete player-facing façades: the front has an open amber receiving basin, while the rear has a closed turquoise inventory seal. Palette: pale sandstone, honey walnut, ivory, amber, tiny turquoise-sage accents. Levels 1–3 progress from a compact balanced pavilion to a multi-bay exchange without becoming a crude mine shack.
+
+### Miner Base — Option 1 selected
+
+The six-design selection sheet is saved as
+`Natural/resource/nat-miner-base-exploration-01-06-v1.png`. Option 1,
+**Crescent Receiving Pavilion**, is the approved production direction. Options
+2–6 are archived alternatives and must not be mixed into the selected building.
+
+| Option | Working name | Primary read |
+|---|---|---|
+| 1 | Crescent Receiving Pavilion | a wide low ore basin flanked by two short pearl-stone shoulders and walnut storage drawers |
+| 2 | Twin-Hopper Exchange | two angled receiving hoppers feed a centered amber processing chamber above paired drawers |
+| 3 | Amberlift Depot | a tall compact hoist tower with an enclosed vertical lift track, amber counterweight and broad receiving tray |
+| 4 | Sorting Rotunda | a low circular depot with a large open bay, radial sorting dial and three heavy storage sectors |
+| 5 | Archbeam Refinery | two pearl arches support a horizontal walnut sorting beam above a wide open ore tray |
+| 6 | Stepped Vault Store | a low fortified stepped vault with one central receiving hatch, paired side drawers and amber inventory window |
+
+All options share pearl-white carved stone, honey-walnut functional inserts,
+restrained champagne gold/brass, amber resource indicators and small jade-to-
+yellow-green faction accents. Pearl surfaces may carry very faint botanical
+engraving, but the building must remain practical, sturdy and easy to read in
+top-down MOBA gameplay. Avoid a crude mine shack, loose ore clutter, characters,
+vegetation, dense filigree and sci-fi machinery.
+
+#### Crescent Receiving Pavilion — 3D production references
+
+| View | File |
+|---|---|
+| Front | `Natural/resource/nat-miner-base-01-front-4k-v1.png` |
+| Back | `Natural/resource/nat-miner-base-01-back-4k-v1.png` |
+| Left | `Natural/resource/nat-miner-base-01-left-4k-v1.png` |
+| Right | `Natural/resource/nat-miner-base-01-right-4k-v1.png` |
+
+The selected Miner Base is a wide low near-radial depot with one circular open
+receiving basin, two short pearl-stone shoulder blocks and paired walnut storage
+drawers. The front uses one amber inventory indicator; the rear replaces it with
+a flatter closed walnut service hatch and jade leaf seal so opposing camera views
+remain balanced but distinguishable. The basin is part of the building, but its
+contents are not: keep the walnut-lined basin completely empty in the base mesh.
+Ore chunks, crystals, liquid fill, resource counters and glow are separate props
+or effects. The Right reference is an exact mirror of the Left reference to avoid
+AI-driven depth drift. All four production sheets are unlabelled 4096-by-4096
+images on pure white.
+
+## Main base — Evergarden Citadel
+
+**Approved production direction: Option 1 — Crownheart Nexus.** The Natural
+faction's match-ending objective is a low radial pearl-stone sanctuary assembled
+from separate modular pieces. The empty center socket receives a separately made
+crystal/core later. Two small curved arches and two large curved arches rise from
+four recessed slots around the socket; only one left-side master of each size is
+modeled, then cloned and mirrored on X in Unity. The construction is clean,
+elegant and readable from every gameplay direction rather than overgrown or
+ruin-like.
+
+Palette and surface language are locked: warm mother-of-pearl stone is the broad
+dominant mass, restrained brushed gold defines structural edges, and deep jade
+insets transition through emerald to controlled yellow-green highlights. Jade
+panels use one sparse flowing stem with three to five broad low-relief leaves.
+Pearl surfaces use extremely faint shallow botanical arcs at roughly 5–10 percent
+contrast, visible in close texture reference but quiet at gameplay scale. Avoid
+dense curls, tiny filigree, random seams, literal plants, moss, roots, loose
+foliage, external glow and floating effects.
+
+**Main-base exploration sheet — Option 1 selected:**
+`Natural/base/nat-base-main-exploration-01-06-v1.png`. These are archived
+alternative silhouette directions for the match-ending Natural core, not upgrade
+levels.
+
+| Option | Working name | Silhouette and gameplay read |
+|---|---|---|
+| 1 | Crownheart Nexus | four broad open crown arches expose a suspended amber heart over a compact circular defense ring |
+| 2 | Seedvault Bastion | one huge upright amber seed is nested inside six thick low petal-shield plates on an octagonal base |
+| 3 | Triple-Halo Sanctuary | three large offset stone halo rings surround a central amber core column and four radial buttresses |
+| 4 | Sunbloom Citadel | a low eight-petal fortress creates the strongest top-down flower silhouette around a raised amber nucleus |
+| 5 | Twin-Wing Reliquary | two monumental opposing ivory wing walls cradle an exposed floating core above a restrained jade socket |
+| 6 | Worldheart Spire | a short powerful core spire is protected by concentric broken crown fins and four low ground shields |
+
+Options 2–6 are archived. Do not mix their silhouettes into Crownheart Nexus.
+
+### Crownheart Nexus — modular 3D reference package
+
+| Module | Production views | Files and assembly rules |
+|---|---|---|
+| A — circular platform | Top, Side | `nat-base-main-01-platform-top-4k-v1.png`, `nat-base-main-01-platform-side-4k-v1.png`. Keep the center crystal socket empty and preserve exactly four recessed arch slots. |
+| B — small curved arch master | Front, Back, Left, Right | `nat-base-main-01-small-arch-front-4k-v1.png`, `nat-base-main-01-small-arch-back-4k-v1.png`, `nat-base-main-01-small-arch-left-4k-v1.png`, `nat-base-main-01-small-arch-right-4k-v1.png`. Model only the left-side master, clone once, mirror X, and insert both mounting keys into the small-slot pair. |
+| C — large curved arch master | Front, Back, Left, Right | `nat-base-main-01-large-arch-front-4k-v1.png`, `nat-base-main-01-large-arch-back-4k-v1.png`, `nat-base-main-01-large-arch-left-4k-v1.png`, `nat-base-main-01-large-arch-right-4k-v1.png`. Model only the left-side master, clone once, mirror X, and insert both mounting keys into the large-slot pair. |
+| D — crystal/core | separate future asset | Not generated yet. Do not fuse a crystal, glow mesh or energy effect into Modules A–C. |
+
+The large arch is approximately 1.28 times the small arch's height and 1.18 times
+its width. Left and Right profile sheets represent the same thickness reference;
+the Right sheet is an exact mirror to prevent AI-driven thickness drift. Treat
+gold frames, jade insets and pearl shells as readable layered materials, but keep
+each arch a single rigid modular mesh unless the modeling pipeline needs separate
+material submeshes. All ten production references are independent unlabelled
+4096-by-4096 sheets on pure white.
+
+---
+
+# 6) SEPARATE EQUIPMENT AND WEAPONS
+
+All held weapons, shields, tools, and large garments are separate props. Attached claws, shells, tails, wings, and body-grown armor stay on the character.
+
+## Prop sheet block
+
+```text
+[MASTER STYLE BLOCK]
+Production prop turnaround of ONE separate [ITEM] at upgrade level [N]. Show
+exactly 3 orthographic views in one row: left side, right side, top. Same item
+and scale in all views. No character, no hands, no effects, no text. Use a bold
+MOBA silhouette, believable grip or attachment point, broad manufacturable
+forms, and restrained hand-painted material detail.
+```
+
+## Monster equipment mapping
+
+| Unit | Separate weapon or focus | Separate shield |
+|---|---|---|
+| Thornscale Prowler | none; bark claws attached | layered leaf buckler |
+| Cinderback Tusker | root-spine maul | bark-and-amber round shield |
+| Cairnmoss Sentinel | none; stone fists attached | cairn slab shield |
+| Suncrest Gryphon | none; talons attached | feather kite shield |
+| Rootbound Colossus | fossil-root great maul | monolith shield |
+| Seedtail Ranger | seedhead spear | acorn-scale buckler |
+| Mycelium Seer | spore lantern staff | cap-disc ward |
+| Dawnpetal Cervid | blossom branch focus | woven antler shield |
+| Rampart Shellback | basalt hammer | no shield; shell attached |
+| Moonveil Mothkin | moon crystal focus | luminous wing shield |
+| Ashstripe Ronin | leaf-forged katana | no shield |
+| Lanterncap Mender | saplight healing staff | no held shield |
+| Ironbark Warden | heartwood guardian staff | no held shield; bark armor attached |
+| Runeveil Vulpin | spirit prism wand | no shield |
+| Mirejaw Bruiser | reedstone cudgel | mudstone buckler |
+| Mawbloom Stalker | none; jaw and vines attached | none |
+| Amberwing Vanguard | resin lance | amber shell shield |
+| Hollowstump Reaver | root ram attached to shell | none |
+| Verdant Ooze Ancient | none; body attacks | none |
+
+## Tower turret families
+
+Each tower weapon includes its own round yaw base and is stored in `Natural/tower/`.
+
+| Tower | Separate turret | Projectile |
+|---|---|---|
+| Verdant Halo Bastion | Halo Thorncaster: elegant walnut torsion launcher on a pale-stone and bronze yaw ring | amber-tipped thorn dart with leaf fins |
+| Petal-Crown Redoubt (Tower 2) | USER TO DEFINE | USER TO DEFINE |
+| Crescentleaf Pylon (Tower 3) | USER TO DEFINE | USER TO DEFINE |
+| Twinleaf Rampart (Tower 4) | USER TO DEFINE | USER TO DEFINE |
+| Tower 5 | USER TO DEFINE | USER TO DEFINE |
+
+## Mining tool
+
+The Flintnose Delver uses a separate **Stonebite Pick**. Level 1 is a broad stone head on a hardwood shaft; level 2 gains bronze edge clamps and a leather shock wrap; level 3 gains a single turquoise crystal cutting tooth. Generate one level per 3-view prop sheet.
+
+---
+
+# 7) TOWER 1 — APPROVED THREE-LEVEL CONCEPT
+
+**Status: APPROVED.** The canonical progression reference is saved as
+`Natural/tower/nat-tw-progression-v3.png`. Use this image and the prompt below as
+the locked visual target when generating Tower 1's individual front/back/left/right
+turnaround sheets. Approved versioned outputs:
+`nat-tw-lv1-v3.png`, `nat-tw-lv2-v3.png`, and `nat-tw-lv3-v3.png`.
+
+```text
+[MASTER STYLE BLOCK]
+[NATURAL ARCHITECTURE BLOCK]
+
+Three-level visual progression sheet for the SAME Natural faction tower family,
+"Verdant Halo Bastion." Show exactly THREE separate FRONT orthographic views in
+ONE horizontal row, ordered left to right: LEVEL 1, LEVEL 2, LEVEL 3. No text,
+numbers, labels, arrows, divider lines, or captions inside the image.
+
+SHARED IDENTITY: an elegant compact MOBA defense tower made from large smooth
+mother-of-pearl ivory stone planes, one polished walnut vertical spine, broad but
+restrained satin-gold framing, deep jade-green inset color fields, one amber
+teardrop crest, and a centered top turret socket.
+Keep the same construction family, leaf-inspired curvature, material ratios, and
+front identity across all three stages. The progression must be obvious without
+becoming a palace or world monument.
+
+PAINTERLY SIMPLICITY: match the readability of a hand-painted fantasy MOBA prop.
+Use broad painted gradients, gently faceted shading, sparse seams, and a maximum
+of three large decorative motifs per tower. Reduce the amount of stone blocks,
+gold edge strips, tiny bevels, panel cuts, and repeated grooves by at least half.
+Do not copy any reference architecture or emblem. No lion head. The design remains
+an original Natural-faction leaf-and-halo tower.
+
+BOTANICAL ART-DECO INLAY: use a very small amount of original symmetrical leaf,
+shallow arch, and fan-ray linework as thin muted-gold painted inlay confined to
+selected jade panels. Pattern coverage stays around 8–12 percent of each green
+surface; most jade areas remain plain. Level 1 has one tiny two-leaf sprout, level
+2 adds one shallow paired arch, and level 3 adds one compact five-ray fan only on
+the lower central base panel. Never turn the façade into a dense grid, wallpaper,
+stained glass, metal cage, or full-surface Art Deco poster.
+
+LEVEL 1 — BASIC: the smallest and simplest form. One low octagonal pearl-stone
+base built as a single broad mass, one clean central shaft with a large jade inset,
+one thin gold halo around the turret socket, one small amber crest, and almost no
+surface seams. NO satellite pillars, NO crown fins, NO extra ring, NO external
+glow. Roughly 45 percent of the visual complexity of level 3.
+
+LEVEL 2 — DEVELOPED: roughly 15 percent taller and wider than level 1. Add one
+clean two-step foundation, one modest projecting pearl-stone shoulder collar,
+exactly TWO short lateral support pillars reaching only one-fifth of tower height,
+a slightly thicker single gold halo, a medium amber crest, and two broad jade
+insets rather than many thin channels.
+No tall side spires, no connecting arches, and no second halo.
+
+LEVEL 3 — FINAL: roughly 20 percent taller and wider than level 2. Add exactly
+FOUR short grounded satellite pillars reaching only one-quarter of main height,
+connected by LOW simple pearl-stone rails. Use TWO clean nested gold halo profiles,
+one larger contained amber core, broad jade inset planes, and a wider but visually
+simple three-step base. This is the strongest version but remains a compact
+battlefield tower:
+NO tall satellites, NO sweeping arches, NO triple crown, NO giant portal, NO wings,
+NO palace-scale foundation, NO external aura or particles.
+
+COMPOSITION: align all three towers to the same ground baseline. Keep generous
+pure-white gaps so their silhouettes never touch. Level 1 must be visibly smallest,
+level 2 medium, level 3 largest. Each complete tower occupies no more than 26–28
+percent of total canvas width. Pure white background, full objects visible,
+orthographic front camera, clean hand-painted fantasy MOBA rendering with broad
+brushwork, simplified material shapes, soft painted shading, and no PBR realism.
+```
+
+---
+
+# 8) QA CHECKLIST
+
+- [ ] Clearly stylized fantasy MOBA; no chibi, mascot, baby, or photoreal PBR language.
+- [ ] Strong silhouette remains readable from a top-down game camera.
+- [ ] Same identity, dimensions, palette, and attachments across every view.
+- [ ] Structure sheets use front/back/left-side/right-side order and views do not overlap.
+- [ ] Green is a small linking accent, not the dominant color by default.
+- [ ] Character hands and joints are readable; A-pose uses 35–45 degree arms.
+- [ ] Long robes, skirts, large shields, and held weapons are separated for rigging.
+- [ ] Structures have stable bases, believable thickness, and clear modular sockets.
+- [ ] Front and back façades retain near-equal silhouette, finish, and visual weight.
+- [ ] Front is distinguished by one primary crest/core; back by one smaller secondary seal.
+- [ ] Natural buildings feel refined and cultivated, not crude, primitive, or overgrown.
+- [ ] No text, labels, watermark, scenery, dramatic perspective, or cropped silhouette.
+- [ ] Output filename and destination follow the new folder standard.

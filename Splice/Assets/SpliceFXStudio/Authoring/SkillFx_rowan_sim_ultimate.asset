@@ -18,7 +18,7 @@ MonoBehaviour:
   stages:
   - stage: 0
     customMarker: 
-    sequence: {fileID: 0}
+    sequence: {fileID: 11400000, guid: 70c52b72966fd4e828e82d4ca4ec55da, type: 2}
     exportedPrefab: {fileID: 0}
     delaySeconds: 0
     placement: 1

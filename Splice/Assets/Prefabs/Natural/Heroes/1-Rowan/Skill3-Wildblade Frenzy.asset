@@ -35,9 +35,10 @@ MonoBehaviour:
   castEffectLifetime: 2
   effectPlacement: 0
   effectLocalOffset: {x: 0, y: 0, z: 0}
+  fxStudioPackage: {fileID: 0}
   castVfx:
     enabled: 1
-    prefab: {fileID: 6068200498504005540, guid: 36077fd1cfae44fd9a9005cf1874be2a, type: 3}
+    prefab: {fileID: 3280519133390621005, guid: a71be3e7990efb040a07565c43cbb198, type: 3}
     delaySeconds: 0
     lifetimeSeconds: 5
     placement: 0
@@ -67,7 +68,7 @@ MonoBehaviour:
     travelDurationSeconds: 1
   impactVfx:
     enabled: 1
-    prefab: {fileID: 2647773867139500038, guid: acd0827170d584eaaaa7154015bc3693, type: 3}
+    prefab: {fileID: 2708598583397607911, guid: 6398d43fe79ea0140913dc5530c646af, type: 3}
     delaySeconds: 0
     lifetimeSeconds: 0.5
     placement: 3

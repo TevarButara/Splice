@@ -9,10 +9,10 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6873274148209006960}
-  - component: {fileID: 6623134357018522065}
-  - component: {fileID: 1191688620351177701}
-  - component: {fileID: 668139004124021922}
-  - component: {fileID: 4351120080618509226}
+  - component: {fileID: 5216678055206807898}
+  - component: {fileID: 3192262337705865177}
+  - component: {fileID: 3332468541904880991}
+  - component: {fileID: 6080447306703279598}
   m_Layer: 0
   m_Name: SubFX_rowan_ultimate_v2_ring
   m_TagString: Untagged
@@ -36,7 +36,7 @@ Transform:
   - {fileID: 7991836503575950502}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &6623134357018522065
+--- !u!114 &5216678055206807898
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -49,7 +49,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Splice.FxStudio.Runtime::Splice.FxStudio.SpliceFxPropertyDriver
   definition: {fileID: 11400000, guid: f71d9d34c5e744c16a5802d23529b261, type: 2}
---- !u!114 &1191688620351177701
+--- !u!114 &3192262337705865177
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -64,7 +64,8 @@ MonoBehaviour:
   definition: {fileID: 11400000, guid: f71d9d34c5e744c16a5802d23529b261, type: 2}
   useInlineMotions: 0
   inlineMotions: []
---- !u!114 &668139004124021922
+  inlineTextureScaleOffset: {x: 1, y: 1, z: 0, w: 0}
+--- !u!114 &3332468541904880991
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -115,7 +116,7 @@ MonoBehaviour:
   instances:
   - {fileID: 7991836503575950502}
   layoutEnabled: 01
---- !u!114 &4351120080618509226
+--- !u!114 &6080447306703279598
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -129,7 +130,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Splice.FxStudio.Runtime::Splice.FxStudio.SpliceFxGeneratedMetadata
   sourceId: rowan_ultimate_v2_ring
   schemaVersion: 1
-  generatedUtc: 2026-07-30T05:01:57.3456450Z
+  generatedUtc: 2026-07-30T07:52:41.8266770Z
 --- !u!1001 &7991836503575950501
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -138,6 +139,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 6873274148209006960}
     m_Modifications:
+    - target: {fileID: 3569791681693445589, guid: d1999ab8a34d14ebf840b424a3265032, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.9
+      objectReference: {fileID: 0}
     - target: {fileID: 3569791681693445589, guid: d1999ab8a34d14ebf840b424a3265032, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -178,6 +183,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6794672600888340848, guid: d1999ab8a34d14ebf840b424a3265032, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 532e242b3137b4303877cacb8cace88f, type: 2}
     - target: {fileID: 7314896293676144001, guid: d1999ab8a34d14ebf840b424a3265032, type: 3}
       propertyPath: m_Name
       value: Instance_01

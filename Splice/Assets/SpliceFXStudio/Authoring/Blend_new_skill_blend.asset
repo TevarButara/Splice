@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 16b98db31f3f647309659e978c31e7ab, type: 3}
   m_Name: Blend_new_skill_blend
   m_EditorClassIdentifier: Splice.FxStudio.Runtime::Splice.FxStudio.SpliceFxBlendSequence
-  sequenceId: new_skill_blend
-  displayName: New Skill Blend
+  sequenceId: rowan_ulti_cast
+  displayName: Rowan_ulti_cast
   schemaVersion: 1
   tailSeconds: 0.1
   clips:

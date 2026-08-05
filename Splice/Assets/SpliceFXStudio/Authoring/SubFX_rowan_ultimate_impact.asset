@@ -1,0 +1,228 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 548f306170a4341559f1eaa167ccb0cd, type: 3}
+  m_Name: SubFX_rowan_ultimate_impact
+  m_EditorClassIdentifier: Splice.FxStudio.Runtime::Splice.FxStudio.SpliceFxSubEffectDefinition
+  subFxId: rowan_ultimate_impact
+  displayName: rowan_ultimate_impact
+  schemaVersion: 2
+  preset: {fileID: 11400000, guid: 1dfb804a46e764e29a079808de7b654f, type: 2}
+  templateOverride: {fileID: 0}
+  elementStyle: 3
+  motionModifiers: 0
+  motions:
+  - label: Expand
+    enabled: 1
+    type: 2
+    speed: 1
+    amount: 0.5
+    delaySeconds: 0
+    durationSeconds: 0.1
+    phase: 0
+    loop: 0
+    axis: {x: 0, y: 1, z: 0}
+    uvSpeed: {x: 0.2, y: 0}
+    curve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - label: Flicker
+    enabled: 1
+    type: 6
+    speed: 8
+    amount: 1
+    delaySeconds: 0
+    durationSeconds: 0.2
+    phase: 0
+    loop: 1
+    axis: {x: 0, y: 1, z: 0}
+    uvSpeed: {x: 0.2, y: 0}
+    curve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  - label: FadeOut
+    enabled: 1
+    type: 7
+    speed: 1
+    amount: 1
+    delaySeconds: 0
+    durationSeconds: 0.3
+    phase: 0
+    loop: 0
+    axis: {x: 0, y: 1, z: 0}
+    uvSpeed: {x: 0.2, y: 0}
+    curve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
+  instanceLayout:
+    mode: 0
+    highCount: 1
+    mediumCount: 1
+    lowCount: 1
+    centerOffset: {x: 0, y: 0.29, z: 0}
+    baseEulerAngles: {x: 0, y: 0, z: 0}
+    baseScale: {x: 1, y: 1, z: 1}
+    planeAxis: {x: 0, y: 1, z: 0}
+    startDirection: {x: 0, y: 0, z: 1}
+    facing: 0
+    radius: 1
+    innerRadius: 0.5
+    arcDegrees: 360
+    startAngleDegrees: 0
+    lineDirection: {x: 1, y: 0, z: 0}
+    spacing: 1
+    gridColumns: 3
+    gridSpacing: {x: 1, y: 1}
+    eulerStep: {x: 0, y: 0, z: 0}
+    uniformScaleStep: 0
+    angleJitter: 0
+    radiusJitter: 0
+    rotationJitter: 0
+    scaleJitter: 0
+    randomSeed: 1337
+    motionScope: 0
+    selfSpinAxis: {x: 0, y: 1, z: 0}
+    selfSpinDegreesPerSecond: 0
+    alternateSelfSpin: 0
+    activationDelayStep: 0
+    activeDuration: 0
+    reverseActivationOrder: 0
+    manualInstances: []
+  sourceSprite: {fileID: 0}
+  sourceTexture: {fileID: 2800000, guid: a456d2393757548eeb73ea81e6cfa331, type: 3}
+  processedTexture: {fileID: 0}
+  alpha:
+    mode: 0
+    chromaKey: {r: 0, g: 0, b: 0, a: 1}
+    tolerance: 0.08
+    softness: 0.18
+    despill: 0.75
+    threshold: 0
+    feather: 0.1
+    invert: 0
+    multiplySourceAlpha: 1
+    maximumSize: 1024
+  mainColor: {r: 1, g: 1, b: 1, a: 1}
+  gradientMode: 4
+  mainGradient:
+    serializedVersion: 2
+    key0: {r: 0.8867924, g: 0.28174254, b: 0, a: 1}
+    key1: {r: 0.5, g: 0.011792451, b: 0.021353362, a: 1}
+    key2: {r: 0, g: 0, b: 0, a: 0}
+    key3: {r: 0.972549, g: 0, b: 0.009154376, a: 0}
+    key4: {r: 0.972549, g: 0, b: 0.009154376, a: 0}
+    key5: {r: 1, g: 1, b: 1, a: 0}
+    key6: {r: 1, g: 1, b: 1, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 17926
+    ctime2: 44333
+    ctime3: 65535
+    ctime4: 65535
+    ctime5: 65535
+    ctime6: 65535
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: 0
+    m_NumColorKeys: 3
+    m_NumAlphaKeys: 2
+  reverseGradient: 0
+  emission: 1.26
+  lifetime: 1
+  spawnRate: 3
+  speed: 1
+  size: 1
+  radius: 1
+  rotationSpeed: 30
+  noiseStrength: 0
+  quality: -1
+  strokeMode: 0
+  strokeColor: {r: 1, g: 0.81288695, b: 0.033018887, a: 1}
+  strokeWidth: 3.42
+  strokeDashFrequency: 8
+  outerGlowEnabled: 1
+  outerGlowColor: {r: 0.8396226, g: 0.3125271, b: 0, a: 0.8}
+  outerGlowIntensity: 0.58
+  outerGlowRadius: 15.9
+  outerGlowSoftness: 1.413
+  visualLayers: []
+  customValues: []

@@ -9,10 +9,10 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2969571061599708626}
-  - component: {fileID: 2028149274611146296}
-  - component: {fileID: 1283386435237049975}
-  - component: {fileID: 8264655684955516158}
-  - component: {fileID: 6414451381166835858}
+  - component: {fileID: 5230435264020166661}
+  - component: {fileID: 9051146556551588838}
+  - component: {fileID: 7514242312718493583}
+  - component: {fileID: 2433530880451768948}
   m_Layer: 0
   m_Name: SubFX_rowan_ultimate_v2_ring
   m_TagString: Untagged
@@ -36,7 +36,7 @@ Transform:
   - {fileID: 4031378234351281677}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2028149274611146296
+--- !u!114 &5230435264020166661
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -49,7 +49,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Splice.FxStudio.Runtime::Splice.FxStudio.SpliceFxPropertyDriver
   definition: {fileID: 11400000, guid: f71d9d34c5e744c16a5802d23529b261, type: 2}
---- !u!114 &1283386435237049975
+--- !u!114 &9051146556551588838
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -62,7 +62,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Splice.FxStudio.Runtime::Splice.FxStudio.SpliceFxMotionPlayer
   definition: {fileID: 11400000, guid: f71d9d34c5e744c16a5802d23529b261, type: 2}
---- !u!114 &8264655684955516158
+  useInlineMotions: 0
+  inlineMotions: []
+  inlineTextureScaleOffset: {x: 1, y: 1, z: 0, w: 0}
+--- !u!114 &7514242312718493583
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -71,14 +74,49 @@ MonoBehaviour:
   m_GameObject: {fileID: 4147846345678172819}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bbc6f31dab3b549e3a779d8b99c309b3, type: 3}
+  m_Script: {fileID: 0}
   m_Name: 
   m_EditorClassIdentifier: Splice.FxStudio.Runtime::Splice.FxStudio.SpliceFxInstanceGroup
   definition: {fileID: 11400000, guid: f71d9d34c5e744c16a5802d23529b261, type: 2}
+  useInlineLayout: 0
+  inlineLayout:
+    mode: 0
+    highCount: 1
+    mediumCount: 1
+    lowCount: 1
+    centerOffset: {x: 0, y: 0, z: 0}
+    baseEulerAngles: {x: 0, y: 0, z: 0}
+    baseScale: {x: 1, y: 1, z: 1}
+    planeAxis: {x: 0, y: 1, z: 0}
+    startDirection: {x: 0, y: 0, z: 1}
+    facing: 0
+    radius: 1
+    innerRadius: 0.5
+    arcDegrees: 360
+    startAngleDegrees: 0
+    lineDirection: {x: 1, y: 0, z: 0}
+    spacing: 1
+    gridColumns: 3
+    gridSpacing: {x: 1, y: 1}
+    eulerStep: {x: 0, y: 0, z: 0}
+    uniformScaleStep: 0
+    angleJitter: 0
+    radiusJitter: 0
+    rotationJitter: 0
+    scaleJitter: 0
+    randomSeed: 1337
+    motionScope: 0
+    selfSpinAxis: {x: 0, y: 1, z: 0}
+    selfSpinDegreesPerSecond: 0
+    alternateSelfSpin: 0
+    activationDelayStep: 0
+    activeDuration: 0
+    reverseActivationOrder: 0
+    manualInstances: []
   instances:
   - {fileID: 4031378234351281677}
   layoutEnabled: 01
---- !u!114 &6414451381166835858
+--- !u!114 &2433530880451768948
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -92,7 +130,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Splice.FxStudio.Runtime::Splice.FxStudio.SpliceFxGeneratedMetadata
   sourceId: rowan_ultimate_v2_ring
   schemaVersion: 1
-  generatedUtc: 2026-07-30T04:04:02.0727730Z
+  generatedUtc: 2026-07-30T12:09:26.3952400Z
 --- !u!1001 &466166249450408920
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -101,6 +139,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2969571061599708626}
     m_Modifications:
+    - target: {fileID: 3569791681693445589, guid: d1999ab8a34d14ebf840b424a3265032, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.9
+      objectReference: {fileID: 0}
     - target: {fileID: 3569791681693445589, guid: d1999ab8a34d14ebf840b424a3265032, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -141,6 +183,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6794672600888340848, guid: d1999ab8a34d14ebf840b424a3265032, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 532e242b3137b4303877cacb8cace88f, type: 2}
     - target: {fileID: 7314896293676144001, guid: d1999ab8a34d14ebf840b424a3265032, type: 3}
       propertyPath: m_Name
       value: Instance_01

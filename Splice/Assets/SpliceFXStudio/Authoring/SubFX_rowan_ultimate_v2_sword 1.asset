@@ -90,41 +90,6 @@ MonoBehaviour:
       m_PreInfinity: 2
       m_PostInfinity: 2
       m_RotationOrder: 4
-  - label: UvScroll
-    enabled: 1
-    type: 9
-    speed: 1
-    amount: 1
-    delaySeconds: 0
-    durationSeconds: 1
-    phase: 0
-    loop: 1
-    axis: {x: 0, y: 1, z: 0}
-    uvSpeed: {x: 0.25, y: 0}
-    curve:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 0
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 1
-        value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 4
   instanceLayout:
     mode: 1
     highCount: 5
@@ -159,6 +124,7 @@ MonoBehaviour:
     activeDuration: 0
     reverseActivationOrder: 0
     manualInstances: []
+  sourceSprite: {fileID: 0}
   sourceTexture: {fileID: 2800000, guid: 77e6d4f5f5721495894c6afaebe50ecf, type: 3}
   processedTexture: {fileID: 0}
   alpha:
@@ -173,6 +139,38 @@ MonoBehaviour:
     multiplySourceAlpha: 1
     maximumSize: 1024
   mainColor: {r: 1, g: 0.69512373, b: 0.3537736, a: 1}
+  gradientMode: 0
+  mainGradient:
+    serializedVersion: 2
+    key0: {r: 1, g: 1, b: 1, a: 1}
+    key1: {r: 1, g: 1, b: 1, a: 1}
+    key2: {r: 0, g: 0, b: 0, a: 0}
+    key3: {r: 0, g: 0, b: 0, a: 0}
+    key4: {r: 0, g: 0, b: 0, a: 0}
+    key5: {r: 0, g: 0, b: 0, a: 0}
+    key6: {r: 0, g: 0, b: 0, a: 0}
+    key7: {r: 0, g: 0, b: 0, a: 0}
+    ctime0: 0
+    ctime1: 65535
+    ctime2: 0
+    ctime3: 0
+    ctime4: 0
+    ctime5: 0
+    ctime6: 0
+    ctime7: 0
+    atime0: 0
+    atime1: 65535
+    atime2: 0
+    atime3: 0
+    atime4: 0
+    atime5: 0
+    atime6: 0
+    atime7: 0
+    m_Mode: 0
+    m_ColorSpace: -1
+    m_NumColorKeys: 2
+    m_NumAlphaKeys: 2
+  reverseGradient: 0
   emission: 1.32
   lifetime: 1
   spawnRate: 32
@@ -182,4 +180,107 @@ MonoBehaviour:
   rotationSpeed: 3
   noiseStrength: 0
   quality: -1
+  strokeMode: 0
+  strokeColor: {r: 1, g: 0.35, b: 0.05, a: 1}
+  strokeWidth: 2
+  strokeDashFrequency: 8
+  outerGlowEnabled: 0
+  outerGlowColor: {r: 1, g: 0.7882458, b: 0.23113209, a: 0.8}
+  outerGlowIntensity: 0.34
+  outerGlowRadius: 2.6
+  outerGlowSoftness: 1.024
+  visualLayers:
+  - label: Trail
+    enabled: 1
+    type: 0
+    sprite: {fileID: 21300000, guid: 90f29940d357c0b48b93eaa34f332b13, type: 3}
+    texture: {fileID: 2800000, guid: d093f0a980913fc4fa9d87cb015033a9, type: 3}
+    color:
+      serializedVersion: 2
+      key0: {r: 0.7830189, g: 0.016707642, b: 0, a: 1}
+      key1: {r: 0.9716981, g: 0.7942046, b: 0, a: 1}
+      key2: {r: 0, g: 0, b: 0, a: 0}
+      key3: {r: 0, g: 0, b: 0, a: 0}
+      key4: {r: 0, g: 0, b: 0, a: 0}
+      key5: {r: 0, g: 0, b: 0, a: 0}
+      key6: {r: 0, g: 0, b: 0, a: 0}
+      key7: {r: 0, g: 0, b: 0, a: 0}
+      ctime0: 0
+      ctime1: 65535
+      ctime2: 0
+      ctime3: 0
+      ctime4: 0
+      ctime5: 0
+      ctime6: 0
+      ctime7: 0
+      atime0: 0
+      atime1: 65535
+      atime2: 0
+      atime3: 0
+      atime4: 0
+      atime5: 0
+      atime6: 0
+      atime7: 0
+      m_Mode: 0
+      m_ColorSpace: -1
+      m_NumColorKeys: 2
+      m_NumAlphaKeys: 2
+    emission: 1.24
+    quality: 7
+    localPosition: {x: 0, y: 0.69, z: 0}
+    localEulerAngles: {x: 0, y: 0, z: 0}
+    localScale: {x: 8, y: 0.2, z: 0.1}
+    instanceLayout:
+      mode: 1
+      highCount: 10
+      mediumCount: 3
+      lowCount: 2
+      centerOffset: {x: 0.05, y: 0, z: 0}
+      baseEulerAngles: {x: 0, y: 0, z: 0}
+      baseScale: {x: 6, y: 1, z: 1}
+      planeAxis: {x: 0, y: 1, z: 0}
+      startDirection: {x: 0, y: 0, z: 1}
+      facing: 3
+      radius: 0.3
+      innerRadius: 1
+      arcDegrees: 360
+      startAngleDegrees: 0
+      lineDirection: {x: 1, y: 0, z: 0}
+      spacing: 1
+      gridColumns: 1
+      gridSpacing: {x: 1, y: 1}
+      eulerStep: {x: 0, y: 0, z: 0}
+      uniformScaleStep: 0
+      angleJitter: 0
+      radiusJitter: 0
+      rotationJitter: 0
+      scaleJitter: 0
+      randomSeed: 1337
+      motionScope: 0
+      selfSpinAxis: {x: 0, y: 1, z: 0}
+      selfSpinDegreesPerSecond: 0
+      alternateSelfSpin: 0
+      activationDelayStep: 0
+      activeDuration: 0
+      reverseActivationOrder: 0
+      manualInstances: []
+    motions: []
+    trailTime: 2
+    trailStartWidth: 3
+    trailEndWidth: 0.1
+    trailMinVertexDistance: 0.001
+    trailTextureMode: 0
+    trailAlignment: 1
+    particleEmission: 0
+    particleShape: 0
+    particleLoop: 1
+    particleMaxCount: 128
+    particleRate: 24
+    particleBurstCount: 24
+    particleLifetime: 0.8
+    particleSpeed: 0.5
+    particleSize: 0.25
+    particleShapeRadius: 0.25
+    particleGravity: {x: 0, y: 0, z: 0}
+    particleWorldSpace: 0
   customValues: []

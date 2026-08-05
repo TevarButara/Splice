@@ -1,11 +1,11 @@
 # Concept Art Prompts — HEROES · เผ่า NATURAL 🌿⚔️
 
-> **Hero = ตัวชูโรง** — ดีเทลเยอะกว่ามอน, ชัดเจน โดดเด่น มีคาแรกเตอร์/ท่าทาง. เผ่าเดียวกับ `conceptArt-Natural.md` (Beast/ธรรมชาติ: leafy green / earthy brown / terracotta / bone-white) แต่ **ยกระดับความ heroic**
-> **สไตล์:** **cute stylized 3D น่ารักสุดๆ** (Supercell / First Fantasy) — chibi หัวโต ตากลมโตวาว มน soft glossy toon, ท่ายืนไดนามิกเท่ๆ. ต่างจากมอนตรง **ดีเทล/คาแรกเตอร์จัดกว่า** (เป็นตัวชูโรง)
+> **Hero = ตัวชูโรง** — รายละเอียดมากกว่ามอน, silhouette ชัด, มีบุคลิกและท่าทางเฉพาะตัว. เผ่าเดียวกับ `conceptArt-Natural.md` (Beast/ธรรมชาติ: leafy green / earthy brown / terracotta / bone-white) แต่ **ยกระดับเป็นฮีโร่ Fantasy MOBA**
+> **สไตล์:** **premium stylized painterly fantasy MOBA concept art** — สัดส่วน heroic ประมาณ 7–7.5 หัว, anatomy และข้อต่ออ่านชัด, มือมี 5 นิ้วแยกชัดเจน, รูปทรงใหญ่สะอาดและอ่านออกจากกล้อง top-down. ลด micro-detail และความสมจริงแบบ PBR เพื่อให้ปั้น 3D, rig, skin และทำ combat animation ได้จริง
 
 ---
 
-## Hero ของเผ่า Natural (5 ตัว)
+## Hero ของเผ่า Natural (6 ตัว)
 | # | สาย | เพศ | สถานะ |
 |---|---|---|---|
 | **1** | **นักดาบ (Swordsman)** | ชาย | ✅ Rowan จิ้งจอกนักดาบ |
@@ -13,48 +13,156 @@
 | **3** | **ธนู (Archer)** | หญิง | ✅ Elara นักธนู fae |
 | **4** | **เวท (Mage)** | หญิง | ✅ Elowen ผู้พิทักษ์ป่า |
 | **5** | **มือปืน (Gunner)** | ชาย | ✅ Rennick แรคคูนมือปืน (ด้านล่าง) |
+| **6** | **ไฟท์เตอร์ระยะประชิด (Fighter)** | ชาย | ✅ Kaelor สิงโตกลายพันธุ์กรงเล็บชาด (ด้านล่าง) |
 
-> ✅ **ครบทีมเผ่า Natural 5 ตัว** — beastfolk 3 (จิ้งจอก/เต่า/แรคคูน) + fae/elf 2 (ธนู/เวท)
-> 🎨 สไตล์ทั้งหมด = **cute stylized 3D น่ารักสุดๆ** (Supercell/First Fantasy)
+> ✅ **ทีมเผ่า Natural 6 ตัว** — beastfolk 4 (จิ้งจอก/เต่า/แรคคูน/สิงโต) + fae/elf 2 (ธนู/เวท)
+> 🎨 สไตล์ทั้งหมด = **premium stylized fantasy MOBA** — heroic, readable, production-ready และไม่อ้างอิง/เลียนแบบเกมหรือศิลปินที่มีอยู่
+> 🎨 **สีประจำเผ่าไม่ใช่ uniform:** hero แต่ละตัวใช้ dominant palette ต่างกันได้เต็มที่. รักษาความเป็น Natural ผ่าน organic materials, leaf/wood/bone motifs, tribal knotwork และสี accent ร่วมเพียงเล็กน้อย — ไม่บังคับว่าทุกตัวต้องแต่งเขียวหรือน้ำตาลเหมือนกัน
 
 ---
 
 ## วิธีใช้ / สิ่งที่ได้ต่อ hero
 
-แต่ละ hero มี **4 ชุด**:
+แต่ละ hero มี **5 ชุดไฟล์หลัก** และ optional modular garment sheets:
 - **(A) Key Art** — ท่าโชว์ไดนามิก ถืออาวุธ → การ์ด hero / จอ hero select / โปรโมท
-- **(B) T-Pose Turnaround** — 4 มุม มือเปล่า → ใช้ **ปั้น 3D + rig** จริง (แขน/ขายาว rig-friendly, ไม่มีออร่ารอบตัว)
-- **(C) Weapon prop** — อาวุธแยก (held weapon) เอาไปแปะมือตอน rig
+- **(B1) A-Pose Front + Back Sheet** — หน้า/หลัง 1 แผ่น ตัวใหญ่ เพื่อเก็บ texture และ construction detail
+- **(B2) A-Pose Left + Right Sheet** — ซ้าย/ขวา 1 แผ่น ตัวใหญ่ เพื่อเก็บความหนา silhouette และ attachment detail
+- **(G1) Modular Long Garment Front + Back** *(เฉพาะตัวที่มี skirt/robe/coat ยาว)* — เครื่องแต่งกายแยกสำหรับสวมบน body
+- **(G2) Modular Long Garment Left + Right** *(เฉพาะตัวที่มี skirt/robe/coat ยาว)* — ความหนา layer order และระยะห่างจากขา
+- **(P1/P2) Modular Lower-body Set Front+Back / Left+Right** *(เมื่อต้องการแยกกางเกง)* — body ใส่ plain rigging under-shorts; กางเกงจริงอาจรวม waistband, hip panels และชายผ้าประจำชุดเป็น equipment ชิ้นเดียว โดยใช้ pelvis/thigh bones และเพิ่ม child cloth bones สำหรับส่วนย้อย
+- **(C) Weapon / Attached-weapon detail** — อาวุธถือให้ทำ prop แยก; อาวุธที่เป็นส่วนถาวรของถุงมือ/แขนให้ทำ construction sheet แยก แต่คงติดอยู่กับ body ใน B1/B2
 - **(D) Skills + Icons** — Skill 1 / Skill 2 / Ultimate (ชื่อ+คำอธิบาย) พร้อม prompt ไอคอนสกิล (ชุด 3 อันเข้ากัน)
+
+> ⚠️ **Turnaround workflow:** สร้าง B1 และ B2 เป็นคนละ generation ห้ามขอ 4 มุมในภาพเดียว ใช้ Key Art ที่อนุมัติแล้วเป็น identity reference ทั้งสองครั้ง และใช้ B1 เป็น reference เพิ่มตอนสร้าง B2 เพื่อคุมสัดส่วน ชุด ลาย texture และสีให้ตรงกัน ถ้ามี garment ยาวเกินกลางต้นขา ให้ถอดออกจาก B1/B2 แล้วสร้าง G1/G2 แยก โดย body ใส่ fitted fantasy under-suit หรือ fitted short under-shorts เป็น base layer
 
 ---
 
 ## 🎨 HERO STYLE BLOCK (แปะหน้า prompt ทุกภาพ)
 
 ```
-Super CUTE stylized game-hero character art — adorable premium mobile-game look
-like Supercell and "First Fantasy" cute stylized 3D heroes. Proportions: CHIBI —
-very BIG head, small chunky rounded body, BIG glossy sparkly expressive eyes, soft
-rounded adorable shapes; SLIGHTLY LONGER and clearly separated arms and legs
-(rig-friendly, room to bend at elbows and knees). RENDERING: smooth soft glossy
-3D-style toon shading with gentle highlights and a soft rim light, clean, polished,
-colorful and juicy, SUPER appealing and cute. It's a HERO — nicely detailed and
-premium — but ADORABLE first; keep it clean and readable, NOT cluttered, NOT
-gritty, NOT realistic, NOT washed-out.
-NATURE-HERO MOTIF: Nature heroes are cute mythical forest folk — BEASTFOLK
-(fox / raccoon / turtle style animal-people: fur or scales, animal ears, tail) OR
-FAE / ELF (pointed ears, small fairy wings, flower/leaf crown). A FEW small tribal
-GREEN accents and small GOLD trim. Do NOT make the whole character green — use
-warm tans / browns / creams for skin or fur and keep green as ACCENTS only, so the
-palette stays rich and varied.
-NATURAL faction palette: warm tan and earthy brown, leafy green as accents,
-terracotta red-orange, teal jewel touches, bone/cream-white, small gold; warm
-forest tones.
+Premium stylized PAINTERLY FANTASY MOBA game-hero concept art with an original visual
+identity. HEROIC PROPORTIONS: approximately 7 to 7.5 heads tall, a moderately
+stylized head, defined shoulders, torso and pelvis, long readable limbs, believable
+anatomy, and clearly located elbows, wrists, knees and ankles. NOT chibi, NOT
+super-deformed, NOT mascot-like. HANDS: both hands are complete and visible, each
+with exactly five clearly separated, anatomically coherent fingers including a
+readable thumb, knuckles and believable grip mechanics; no mitten hands, fused,
+duplicated, missing or malformed fingers. Keep the face expressive and appealing
+without oversized baby-like eyes.
+RENDERING: polished 2.5D hand-painted game-art finish, broad sculpted planes,
+controlled painterly-toon shadow groups, crisp silhouette and bold value grouping.
+Use visible selective brush texture, simplified graphic material cues and only a few
+focal highlights instead of realistic PBR response. Strong large/medium/small shape
+hierarchy: emphasize large and medium forms, remove noisy seams and micro-detail.
+Fur, scales, fabric, leather, wood and metal must feel stylized and painted rather
+than photographic. The hero must remain instantly readable during fast-paced
+top-down MOBA gameplay and practical as a clean mid-poly model.
+PRODUCTION DESIGN: build clothing, armor, belts, pouches and accessories as clear
+modular pieces with believable thickness and attachment points. Keep shoulder,
+elbow, wrist, waist, hip, knee, ankle and finger deformation zones unobstructed.
+Avoid rigid plates crossing joints, excessive overlapping layers, thin fragile
+ornaments, tangled cloth, uncontrolled dangling clutter and shapes likely to clip
+during idle, run, attack, cast, hit-react or death animations. Long capes, robes,
+skirts, coat tails and hair ARE ALLOWED when designed as clearly separated riggable
+pieces with sufficient air gap from the legs and body, clean attachment points,
+simple layer order, and practical topology for secondary bones or cloth simulation.
+They must not fuse with, wrap tightly around, or intersect leg deformation zones in
+the neutral pose. For modeling turnarounds, any skirt, robe or coat panel extending
+below mid-thigh must be REMOVED from the base-body B1/B2 sheets and documented as a
+separate modular garment in G1/G2 sheets. The base body wears a fitted, modest
+fantasy under-suit or fitted short under-shorts with clearly visible hip, knee and
+leg anatomy. Long hanging sleeve panels may remain on the body outfit because they
+do not follow the leg rig; build them as separate secondary-bone or cloth pieces.
+Keep the design feasible for a reusable humanoid game rig, skinning and standard
+combat animation pipeline.
+NATURE-HERO MOTIF: Nature heroes are mythical forest folk — BEASTFOLK
+(fox / raccoon / turtle / lion style animal-people: fur or scales, animal ears,
+tail) OR FAE / ELF (pointed ears, small fairy wings, flower/leaf crown). The faction
+identity comes from organic materials, living-wood / leaf / bone motifs, tribal
+knotwork and small shared nature accents — NOT from making every hero the same
+color. EACH HERO MAY HAVE A DISTINCT DOMINANT PALETTE appropriate to their identity.
+Leafy green is optional and should usually remain a small faction accent; it does
+not need to dominate. Gold trim may vary from subtle to prominent when appropriate.
+NATURAL faction palette library: warm tan, earthy brown, leafy green, terracotta,
+red-orange, sun-yellow, teal jewel, bone/cream-white and gold. Select a focused
+subset per hero instead of using every color on every character.
 NO glowing aura / no energy swirls / no floating particles AROUND the
 character (magic shows only as ON-BODY glow — runes, glowing blade edge, glowing
 eyes). Clean pure white background, full body fully visible, single character,
-no text, no letters, no signature, no watermark.
+both hands and both feet fully visible, no cropped limbs, no text, no letters, no
+signature, no watermark. Avoid extreme perspective and extreme foreshortening.
 ```
+
+## 🧍 TURNAROUND SHEET BLOCKS — เลือกแปะท้าย prompt (B) เพียง 1 block ต่อการสร้าง
+
+### (B1) FRONT + BACK SHEET BLOCK
+```text
+Create SHEET B1 only: exactly TWO large full-body orthographic views in one
+horizontal row, left to right: exact FRONT view and exact BACK view. Do not include
+side views or extra figures. Both figures must use identical scale and proportions,
+fill approximately 80–85% of the canvas height, and be separated by generous clean
+white space with no overlap. Preserve high-resolution texture information: fur
+direction and color boundaries, fabric weave, stitched seams, knotwork patterns,
+leather wrapping, metal trim, fasteners, attachment points and back construction.
+The back view must show both complete arms and hands, unobstructed from shoulder to
+fingertips. Strict neutral A-pose: both arms straight and lowered diagonally about
+35–45 degrees from the shoulders, empty open hands angled toward the thighs with a
+clear air gap from the hips, exactly five clearly separated relaxed fingers on each
+hand including one thumb. Full ear tips, fingertips,
+tail and feet inside the canvas. Pure white background, no weapon, no labels, no text.
+```
+
+### (B2) LEFT + RIGHT SHEET BLOCK
+```text
+Create SHEET B2 only: exactly TWO large full-body orthographic profile views in one
+horizontal row, left to right: exact LEFT PROFILE facing the left edge and exact
+RIGHT PROFILE facing the right edge. Do not include front/back views or extra figures.
+Both profiles must face opposite directions, use identical scale and proportions,
+fill approximately 80–85% of the canvas height, and be separated by generous clean
+white space with no overlap. Preserve the exact identity, costume construction,
+texture scale, pattern placement, colors and materials from the approved Key Art and
+SHEET B1 references. Show garment thickness, side seams, layer order, belt and pouch
+attachments, tail root, footwear profile and silhouette depth clearly. Strict neutral
+A-pose: both arms extend sideways and downward about 35–45 degrees in the coronal
+plane. In true side orthographic views the near and far arms appear largely overlapped/
+end-on; never rotate either arm forward or backward. Hands finish below and outside
+the hip silhouette; offset the far arm vertically only slightly if required. Exactly
+five clearly separated relaxed fingers per
+hand including one thumb. Full ear tips, fingertips, tail and feet inside the canvas.
+Pure white background, no weapon, no labels, no text, no perspective distortion.
+```
+
+## 👗 OPTIONAL MODULAR LONG-GARMENT BLOCKS — ใช้เมื่อ garment ยาวเกินกลางต้นขา
+
+### (G1) GARMENT FRONT + BACK SHEET BLOCK
+```text
+Create MODULAR GARMENT SHEET G1 only: the long skirt, robe or coat-tail equipment
+separated completely from the character body, shown as exactly TWO large orthographic
+views in one horizontal row: exact FRONT and exact BACK. Present the wearable garment
+around a simple neutral invisible-body volume / clean hollow mannequin form so the
+waist opening, hip clearance and leg cavity remain understandable; do not render a
+full character, skin, head, arms, hands or feet. Match the approved Key Art and B1
+base body's exact waist/hip scale, attachment height, colors, textures, patterns and
+materials. Show waistband/anchor, panel seams, front/side/back layer order, inner
+lining, hem, fasteners and practical secondary-bone or cloth-panel segmentation.
+Maintain generous air gaps for both legs and avoid fabric crossing the neutral leg
+volumes. Pure white background, no body, no weapon, no text, no labels, no watermark.
+```
+
+### (G2) GARMENT LEFT + RIGHT SHEET BLOCK
+```text
+Create MODULAR GARMENT SHEET G2 only: the SAME separate long skirt, robe or coat-tail
+equipment as G1, shown as exactly TWO large orthographic profile views in one
+horizontal row: exact LEFT and exact RIGHT. No full character body. Match G1 exactly
+in scale, waistband, hip shape, attachment points, panel count, layer order, textures,
+patterns and colors. Show garment thickness, inner lining, front/back depth, side
+seams, leg cavity, hip clearance and hem profile clearly. The garment must fit the
+approved B1/B2 base body and share its master skeleton, while using dedicated skirt/
+cloth bones below the waist. Pure white background, no body, no weapon, no text,
+no labels, no watermark, no perspective distortion.
+```
+
+> **Modular long-garment rule:** garment ที่ยาวเกินกลางต้นขาให้ถอดจาก body B1/B2 และสร้าง G1/G2 แยกเสมอ ตัว body ใช้ fitted fantasy under-suit/กางเกงขาสั้นแนบตัวเป็น base layer ส่วนแขนเสื้อยาวที่ย้อยยังอยู่กับ upper-body outfit ได้ แต่ต้องเป็นชิ้น secondary-bone/cloth แยกจากแขน
 
 ---
 
@@ -62,8 +170,8 @@ no text, no letters, no signature, no watermark.
 
 ```
 Mobile game SKILL ICON in the given FRAME SHAPE (a circle, or a rounded square). A
-single bold readable emblem centered, in the same CUTE stylized toon look as the heroes
-(Supercell / First Fantasy): thick clean dark outline, smooth glossy shading, a
+single bold readable emblem centered, in the same premium stylized fantasy MOBA
+look as the heroes: thick clean dark outline, controlled painterly-toon shading, a
 soft inner glow, a subtle radial gradient background inside the frame, and a light
 highlight sheen. The icon must read INSTANTLY at small size — one clear object,
 strong silhouette, high contrast. NATURAL palette accents (leaf green, warm gold,
@@ -82,14 +190,14 @@ to transparency later.
 
 # Hero 1 — Rowan, the Wildblade (จิ้งจอกนักดาบ) 🦊⚔️
 
-> **จิ้งจอก beastfolk น่ารัก** สายนักดาบ — ตากลมโต ยิ้มกวนๆ หูจิ้งจอก+ห่วงทอง ลายรูนเขียวบนหน้า หางฟู. ชุด tunic เขียวลาย knotwork + ทอง (โทน/หน้า/ชุดแบบ ref 2 แต่ **น่ารักเข้า theme เกม** ไม่จริงจัง). ดาบไม้มีชีวิตคมเรืองเขียว
-> **beastfolk = สัตว์อยู่แล้ว** จึงไม่ต้องมีเขา (motif เผ่า = beastfolk น่ารัก + ทอง + ลายรูนเขียว)
+> **จิ้งจอก beastfolk นักดาบ** — รูปร่างเพรียวปราดเปรียว แววตาคม ยิ้มกวน หูจิ้งจอก+ห่วงทอง ลายรูนเขียวบนหน้า หางฟู. ชุด tunic เขียวลาย knotwork + ทอง ให้ภาพลักษณ์นักดาบเผ่าป่าที่สง่างามและว่องไว. ดาบไม้มีชีวิตคมเรืองเขียว
+> **beastfolk = สัตว์อยู่แล้ว** จึงไม่ต้องมีเขา (motif เผ่า = beastfolk + ทอง + ลายรูนเขียว)
 
 ## (A) Key Art — ท่าโชว์ (ตาม ref)
 ```
 [HERO STYLE BLOCK]
-The hero is "Rowan the Wildblade", a young FOX beastfolk swordsman: a fluffy
-cream-and-white fox with big expressive green (yellow-green) eyes, a sharp
+The hero is "Rowan the Wildblade", a young adult male FOX beastfolk swordsman: a
+fluffy cream-and-white fox with alert expressive green (yellow-green) eyes, a sharp
 cool-yet-charming face, large expressive fox ears with little gold ear-cuffs,
 INTRICATE glowing tribal GREEN knotwork markings on his forehead and cheeks, and
 a fluffy striped fox tail. Slim agile build. Gear — richly detailed, heroic and
@@ -100,27 +208,34 @@ gold clasp, a short layered leaf-and-cloth waist wrap, leather bracers with gold
 rune inlays, wrapped brown boots with gold buckles. He wields an ORNATE
 LIVING-WOOD KATANA with gold fittings and a soft-green glowing edge, a
 bamboo-wrapped hilt with a tiny leaf tassel. Confident cool pose, blade resting
-back over one shoulder, looking at the viewer with a cheeky grin. Full body,
-clean white background, no text.
+back over one shoulder, looking at the viewer with a cheeky grin. His free hand is
+open and unobstructed with five clearly separated fingers; his weapon hand grips
+the hilt naturally. Full body, clean white background, no text.
 ```
 
-## (B) T-Pose Turnaround — สำหรับปั้น 3D + rig
+## (B) A-Pose Turnaround — ใช้ prompt นี้ร่วมกับ B1 หรือ B2 ทีละแผ่น
+
+> ลำดับแนะนำ: สร้าง **B1 Front+Back** จาก Key Art ก่อน → อนุมัติ identity/texture → สร้าง **B2 Left+Right** โดยแนบทั้ง Key Art และ B1 เป็น reference
 ```
 [HERO STYLE BLOCK]
 Character turnaround sheet of "Rowan the Wildblade", the SAME young FOX beastfolk
-swordsman: fluffy cream-and-white fox, big expressive yellow-green eyes, a sharp
+swordsman: fluffy cream-and-white fox, alert expressive yellow-green eyes, a sharp
 charming face, large fox ears with gold ear-cuffs, intricate glowing tribal green
 knotwork markings on the face, a fluffy striped fox tail; richly detailed heroic
 forest gear with GOLD accents — a fitted green knotwork tunic-vest with gold trim, a
 brown sash and belt with a gold clasp, a short layered leaf-and-cloth waist wrap,
 leather bracers with gold rune inlays, wrapped brown boots with gold buckles.
-4 views in ONE row, evenly spaced, no overlapping, left to right: front view,
-back view, left side view, right side view. Exactly the same character, gear,
-size and colors in all 4 views. Standing in a strict T-POSE: BOTH arms spread
-fully straight out to the sides in EVERY view — in the BACK view both arms are
-complete, fully visible and symmetric (not hidden or cut off). EMPTY HANDS (no
-weapon — the sword is a separate prop), legs straight and slightly apart, facing
-forward. Full body visible, clean white background, no weapons, no text.
+Use the approved Rowan Key Art as the authoritative identity reference. Append
+exactly ONE turnaround block: either (B1) FRONT + BACK or (B2) LEFT + RIGHT; never
+request all four views in one image. Exactly the same character, gear, proportions,
+texture patterns and colors across both sheets. Standing in a strict A-POSE: BOTH
+arms straight and lowered diagonally about 35–45 degrees from the shoulders in EVERY
+view. EMPTY OPEN HANDS (no weapon — the sword is a separate prop), angled toward the
+thighs with a clear air gap from the hips, each hand showing
+exactly five separated relaxed fingers including the thumb; legs straight and
+slightly apart, facing forward. Clearly expose all major joint and deformation
+zones for modeling, rigging and skinning. Full body visible, clean white background,
+no weapons, no text.
 ```
 
 ## (C) Weapon prop — ดาบ (held, prop แยก)
@@ -168,7 +283,7 @@ rounded squares below). Solid flat magenta chroma (#FF00FF) background, no text.
 ## (A) Key Art — ท่าโชว์
 ```
 [HERO STYLE BLOCK]
-The hero is "Torvin the Bulwark", a HUGE hulking male TURTLE beastfolk tank: a
+The hero is "Torvin the Bulwark", a huge powerful adult male TURTLE beastfolk tank: a
 big broad-shouldered sturdy bipedal turtle with thick powerful arms, a heavy
 grounded stance, a calm stoic-but-cool face. WARM earthy palette (NOT mostly
 green): sandy TAN and warm olive-brown scaly skin, with green used only as
@@ -184,7 +299,7 @@ immovable pose, quiet confidence. Strong simple silhouette, painterly and clean,
 full body, clean white background, no text.
 ```
 
-## (B) T-Pose Turnaround — สำหรับปั้น 3D + rig
+## (B) A-Pose Turnaround — ใช้ prompt นี้ร่วมกับ B1 หรือ B2 ทีละแผ่น
 ```
 [HERO STYLE BLOCK]
 Character turnaround sheet of "Torvin the Bulwark", the SAME huge hulking male
@@ -195,15 +310,17 @@ back, its rim ringed with a frill of chunky spikes and green leaves; a FEW subtl
 tribal markings on the arms; SIMPLE CLEAN gear (painterly, uncluttered) — a
 wrapped cream tunic and sash, a leather belt, a simple leaf waist wrap, a tribal
 bone-teeth-and-teal-jewel necklace, small gold accents, sturdy legs.
-4 views in ONE row, evenly spaced, no overlapping, left to right: front view,
-back view, left side view, right side view. Exactly the same character, gear,
-size and colors in all 4 views (the back view clearly shows the spiky shell).
-Standing in a strict T-POSE: BOTH arms spread fully straight out to the sides in
-EVERY view — in the BACK view both arms are complete, fully visible and
-symmetric (not hidden or cut off behind the shell); the shell does not cover the
-arms. EMPTY HANDS (no weapon — the shield is a separate prop), legs straight and
-slightly apart, facing forward. Full body visible, clean white background, no
-weapons, no text.
+Use the approved Torvin Key Art as the authoritative identity reference. Append
+exactly ONE turnaround block: either (B1) FRONT + BACK or (B2) LEFT + RIGHT; never
+request all four views in one image. Exactly the same character, gear, proportions,
+texture patterns and colors across both sheets. The B1 back view must clearly show
+the spiky shell without hiding either arm. Standing in a strict A-POSE: BOTH arms
+straight and lowered diagonally about 35–45 degrees from the shoulders in EVERY view;
+the shell does not cover the arms. EMPTY OPEN HANDS (no weapon — the shield is a separate prop), angled toward the thighs with a clear air gap from the hips,
+down, each hand showing exactly five separated relaxed fingers including the thumb;
+legs straight and slightly apart, facing forward. Clearly expose all major joint
+and deformation zones for modeling, rigging and skinning. Full body visible, clean
+white background, no weapons, no text.
 ```
 
 ## (C) Weapon prop — โล่ยักษ์ (held, prop แยก)
@@ -246,43 +363,52 @@ rounded squares below). Solid flat magenta chroma (#FF00FF) background, no text.
 
 # Hero 3 — Elara, the Leafshot (นักธนู fae สาว) 🏹🍃
 
-> **สาวน้อย fae/elf นักธนู** น่ารัก — หูแหลม, มงกุฎใบไม้ทอง, ปีกภูติใสเล็กๆ, ผมหางม้าน้ำตาล. ชุด **ทอง/ครีม + คลุมเขียวใบไม้** โทนอุ่น (ไม่จมเขียว) พร้อมธนูไม้ + กระบอกลูกธนู
+> **สาว fae/elf นักธนู** ผู้ปราดเปรียว — หูแหลม, มงกุฎใบไม้ทอง, ปีกภูติใสเล็กๆ, ผมหางม้าน้ำตาล. ชุด **ทอง/ครีม + คลุมเขียวใบไม้** โทนอุ่น (ไม่จมเขียว) พร้อมธนูไม้ + กระบอกลูกธนู
 > 🌿 **ขยาย motif เผ่า:** Nature hero เป็นได้ทั้ง **beastfolk (จิ้งจอก/เต่า)** และ **fae/elf (หูแหลม+ปีกภูติ+มงกุฎใบไม้)** — ทั้งคู่ = ชาวป่าเวทมนตร์ ไม่ใช่คนธรรมดา
 
 ## (A) Key Art — ท่าโชว์ (ตาม ref)
 ```
 [HERO STYLE BLOCK]
-The hero is "Elara the Leafshot", a CUTE young female fae/elf nature archer:
-petite chibi girl with big pretty eyes, pointed elf ears, a long brown ponytail,
+The hero is "Elara the Leafshot", an agile young adult female fae/elf nature
+archer with balanced heroic proportions, alert expressive eyes, pointed elf ears,
+a long brown ponytail,
 a delicate GOLD laurel-leaf crown, small iridescent translucent fairy wings on
 her back, tiny green leaf earrings. Outfit — dainty and heroic, WARM palette (NOT
 mostly green): a gold-and-cream corset dress with a brown leather bodice and gold
 trim, a green round gem brooch at the collar, a flowing leafy-green watercolor
-CAPE with a soft gold-edged hem, cream/white leggings, and cute green leaf-vine
+CAPE with a soft gold-edged hem, cream/white leggings, and refined green leaf-vine
 boots with gold accents; a slim vine wrap and bracer on her bow arm; a small
 leather quiver of arrows at her hip wrapped in vines. She holds a slender wooden
 RECURVE BOW. Light graceful pose, cape flowing, looking off with a gentle
-confident air. Soft painterly / watercolor finish, clean simple silhouette. Full
-body, clean white background, no text.
+confident air. Her bow hand and draw hand use believable archery anatomy; all five
+fingers on each hand are distinct and correctly placed. Controlled stylized
+hand-painted MOBA finish, broad readable shapes and clean silhouette. Full body, clean white
+background, no text.
 ```
 
-## (B) T-Pose Turnaround — สำหรับปั้น 3D + rig
+## (B) A-Pose Turnaround — ใช้ prompt นี้ร่วมกับ B1 หรือ B2 ทีละแผ่น
 ```
 [HERO STYLE BLOCK]
-Character turnaround sheet of "Elara the Leafshot", the SAME cute young female
-fae/elf archer: petite chibi, pointed elf ears, long brown ponytail, gold
+Character turnaround sheet of "Elara the Leafshot", the SAME young adult female
+fae/elf archer with balanced heroic proportions: pointed elf ears, long brown
+ponytail, gold
 laurel-leaf crown, small iridescent fairy wings, green leaf earrings; WARM
 palette (not mostly green) — a gold-and-cream corset dress with brown leather
 bodice and gold trim, a green gem brooch, a leafy-green cape with gold-edged hem,
 cream leggings, green leaf-vine boots with gold, a vine bracer on the bow arm, a
 small vine-wrapped quiver of arrows at the hip.
-4 views in ONE row, evenly spaced, no overlapping, left to right: front view,
-back view, left side view, right side view. Exactly the same character, gear,
-size and colors in all 4 views (back view shows the cape, ponytail and wings).
-Standing in a strict T-POSE: BOTH arms spread fully straight out to the sides in
-EVERY view, complete and symmetric (not hidden behind the cape or wings). EMPTY
-HANDS (no weapon — the bow is a separate prop), legs straight and slightly apart,
-facing forward. Full body visible, clean white background, no weapons, no text.
+Use the approved Elara Key Art as the authoritative identity reference. Append
+exactly ONE turnaround block: either (B1) FRONT + BACK or (B2) LEFT + RIGHT; never
+request all four views in one image. Exactly the same character, gear, proportions,
+texture patterns and colors across both sheets. The B1 back view must clearly show
+the cape, ponytail and wings. Standing in a strict A-POSE: BOTH arms straight and
+lowered diagonally about 35–45 degrees from the shoulders in EVERY view, complete
+and symmetric (not hidden behind the cape or wings). EMPTY OPEN HANDS (no weapon —
+the bow is a separate prop), angled toward the thighs with a clear air gap, each hand
+showing exactly five separated relaxed fingers including the thumb; legs straight
+and slightly apart, facing forward. Clearly expose all major joint and deformation
+zones for modeling, rigging and skinning. Full body visible, clean white background,
+no weapons, no text.
 ```
 
 ## (C) Weapon prop — ธนู (held, prop แยก)
@@ -330,38 +456,72 @@ rounded squares below). Solid flat magenta chroma (#FF00FF) background, no text.
 ## (A) Key Art — ท่าโชว์ (ตาม ref)
 ```
 [HERO STYLE BLOCK]
-The hero is "Elowen the Grovekeeper", a graceful CUTE young female fae/elf nature
-mage: petite chibi with big gentle green eyes, a soft blush, pointed elf ears,
+The hero is "Elowen the Grovekeeper", a graceful young adult female fae/elf nature
+mage with balanced heroic proportions, gentle green eyes, pointed elf ears,
 very long flowing braided platinum-cream hair, a delicate crown of small WHITE
-flowers and green leaves with a cute little leaf sprout on top. Outfit — elegant
+flowers and green leaves with a small leaf sprout on top. Outfit — elegant
 and dainty, WARM LIGHT palette (mostly white/cream with green, NOT all green): a
 flowing white-and-cream druid robe-dress with a green under-gown, soft gold trim,
 green gem clasps and small leaf motifs, layered petal-like sleeves. She holds a
 tall GNARLED LIVING-WOOD STAFF (a natural twisting branch) topped with a green
 gem and small leaves, with a single green butterfly resting ON the staff top (no
 floating swarm around her). Serene elegant pose, robe and hair flowing softly.
-Soft painterly / watercolor finish, clean silhouette. Full body, clean white
-background, no text.
+Her staff hand grips naturally and her free hand is fully visible with five clearly
+separated fingers. Controlled stylized hand-painted MOBA finish, clean silhouette.
+Full body, clean white background, no text.
 ```
 
-## (B) T-Pose Turnaround — สำหรับปั้น 3D + rig
+## (B) A-Pose Turnaround — ใช้ prompt นี้ร่วมกับ B1 หรือ B2 ทีละแผ่น
 ```
 [HERO STYLE BLOCK]
-Character turnaround sheet of "Elowen the Grovekeeper", the SAME graceful cute
-young female fae/elf mage: petite chibi, big gentle green eyes, pointed elf ears,
+Character turnaround sheet of "Elowen the Grovekeeper", the SAME graceful young
+adult female fae/elf mage with balanced heroic proportions, gentle green eyes,
+pointed elf ears,
 very long flowing braided platinum-cream hair, a crown of small white flowers and
 green leaves with a little leaf sprout on top; elegant WARM LIGHT outfit (mostly
-white/cream with green accents, NOT all green) — a flowing white-and-cream
-robe-dress with a green under-gown, soft gold trim, green gem clasps, small leaf
-motifs, layered petal-like sleeves.
-4 views in ONE row, evenly spaced, no overlapping, left to right: front view,
-back view, left side view, right side view. Exactly the same character, gear,
-size and colors in all 4 views (back view shows the long braided hair and robe).
-Standing in a strict T-POSE: BOTH arms spread fully straight out to the sides in
-EVERY view, complete and symmetric (not hidden behind the hair or robe). EMPTY
-HANDS (no staff — the staff is a separate prop), legs straight, facing forward.
-Full body visible, clean white background, no weapons, no floating butterflies,
-no text.
+white/cream with green accents, NOT all green) — keep the fitted white-and-cream
+upper bodice, green chest panel, soft gold trim, green gem clasps, small leaf motifs
+and long layered petal-like SLEEVE PANELS. REMOVE the long robe skirt from the base
+body turnaround. Replace it below the waist with a modest fitted cream-and-green
+fantasy under-suit / fitted short under-shorts ending at the upper thigh, with clean
+leg openings and the hip, knee and ankle anatomy fully visible. The separate long
+robe garment is documented in G1/G2.
+Use the approved Elowen Key Art as the authoritative identity reference. Append
+exactly ONE turnaround block: either (B1) FRONT + BACK or (B2) LEFT + RIGHT; never
+request all four views in one image. Exactly the same character, gear, proportions,
+texture patterns and colors across both sheets. The B1 back view must clearly show
+the long braided hair, upper-bodice construction and under-suit waist/hip fit, but
+NO long skirt or robe panels around the legs. Standing in a strict A-POSE: BOTH arms
+straight and lowered diagonally about 35–45 degrees from the shoulders in EVERY view,
+complete and symmetric (not hidden behind the hair or robe). EMPTY OPEN HANDS (no
+staff — the staff is a separate prop), angled toward the thighs with a clear air gap,
+each hand
+showing exactly five separated relaxed fingers including the thumb; legs straight
+and slightly apart, facing forward. Clearly expose all major joint and deformation
+zones for modeling, rigging and skinning. Full body visible, clean white background,
+no weapons, no floating butterflies, no text.
+```
+
+## (G) Modular Long Robe/Skirt — สร้างเป็น equipment แยกสำหรับสวมใน Unity
+
+> ใช้ Key Art + body B1/B2 เป็น reference และสร้าง G1/G2 คนละ generation ชิ้นนี้ไม่มีตัวละครอยู่ข้างใน แต่ต้องพอดีกับเอว/สะโพกของ base body และใช้ master skeleton เดียวกัน
+
+```text
+[HERO STYLE BLOCK]
+The separate modular long robe-skirt equipment of "Elowen the Grovekeeper",
+removed from her base body turnaround so it can be equipped later in Unity as a
+separate SkinnedMeshRenderer. Preserve the approved Key Art design: an elegant
+white-and-cream outer robe over a leafy-green under-layer, soft gold trim, restrained
+leaf embroidery, green jewel drops, and clearly separated long front, side and back
+petal-like cloth panels. The garment begins at the exact approved B1 waistline and
+fits the same hip proportions. It contains no upper bodice, no sleeves and no body.
+Use a structured waistband/waist anchor with clear fasteners. Provide generous hollow
+leg cavities and air gaps so the garment never binds to the legs. Divide long panels
+into clean practical segments suitable for dedicated skirt bones or cloth simulation,
+with readable inner lining, seams, edge thickness and layer order. Append exactly ONE
+garment block: either (G1) FRONT + BACK or (G2) LEFT + RIGHT; never request all four
+views in one image. Pure white background, no character body, no skin, no head, no
+arms, no hands, no feet, no staff, no butterfly, no text.
 ```
 
 ## (C) Weapon prop — คทา (held, prop แยก)
@@ -403,52 +563,60 @@ rounded squares below). Solid flat magenta chroma (#FF00FF) background, no text.
 
 # Hero 5 — Rennick, the Trickshot (แรคคูนมือปืน) 🦝🔫
 
-> **แรคคูน beastfolk มือปืน** เจ้าเล่ห์น่ารัก — ยิ้มกวน ตากลมโต ลายหน้ากากแรคคูน หางฟูลาย. ปืนเป็น **ไม้มีชีวิต ยิงเมล็ด/ลูกโอ๊ก**. โทน **น้ำตาล-เทา + green/gold accent** (ไม่จมเขียว)
+> **แรคคูน beastfolk มือปืน** เจ้าเล่ห์ว่องไว — ยิ้มกวน แววตาคม ลายหน้ากากแรคคูน หางฟูลาย. ปืนเป็น **ไม้มีชีวิต ยิงเมล็ด/ลูกโอ๊ก**. โทน **น้ำตาล-เทา + green/gold accent** (ไม่จมเขียว)
 > เติมความหลากหลาย beastfolk เผ่า Natural (จิ้งจอก/เต่า/แรคคูน)
 
 ## (A) Key Art — ท่าโชว์
 ```
 [HERO STYLE BLOCK]
-The hero is "Rennick the Trickshot", a CUTE cheeky male RACCOON beastfolk gunner:
-a small chunky chibi raccoon with a big mischievous grin, big glossy eyes, a dark
+The hero is "Rennick the Trickshot", a lean agile adult male RACCOON beastfolk
+gunner with balanced heroic proportions, a mischievous grin, alert expressive eyes,
+a dark
 raccoon face-mask marking, fluffy round cheeks, raccoon ears, and a big fluffy
 striped tail. Warm palette — grey-brown and cream raccoon fur with tan-and-green
-gear (NOT all green). Outfit — cute scavenger-ranger: a leaf-and-leather vest, a
+gear (NOT all green). Outfit — clever scavenger-ranger: a leaf-and-leather vest, a
 bandolier of little seed / acorn ammo pouches across the chest, a small bark-brim
 hat or bandana, vine-wrapped bracers, a belt with a gold buckle, small gold
-accents. He holds a chunky cute LIVING-WOOD RIFLE / bark blunderbuss — a stubby
+accents. He holds a compact LIVING-WOOD RIFLE / bark blunderbuss — a sturdy
 wooden gun with vine wrap, a gold trigger, a leaf sight and an acorn loaded in the
 barrel. Cheeky confident gunslinger pose, the gun resting on his shoulder,
-winking and grinning at the viewer. Soft glossy cute stylized 3D finish, clean
-silhouette. Full body, clean white background, no text.
+winking and grinning at the viewer. Both hands use believable firearm grip anatomy
+with five distinct fingers each. Polished stylized hand-painted MOBA concept-art finish,
+clean silhouette. Full body, clean white background, no text.
 ```
 
-## (B) T-Pose Turnaround — สำหรับปั้น 3D + rig
+## (B) A-Pose Turnaround — ใช้ prompt นี้ร่วมกับ B1 หรือ B2 ทีละแผ่น
 ```
 [HERO STYLE BLOCK]
-Character turnaround sheet of "Rennick the Trickshot", the SAME cute cheeky male
-RACCOON beastfolk gunner: small chunky chibi raccoon, big glossy eyes, cheeky
+Character turnaround sheet of "Rennick the Trickshot", the SAME lean agile adult
+male RACCOON beastfolk gunner with balanced heroic proportions, alert expressive
+eyes, cheeky
 grin, dark raccoon face-mask marking, raccoon ears, big fluffy striped tail; warm
 grey-brown and cream fur with tan-and-green gear (not all green) — a leaf-and-
 leather vest, a bandolier of seed/acorn ammo pouches, a small bark-brim hat, vine
 bracers, a belt with a gold buckle, small gold accents.
-4 views in ONE row, evenly spaced, no overlapping, left to right: front view,
-back view, left side view, right side view. Exactly the same character, gear,
-size and colors in all 4 views (back view shows the bushy tail and bandolier).
-Standing in a strict T-POSE: BOTH arms spread fully straight out to the sides in
-EVERY view, complete and symmetric (not hidden behind the tail). EMPTY HANDS (no
-gun — the gun is a separate prop), legs straight and slightly apart, facing
-forward. Full body visible, clean white background, no weapons, no text.
+Use the approved Rennick Key Art as the authoritative identity reference. Append
+exactly ONE turnaround block: either (B1) FRONT + BACK or (B2) LEFT + RIGHT; never
+request all four views in one image. Exactly the same character, gear, proportions,
+texture patterns and colors across both sheets. The B1 back view must clearly show
+the bushy tail and bandolier. Standing in a strict A-POSE: BOTH arms straight and
+lowered diagonally about 35–45 degrees from the shoulders in EVERY view, complete
+and symmetric (not hidden behind the tail). EMPTY OPEN HANDS (no gun — the gun is a
+separate prop), angled toward the thighs with a clear air gap, each hand showing exactly
+five separated relaxed fingers including the thumb; legs straight and slightly
+apart, facing forward. Clearly expose all major joint and deformation zones for
+modeling, rigging and skinning. Full body visible, clean white background, no
+weapons, no text.
 ```
 
 ## (C) Weapon prop — ปืนไม้ (held, prop แยก)
 ```
 [HERO STYLE BLOCK]
 Isolated game prop, NO character, NO hands holding it: the LIVING-WOOD RIFLE /
-bark blunderbuss of Rennick the Trickshot — a chunky cute stubby gun made of warm
+bark blunderbuss of Rennick the Trickshot — a compact sturdy gun made of warm
 brown living wood with green vine wrap along the barrel, a gold trigger and gold
 band, a small leaf sight on top, a flared bark muzzle with an acorn peeking out,
-and a little leaf charm on the stock. Simple clean cute stylized design. 3 views
+and a little leaf charm on the stock. Clean stylized production design. 3 views
 in one row, evenly spaced: front, side, back. Clean white background, no text.
 ```
 
@@ -475,6 +643,193 @@ TOP row = each icon as a CIRCLE; BOTTOM row = the SAME icon as a ROUNDED SQUARE
    sparks.
 Same art and colors in both rows — only the frame shape differs (circles on top,
 rounded squares below). Solid flat magenta chroma (#FF00FF) background, no text.
+```
+
+---
+
+# Hero 6 — Kaelor, the Crimson Claw (สิงโตกลายพันธุ์ไฟท์เตอร์) 🦁💎
+
+> **มนุษย์–สิงโตกลายพันธุ์ชาย · Fighter ระยะประชิด** — ใบหน้าเป็น humanoid feline ที่ยังมีโครงหน้ามนุษย์ ไม่ใช่หัวสิงโตเต็มตัว; มีลายแต้มชนเผ่า แผงคอคล้ายเส้นผม และ **คริสตัลเขียว→เหลืองไล่เฉดผุดจากแนวกระดูกสันหลัง** เป็น signature silhouette
+> **อาวุธ asymmetrical:** แขนขวาเพียงข้างเดียวติดกงเล็บเหล็กชาดขนาดมหึมา 3 ใบ ยาวเกินปลายนิ้วประมาณสองเท่าของช่วงมือ; แขนซ้ายเป็นมือเปล่าสำหรับบาลานซ์ silhouette และ animation
+> **palette เฉพาะตัว:** สีธรรมชาติเป็นหลัก — sand, warm cream, ochre, raw umber, charcoal, muted terracotta; คริสตัลไล่เฉด moss-green → chartreuse → warm yellow ส่วนแดงชาดสงวนไว้ที่กงเล็บเท่านั้น
+> **production note:** ผลึกหลังเป็น rigid modular clusters parent กับ spine/chest bones และเว้น shoulder deformation zone; กงเล็บเป็น attached weapon; **กางเกง/hip panels เป็น modular equipment แยกจาก base body**
+
+## (A) Key Art — ท่าโชว์
+```
+[HERO STYLE BLOCK]
+The hero is "Kaelor the Crimson Claw", an adult male MUTATED HUMAN-LION hybrid
+melee fighter with powerful athletic heroic proportions — broad shoulders and chest,
+a narrow combat-ready waist and long muscular readable limbs. He must NOT have a
+literal realistic lion head. FACE IDENTITY: handsome but feral humanoid facial planes,
+human-like cheekbones and jaw, a very short subtle feline muzzle, a small dark feline
+nose, intense amber cat eyes, expressive human-like brows, pointed lion ears and only
+partial tawny fur along the cheeks, temples and neck. A layered swept-back mane reads
+more like thick wild hair mixed with fur. Decorate the face with asymmetric charcoal
+and muted-terracotta tribal markings around one eye, fine gold inlay scars across the
+opposite cheek, two small crystal studs at the brow and a bone ear ornament. Original
+design; use the references only for human/feline balance and ornamental density.
+
+MUTATION SIGNATURE: physical clusters of TRANSLUCENT GREEN-TO-YELLOW GRADIENT
+CRYSTAL grow from his upper back and spine, visible behind the shoulders and mane.
+Use a readable large/medium/small rhythm: one dominant faceted shard rising behind
+the RIGHT shoulder blade, three medium shards stepping down the spine, and several
+tiny crystal buds. Every large and medium shard grades from deep moss-green at its
+root through fresh leaf-green and luminous chartreuse to warm clear yellow at its
+tip. Add dark stone inclusions and subtle internal yellow veins, but NO gold-colored
+crystal and NO metallic gold coating. NOT forged armor, NOT floating and NOT an aura.
+Crystal roots stay on the torso/spine and do not cross shoulder or waist deformation.
+
+NATURAL PERSONAL PALETTE: sand, warm cream, ochre, raw umber, charcoal and muted
+terracotta dominate. Green-to-yellow gradient color belongs mainly to the natural
+back crystals; hardware is aged dark bronze rather than bright gold. Reserve saturated
+crimson red almost entirely for the giant weapon. Add one tiny desaturated moss-green
+cord as the Natural-faction accent. Avoid a shiny
+red-and-gold royal armor look; materials should feel weathered, earthen and organic.
+
+OUTFIT: asymmetrical nomadic pit-fighter gear — fitted cream-and-ochre wrap vest,
+charcoal leather harness that frames rather than hides the chest, one compact layered
+shoulder guard on the non-weapon side, raw-leather waist belt, short split terracotta
+and dark-brown hip panels ending above mid-thigh, fitted under-shorts, wrapped shins
+and practical open-joint boots. Bone toggles, rough stitching and small hammered-gold
+fasteners. The visible short fighter trousers and hip panels are a separate wearable
+equipment set over a plain fitted base under-short. Clear attachment points; no rigid
+plate crosses any major joint.
+
+ASYMMETRICAL ATTACHED WEAPON: ONLY Kaelor's RIGHT arm carries one enormous open-palm
+crimson claw gauntlet with exactly THREE massive forward-swept red metal blades. Each
+blade is broad, heavy and approximately the combined length of his forearm and hand,
+extending about twice the hand length beyond the fingertips. The middle blade is
+slightly longest, creating a bold predatory silhouette. Dark scarlet steel faces,
+blackened bevels, mineral-like chips, aged-bronze sockets and a charcoal leather mount.
+The rigid rail sits on the back of the right hand and joins a separate forearm cuff,
+with a clear wrist gap. The LEFT arm has NO weapon, NO blade and NO matching gauntlet:
+it ends in one visible relaxed five-fingered humanoid-feline hand. Both hands have
+exactly five anatomical fingers including one thumb.
+
+Dynamic three-quarter combat stance that shows the huge right claw in side silhouette
+without hiding the decorated face or green-yellow gradient back crystals. The bare left hand guards
+his torso. Confident predatory gaze, no extreme foreshortening.
+Full body fully visible, clean pure white background, no text, no logo, no watermark.
+```
+
+## (B) A-Pose Turnaround — attached claws ต้องติดอยู่ใน B1/B2
+```
+[HERO STYLE BLOCK]
+Character turnaround sheet of "Kaelor the Crimson Claw", the SAME mutated adult
+male HUMAN-LION hybrid fighter from the approved Key Art: athletic heroic build,
+handsome humanoid facial planes, short subtle feline muzzle, partial cheek/neck fur,
+wild hair-like tawny mane, lion ears, amber eyes, asymmetric charcoal/terracotta face
+paint, fine bronze facial inlay scars, long tail and the exact physical green-to-yellow
+gradient crystal clusters rooted along his upper back and spine. Preserve the natural sand, cream,
+ochre, raw-umber, charcoal and muted-terracotta palette. Preserve the asymmetrical
+nomadic fighter outfit construction.
+
+Use the approved Kaelor Key Art as the authoritative identity reference. Append
+exactly ONE turnaround block: either (B1) FRONT + BACK or (B2) LEFT + RIGHT; never
+request all four views in one image. Exactly the same character, proportions, face
+decorations, crystal count/placement, tail, gear, textures and colors across both
+sheets. BASE-BODY RULE: remove Kaelor's designed trousers, belt-mounted hip panels
+and all hanging waist cloth from B1/B2. The body wears only plain fitted warm-grey
+modest rigging under-shorts ending high on the thigh, with no decorative pattern, so
+the waist, pelvis, hip crease and thighs are fully readable. The removed trousers,
+hip panels and long hanging tabard are one combined lower-body equipment set documented
+in P1/P2. Strict neutral A-POSE: both arms straight and lowered diagonally about
+35–45 degrees from the shoulders with a clear hand-to-hip gap, legs straight and
+slightly apart, all major deformation
+zones clearly exposed.
+
+IMPORTANT ATTACHED-WEAPON EXCEPTION: Kaelor's single RIGHT-arm giant crimson claw
+gauntlet is a permanent part of his model, so it MUST remain equipped in every view.
+This overrides any generic turnaround phrase saying "empty hands", "no weapon" or
+"no weapons". ONLY THE RIGHT HAND carries exactly THREE enormous red metal blades;
+the left hand has zero blades and no matching gauntlet. The middle blade is slightly
+longest; all three extend about twice the hand length beyond the fingertips. The right
+mount stops before the wrist crease and leaves finger joints free. Both hands still
+show five separated real fingers including one thumb. In the back view clearly expose
+the green-yellow crystal roots and their safe gaps from shoulder joints. Full mane, crystal
+tips, ear tips, blade tips, fingertips, tail and feet inside the canvas.
+Clean pure white background, no text, no labels, no extra props.
+```
+
+## (P) Combined modular trousers + tabard — รวมเป็น equipment ชิ้นเดียว
+```
+[HERO STYLE BLOCK]
+Create Kaelor's removable COMBINED LOWER-BODY EQUIPMENT SET completely separated
+from the character body. The trousers and all hanging cloth are permanently assembled
+as ONE wearable game-equipment asset; do not split them into separate P and G objects.
+The combined design includes:
+fitted charcoal-and-raw-umber short trousers ending at the upper thigh, a sturdy
+raw-leather waistband, two short asymmetrical ochre / muted-terracotta hip panels,
+one long central muted-terracotta FRONT tabard reaching approximately to the knee,
+two narrower split raw-umber / dark-brown BACK tails with warm-cream lining, small
+bone toggles, rough stitching, aged-bronze fasteners, and one tiny moss-green braided
+cord. The long panels are sewn and hooked directly into the same waistband as the
+trousers; there is no second belt and no detachable G garment.
+
+Match the approved Key Art and B1 base body's exact waist, pelvis and upper-thigh
+scale. Show a clean hollow waist/hip volume and two empty leg openings; do not render
+skin or a full mannequin. Clearly show waistband anchors, fly/closure, crotch topology,
+seat construction, inner-leg seams, fabric thickness, long-panel attachment seams,
+lining and enough clearance for hip, thigh and leg deformation. The fitted trousers
+share the master pelvis/thigh bones; the long front/back panels use dedicated child
+cloth bones under the same lower-body equipment prefab in Unity.
+
+Create only ONE P sheet per generation:
+- P1 = exactly TWO orthographic views, FRONT and BACK.
+- P2 = exactly TWO orthographic profiles, LEFT and RIGHT, matching approved P1.
+Pure white background, no body, no skin, no visible legs, no tail, no crystals, no
+weapon, no separate garment floating beside the trousers, no text.
+```
+
+## (C) Attached claw construction sheet — ติดกับโมเดล ไม่ใช่ prop ถือแยก
+```
+[HERO STYLE BLOCK]
+Production design sheet for Kaelor's SINGLE PERMANENTLY ATTACHED giant crimson
+RIGHT claw-gauntlet assembly, not a handheld prop. Show exactly FOUR large isolated
+technical views on one clean white sheet: RIGHT-GAUNTLET top view, palm view, profile and
+three-quarter assembly view. Include a simplified neutral lion hand and short forearm
+inside the gauntlet only so attachment and articulation are unambiguous; no full
+character. The hand is anatomically complete with five separated fingers and one
+thumb. Open-palm construction leaves every finger joint and the palm visible.
+
+Exactly THREE MASSIVE forward-swept steel blades attach to a rigid aged-bronze and
+blackened-metal rail on the BACK of the right hand. Each blade is approximately the
+combined length of forearm and hand and extends about twice the hand length beyond the
+fingertips; the middle blade is slightly longest. Dark scarlet faces, blackened bevels,
+mineral chips, aged-bronze sockets, charcoal leather straps and one tiny moss-green inlay.
+The rail continues to a separate forearm cuff but stops before the wrist crease. Show
+believable heavy thickness, safe gaps between blades, wrist flex
+clearance, finger curl clearance and clean parenting zones for hand and forearm bones.
+No blade may originate from the fingertips; no plate crosses the wrist; no loose
+chains, no glow, no energy, no text, no labels, no arrows, no watermark.
+```
+
+## (D) Skills — สกิล + ไอคอน 🦁
+
+| สกิล | ชื่อ | ประเภท | คำอธิบาย |
+|---|---|---|---|
+| **Skill 1** | **Crimson Pounce** · โผกรงเล็บชาด | Gap close / slash | กระโจนระยะสั้นแล้วกวาดกงเล็บยักษ์ข้างขวา สร้างดาเมจกายภาพและติดเลือดไหลช่วงสั้น |
+| **Skill 2** | **Pridebreaker Roar** · คำรามสยบศึก | Cone control | คำรามเป็นกรวยระยะใกล้ ทำดาเมจและทำให้ศัตรูชะงัก; Kaelor ได้เกราะชั่วคราวตามจำนวนศัตรูที่โดน |
+| **Ultimate** | **Verdant Apex** · กลายพันธุ์ยอดนักล่า | Self-buff / finisher | คริสตัลเขียว→เหลืองตามหลังขยายตัว เพิ่มเกราะและความเร็ว; กงเล็บยักษ์ชาร์จพลังแร่ก่อนปิดท้ายด้วยการกวาดครึ่งวงกว้าง |
+
+```
+[SKILL ICON STYLE BLOCK]
+Two rows of matching NATURAL skill icons on ONE sheet (2 rows x 3 columns), the
+SAME three skills in each row, columns left to right = Skill 1, Skill 2, Ultimate.
+TOP row = each icon as a CIRCLE; BOTTOM row = the SAME icon as a ROUNDED SQUARE
+(same art in both rows, only the frame shape changes). Give this hero a distinct
+natural sand / ochre / raw-umber / charcoal palette, green-to-yellow crystal highlights,
+crimson reserved for the weapon and only tiny moss-green faction
+accents. The three skills:
+1) "Crimson Pounce": one giant three-blade crimson claw lunging diagonally through
+   a sharp forward chevron, red/orange with a tiny green knot at the base.
+2) "Pridebreaker Roar": a decorated humanoid-feline mask roaring into a short ochre
+   cone of force, with a small dark shield shape behind it.
+3) "Verdant Apex" (grander, epic): one giant crimson three-blade claw in front of
+   an ascending fan of translucent crystals grading moss-green to chartreuse to
+   warm yellow, with dark stone roots, crimson/green/yellow/charcoal.
+Same art and colors in both rows — only the frame shape differs. Solid flat magenta
+chroma (#FF00FF) background outside every icon frame, no text, no letters, no numbers.
 ```
 
 ---
@@ -546,11 +901,18 @@ white-to-blue-to-purple gradient circle.
 ## 📝 Checklist (hero)
 
 - [ ] ดีเทล/ท่าทาง **โดดเด่นกว่ามอนชัดเจน** (นี่คือตัวชูโรง)
-- [ ] **cute stylized 3D น่ารักสุดๆ** (Supercell/First Fantasy) — ตากลมโต วาว มน adorable
-- [ ] palette เผ่า Natural (tan/brown เป็นหลัก, green เป็น accent — ไม่จมเขียว)
+- [ ] **premium stylized fantasy MOBA** — สัดส่วน heroic 7–7.5 หัว, silhouette อ่านออกจากมุม top-down
+- [ ] hero แต่ละตัวมี dominant palette ของตัวเองได้; ความเป็น Natural มาจาก organic motif/material/pattern และ faction accent เล็กน้อย — **ไม่ต้องเป็นโทนเดียวกันทั้งเผ่า**
 - [ ] **ไม่มีออร่า/particle รอบตัว** (เรืองเฉพาะบนตัว/คมดาบ)
-- [ ] T-pose: แขน/ขายาว rig-friendly, **มือเปล่า** (ดาบแยก prop)
+- [ ] A-pose: anatomy/ข้อต่อชัด แขนลด 35–45° มือไม่ชนสะโพก และมีนิ้วครบข้างละ 5 นิ้ว; held weapon ให้ถอดเป็น prop, แต่ attached weapon ถาวรให้ติดอยู่ใน B1/B2 และไม่ขวางข้อมือ/นิ้ว
+- [ ] ชุด/เกราะไม่ขวาง shoulder, elbow, wrist, hip, knee, ankle
+- [ ] garment ที่ยาวเกินกลางต้นขา: ถอดจาก body B1/B2 → body ใส่ fitted under-suit/กางเกงขาสั้น → สร้าง garment G1/G2 แยกเป็น equipment
+- [ ] modular garment ใช้ waist/hip scale และ master skeleton เดียวกับ body; เพิ่ม dedicated skirt/cloth bones ใต้เอว
+- [ ] แขนเสื้อยาวที่ย้อยอยู่กับ upper-body outfit ได้ แต่ต้องแยกเป็น secondary-bone/cloth pieces และไม่ merge กับแขน
+- [ ] Turnaround แยก **B1 หน้า+หลัง** และ **B2 ซ้าย+ขวา** — ห้ามรวม 4 มุมในแผ่นเดียว
+- [ ] ตัวละครสูงประมาณ 80–85% ของแต่ละ sheet เพื่อเก็บ texture/pattern detail และมี white space รอบปลายหู/นิ้ว/หาง/เท้า
 - [ ] **ทุกมุมแขน/ขาครบ 2 ข้าง** — โดยเฉพาะ back view (AI ชอบตัด/บังแขนหลังกระดอง). ถ้าขาด → re-gen หรือ inpaint แขนที่หายใน Photoshop
+- [ ] B1 และ B2 ต้องใช้ Key Art เดียวกันเป็น reference; ตอนสร้าง B2 ให้แนบ B1 เพิ่มเพื่อคุม identity/texture consistency
 - [ ] Key art กับ Turnaround = **ตัวละคร/ชุด/สีเดียวกันเป๊ะ**
 - [ ] **Skills**: Skill1/Skill2/Ultimate มีชื่อ+คำอธิบาย ครบทุก hero
 - [ ] **Skill icons**: อ่านออกที่ขนาดเล็ก, Ultimate เด่น/ทองกว่า, เข้าชุดกัน
