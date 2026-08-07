@@ -26,11 +26,11 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _AMap:
-        m_Texture: {fileID: 0}
+        m_Texture: {fileID: 2800000, guid: b3fa58fc580ef1b4f8cd17e8a49af808, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BMap:
-        m_Texture: {fileID: 2800000, guid: c6d3dfb14834d2642842e5bc8bdf6c8a, type: 3}
+        m_Texture: {fileID: 2800000, guid: 9a1e6d3da0b3f244db1e53445b5cdea8, type: 3}
         m_Scale: {x: 0, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BNormal:
@@ -38,7 +38,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: 3d7e23f397bd4e347bc2a33df00d0897, type: 3}
+        m_Texture: {fileID: 2800000, guid: 17657655808215b4c986eba8bcc88d7d, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BaseNormal:
@@ -90,7 +90,7 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _RMap:
-        m_Texture: {fileID: 2800000, guid: 5ec0f071b81b63241967c85ddfc73ff8, type: 3}
+        m_Texture: {fileID: 2800000, guid: 706c354512ef3264a9b0f512928f7336, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _RNormal:
@@ -115,12 +115,12 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _ATiling: 1
+    - _ATiling: 0.7
     - _AddPrecomputedVelocity: 0
     - _AlphaClip: 0
     - _AlphaToMask: 0
-    - _BTiling: 0.5
-    - _BaseTiling: 0.9
+    - _BTiling: 0.4
+    - _BaseTiling: 0.4
     - _Blend: 0
     - _BlendModePreserveSpecular: 1
     - _BumpScale: 1
@@ -133,7 +133,7 @@ Material:
     - _DstBlend: 0
     - _DstBlendAlpha: 0
     - _EnvironmentReflections: 1
-    - _GTiling: 1
+    - _GTiling: 3
     - _GlossMapScale: 0
     - _Glossiness: 0
     - _GlossyReflections: 0
@@ -143,7 +143,7 @@ Material:
     - _OcclusionStrength: 1
     - _Parallax: 0.005
     - _QueueOffset: 0
-    - _RTiling: 1
+    - _RTiling: 0.6
     - _RampSmoothness: 0.001
     - _RampThreshold: 0
     - _ReceiveShadows: 1
