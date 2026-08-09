@@ -1,7 +1,7 @@
 # Concept Art Prompts — HEROES · เผ่า NATURAL 🌿⚔️
 
 > **Hero = ตัวชูโรง** — รายละเอียดมากกว่ามอน, silhouette ชัด, มีบุคลิกและท่าทางเฉพาะตัว. เผ่าเดียวกับ `conceptArt-Natural.md` (Beast/ธรรมชาติ: leafy green / earthy brown / terracotta / bone-white) แต่ **ยกระดับเป็นฮีโร่ Fantasy MOBA**
-> **สไตล์:** **premium stylized painterly fantasy MOBA concept art** — สัดส่วน heroic ประมาณ 7–7.5 หัว, anatomy และข้อต่ออ่านชัด, มือมี 5 นิ้วแยกชัดเจน, รูปทรงใหญ่สะอาดและอ่านออกจากกล้อง top-down. ลด micro-detail และความสมจริงแบบ PBR เพื่อให้ปั้น 3D, rig, skin และทำ combat animation ได้จริง
+> **สไตล์ที่ล็อก:** **Broad-Brush Painterly Fantasy MOBA** — สัดส่วน heroic ประมาณ 7–7.5 หัว, anatomy และข้อต่ออ่านชัด, มือมี 5 นิ้วแยกชัดเจน. ใช้มวลสีใหญ่, ขอบนอกคม, ขอบภายในนุ่ม, ลด internal detail ประมาณ 50–60% และอ่านออกจากกล้อง top-down. ห้ามย้อนกลับไปเป็น realistic/PBR หรือ sci-fi render เพื่อให้ปั้น mid-poly 3D, rig, skin และทำ combat animation ได้ง่าย
 
 ---
 
@@ -23,17 +23,33 @@
 
 ## วิธีใช้ / สิ่งที่ได้ต่อ hero
 
-แต่ละ hero มี **5 ชุดไฟล์หลัก** และ optional modular garment sheets:
+แต่ละ hero มี **ชุดไฟล์หลัก** และ optional modular garment sheets:
 - **(A) Key Art** — ท่าโชว์ไดนามิก ถืออาวุธ → การ์ด hero / จอ hero select / โปรโมท
-- **(B1) A-Pose Front + Back Sheet** — หน้า/หลัง 1 แผ่น ตัวใหญ่ เพื่อเก็บ texture และ construction detail
-- **(B2) A-Pose Left + Right Sheet** — ซ้าย/ขวา 1 แผ่น ตัวใหญ่ เพื่อเก็บความหนา silhouette และ attachment detail
+- **(B-FRONT) T-Pose Front Sheet** — ด้านหน้าหนึ่งตัวเต็มแผ่น 4K
+- **(B-BACK) T-Pose Back Sheet** — ด้านหลังหนึ่งตัวเต็มแผ่น 4K
+- **(B-LEFT) T-Pose Left Sheet** — ด้านซ้ายหนึ่งตัวเต็มแผ่น 4K
+- **(B-RIGHT) T-Pose Right Sheet** — ด้านขวาหนึ่งตัวเต็มแผ่น 4K
 - **(G1) Modular Long Garment Front + Back** *(เฉพาะตัวที่มี skirt/robe/coat ยาว)* — เครื่องแต่งกายแยกสำหรับสวมบน body
 - **(G2) Modular Long Garment Left + Right** *(เฉพาะตัวที่มี skirt/robe/coat ยาว)* — ความหนา layer order และระยะห่างจากขา
 - **(P1/P2) Modular Lower-body Set Front+Back / Left+Right** *(เมื่อต้องการแยกกางเกง)* — body ใส่ plain rigging under-shorts; กางเกงจริงอาจรวม waistband, hip panels และชายผ้าประจำชุดเป็น equipment ชิ้นเดียว โดยใช้ pelvis/thigh bones และเพิ่ม child cloth bones สำหรับส่วนย้อย
-- **(C) Weapon / Attached-weapon detail** — อาวุธถือให้ทำ prop แยก; อาวุธที่เป็นส่วนถาวรของถุงมือ/แขนให้ทำ construction sheet แยก แต่คงติดอยู่กับ body ใน B1/B2
+- **(C) Weapon / Shield / Attached-weapon detail** — อาวุธถือและโล่ให้ถอดออกจาก body และสร้างในโฟลเดอร์ย่อยของ prop; อาวุธที่เป็นส่วนถาวรของถุงมือ/แขนให้ทำ construction sheet แยก แต่คงติดอยู่กับ body turnaround
 - **(D) Skills + Icons** — Skill 1 / Skill 2 / Ultimate (ชื่อ+คำอธิบาย) พร้อม prompt ไอคอนสกิล (ชุด 3 อันเข้ากัน)
 
-> ⚠️ **Turnaround workflow:** สร้าง B1 และ B2 เป็นคนละ generation ห้ามขอ 4 มุมในภาพเดียว ใช้ Key Art ที่อนุมัติแล้วเป็น identity reference ทั้งสองครั้ง และใช้ B1 เป็น reference เพิ่มตอนสร้าง B2 เพื่อคุมสัดส่วน ชุด ลาย texture และสีให้ตรงกัน ถ้ามี garment ยาวเกินกลางต้นขา ให้ถอดออกจาก B1/B2 แล้วสร้าง G1/G2 แยก โดย body ใส่ fitted fantasy under-suit หรือ fitted short under-shorts เป็น base layer
+> ⚠️ **Turnaround workflow ที่ล็อก:** สร้างทีละมุมเป็นคนละ generation และหนึ่งไฟล์มีตัวละครเพียงหนึ่งตัว: **FRONT → BACK → LEFT → RIGHT**. ใช้ Key Art ที่อนุมัติเป็น identity master ทุกครั้ง; แนบ Front เพิ่มใน Back/Left และแนบ Front+Left เพิ่มใน Right เพื่อคุมสัดส่วน ชุด ลายและสี. ห้ามขอหลายมุมในภาพเดียว. ถ้ามี garment ยาวเกินกลางต้นขา ให้ถอดจาก body turnaround แล้วสร้าง modular garment แยก โดย body ใส่ fitted fantasy under-suit หรือ fitted short under-shorts
+
+### โครงสร้างโฟลเดอร์และชื่อไฟล์ที่ล็อก
+
+```text
+Natural/hero/NewStyle/[HeroName]/
+  nat-hr##_hero-front-4k-v1.png
+  nat-hr##_hero-back-4k-v1.png
+  nat-hr##_hero-left-4k-v1.png
+  nat-hr##_hero-right-4k-v1.png
+  [WeaponOrShield]/
+    nat-hr##_hero-[prop]-front-4k-v1.png
+    nat-hr##_hero-[prop]-back-4k-v1.png
+    nat-hr##_hero-[prop]-side-4k-v1.png
+```
 
 ---
 
@@ -49,14 +65,18 @@ with exactly five clearly separated, anatomically coherent fingers including a
 readable thumb, knuckles and believable grip mechanics; no mitten hands, fused,
 duplicated, missing or malformed fingers. Keep the face expressive and appealing
 without oversized baby-like eyes.
-RENDERING: polished 2.5D hand-painted game-art finish, broad sculpted planes,
-controlled painterly-toon shadow groups, crisp silhouette and bold value grouping.
-Use visible selective brush texture, simplified graphic material cues and only a few
-focal highlights instead of realistic PBR response. Strong large/medium/small shape
-hierarchy: emphasize large and medium forms, remove noisy seams and micro-detail.
-Fur, scales, fabric, leather, wood and metal must feel stylized and painted rather
-than photographic. The hero must remain instantly readable during fast-paced
-top-down MOBA gameplay and practical as a clean mid-poly model.
+RENDERING — LOCKED BROAD-BRUSH PAINTERLY MOBA STYLE: polished 2.5D hand-painted
+game-art finish made from broad, confident brush masses and softly blended color
+planes. Reduce internal detail by roughly 50–60%. Organize the character into three
+large value groups with a crisp outer silhouette, while most interior transitions
+are soft or lost. Reserve hard edges for the face, eyes, hands, major costume borders
+and the main weapon edge. Use sparse useful seams, restrained motifs, simplified
+graphic material cues and only a few focal highlights. No realistic PBR response,
+individual fur strands, dense scale rendering, fabric weave, pores, scratches or
+micro-engraving. Fur, scales, fabric, leather, wood and metal must feel soft,
+stylized and hand-painted. The hero must remain instantly readable during fast-paced
+top-down MOBA gameplay and practical as a clean mid-poly model with hand-painted
+textures.
 PRODUCTION DESIGN: build clothing, armor, belts, pouches and accessories as clear
 modular pieces with believable thickness and attachment points. Keep shoulder,
 elbow, wrist, waist, hip, knee, ankle and finger deformation zones unobstructed.
@@ -81,8 +101,11 @@ tail) OR FAE / ELF (pointed ears, small fairy wings, flower/leaf crown). The fac
 identity comes from organic materials, living-wood / leaf / bone motifs, tribal
 knotwork and small shared nature accents — NOT from making every hero the same
 color. EACH HERO MAY HAVE A DISTINCT DOMINANT PALETTE appropriate to their identity.
-Leafy green is optional and should usually remain a small faction accent; it does
-not need to dominate. Gold trim may vary from subtle to prominent when appropriate.
+Each hero must receive a PERSONAL dominant palette suited to role and personality.
+Leafy green is normally only a small faction-link accent — for example one gem,
+rune, stitch, leaf inset or weapon edge — and must not turn the roster into matching
+green uniforms. Rowan is the approved exception whose deep-green vest remains a
+major identity color, balanced by cream fur, brown leather and muted gold.
 NATURAL faction palette library: warm tan, earthy brown, leafy green, terracotta,
 red-orange, sun-yellow, teal jewel, bone/cream-white and gold. Select a focused
 subset per hero instead of using every color on every character.
@@ -93,43 +116,55 @@ both hands and both feet fully visible, no cropped limbs, no text, no letters, n
 signature, no watermark. Avoid extreme perspective and extreme foreshortening.
 ```
 
-## 🧍 TURNAROUND SHEET BLOCKS — เลือกแปะท้าย prompt (B) เพียง 1 block ต่อการสร้าง
+## 🧍 SINGLE-VIEW T-POSE BLOCKS — เลือกแปะท้าย prompt เพียง 1 block ต่อ generation
 
-### (B1) FRONT + BACK SHEET BLOCK
+> **Tail-neutral rule สำหรับ beastfolk:** โคนหางเชื่อมกึ่งกลาง sacrum และหางชี้ตรงไปด้านหลังตามแกนลึก ขนานกับพื้นในทุกมุม. Front/Back จึงเห็นหางแบบ foreshortened และห้ามวาดหางกวาดออกซ้ายหรือขวา; Left/Right แสดงความยาวเต็มเป็นเส้นแนวนอน. ห้ามให้หางแตะหรือซ้อนมือ
+
+### (B-FRONT) FRONT 4K
 ```text
-Create SHEET B1 only: exactly TWO large full-body orthographic views in one
-horizontal row, left to right: exact FRONT view and exact BACK view. Do not include
-side views or extra figures. Both figures must use identical scale and proportions,
-fill approximately 80–85% of the canvas height, and be separated by generous clean
-white space with no overlap. Preserve high-resolution texture information: fur
-direction and color boundaries, fabric weave, stitched seams, knotwork patterns,
-leather wrapping, metal trim, fasteners, attachment points and back construction.
-The back view must show both complete arms and hands, unobstructed from shoulder to
-fingertips. Strict neutral A-pose: both arms straight and lowered diagonally about
-35–45 degrees from the shoulders, empty open hands angled toward the thighs with a
-clear air gap from the hips, exactly five clearly separated relaxed fingers on each
-hand including one thumb. Full ear tips, fingertips,
-tail and feet inside the canvas. Pure white background, no weapon, no labels, no text.
+Create exactly ONE large full-body orthographic FRONT view, one character only.
+Strict neutral T-pose: both straight arms fully extended horizontally at shoulder
+height, palms down, five separated relaxed fingers per hand. Legs straight and
+slightly apart. Tail projects straight backward along the depth axis, parallel to
+the ground, and is strongly foreshortened behind the pelvis; no tail sweeps left or
+right. Fill about 82–88% of the square canvas height while
+keeping ears, fingertips, tail and feet fully inside. Pure white background; no
+weapon, prop, labels, text, perspective or extra figures.
 ```
 
-### (B2) LEFT + RIGHT SHEET BLOCK
+### (B-BACK) BACK 4K
 ```text
-Create SHEET B2 only: exactly TWO large full-body orthographic profile views in one
-horizontal row, left to right: exact LEFT PROFILE facing the left edge and exact
-RIGHT PROFILE facing the right edge. Do not include front/back views or extra figures.
-Both profiles must face opposite directions, use identical scale and proportions,
-fill approximately 80–85% of the canvas height, and be separated by generous clean
-white space with no overlap. Preserve the exact identity, costume construction,
-texture scale, pattern placement, colors and materials from the approved Key Art and
-SHEET B1 references. Show garment thickness, side seams, layer order, belt and pouch
-attachments, tail root, footwear profile and silhouette depth clearly. Strict neutral
-A-pose: both arms extend sideways and downward about 35–45 degrees in the coronal
-plane. In true side orthographic views the near and far arms appear largely overlapped/
-end-on; never rotate either arm forward or backward. Hands finish below and outside
-the hip silhouette; offset the far arm vertically only slightly if required. Exactly
-five clearly separated relaxed fingers per
-hand including one thumb. Full ear tips, fingertips, tail and feet inside the canvas.
-Pure white background, no weapon, no labels, no text, no perspective distortion.
+Create exactly ONE large full-body orthographic BACK view of the same approved
+character. Match the Front master exactly in scale, proportions, color boundaries,
+costume construction and simplified pattern placement. Strict neutral T-pose with
+both complete arms and hands visible and not hidden by the tail or back equipment.
+Both arms extend horizontally at shoulder height, palms down. Five separated relaxed
+fingers per hand. Show back closures, the centered sacrum tail root and attachment
+points clearly. Fill about 82–88% of the square canvas height. Pure white background;
+no weapon, prop, labels, text, perspective or extra figures.
+```
+
+### (B-LEFT) LEFT 4K
+```text
+Create exactly ONE large full-body true orthographic LEFT PROFILE facing the left
+edge. Match the approved Front master exactly. Strict neutral T-pose with both arms
+aligned along the depth axis at shoulder height. Show costume thickness, layer order,
+the tail rooted at sacrum and extending straight backward horizontally parallel to
+the ground, and footwear profile. Five separated relaxed fingers per hand. Fill
+about 82–88% of the square canvas height. Pure white background; no weapon, prop,
+labels, text, perspective or extra figures.
+```
+
+### (B-RIGHT) RIGHT 4K
+```text
+Create exactly ONE large full-body true orthographic RIGHT PROFILE facing the right
+edge. Match the approved Front and Left masters exactly; this is a genuine right-side
+design view, not a newly invented costume. Strict neutral T-pose with both arms along
+the depth axis at shoulder height. Show costume thickness, layer order, and the tail
+rooted at sacrum and extending straight backward horizontally parallel to the ground.
+Five separated relaxed fingers per hand. Fill about 82–88% of the square canvas
+height. Pure white background; no weapon, prop, labels, text, perspective or extra
+figures.
 ```
 
 ## 👗 OPTIONAL MODULAR LONG-GARMENT BLOCKS — ใช้เมื่อ garment ยาวเกินกลางต้นขา
@@ -190,7 +225,8 @@ to transparency later.
 
 # Hero 1 — Rowan, the Wildblade (จิ้งจอกนักดาบ) 🦊⚔️
 
-> **จิ้งจอก beastfolk นักดาบ** — รูปร่างเพรียวปราดเปรียว แววตาคม ยิ้มกวน หูจิ้งจอก+ห่วงทอง ลายรูนเขียวบนหน้า หางฟู. ชุด tunic เขียวลาย knotwork + ทอง ให้ภาพลักษณ์นักดาบเผ่าป่าที่สง่างามและว่องไว. ดาบไม้มีชีวิตคมเรืองเขียว
+> **APPROVED IDENTITY MASTER:** `Natural/hero/NewStyle/Rowan/nat-hr01-rowan-keyart-4k-v1.png`
+> **จิ้งจอก beastfolk นักดาบ** — รูปร่างเพรียวปราดเปรียว แววตาคม ยิ้มกวน หูจิ้งจอก+ห่วงทอง ลายรูนเขียวบนหน้า หางฟูใหญ่. ล็อกชุดเป็น vest เขียวเข้มทรงสะอาด ขอบทองด้านกว้างหนึ่งชั้น ลาย leaf-knot กลางอกเพียงหนึ่งจุด, sash หนังน้ำตาล, waist wrap สั้นสามแผง (กลางครีม/ข้างเขียว), bracer และรองเท้าหนังน้ำตาล. ห้ามเพิ่มลายแน่นหรือชิ้นส่วนใหม่
 > **beastfolk = สัตว์อยู่แล้ว** จึงไม่ต้องมีเขา (motif เผ่า = beastfolk + ทอง + ลายรูนเขียว)
 
 ## (A) Key Art — ท่าโชว์ (ตาม ref)
@@ -199,54 +235,61 @@ to transparency later.
 The hero is "Rowan the Wildblade", a young adult male FOX beastfolk swordsman: a
 fluffy cream-and-white fox with alert expressive green (yellow-green) eyes, a sharp
 cool-yet-charming face, large expressive fox ears with little gold ear-cuffs,
-INTRICATE glowing tribal GREEN knotwork markings on his forehead and cheeks, and
-a fluffy striped fox tail. Slim agile build. Gear — richly detailed, heroic and
-refined, forest tones with GOLD accents (an elegant forest tribe): a fitted
-GREEN tunic-vest with intricate green celtic-knotwork rune patterns and gold trim
-(agile swordsman garb, NOT a big bulky mage robe), a brown sash and belt with a
-gold clasp, a short layered leaf-and-cloth waist wrap, leather bracers with gold
-rune inlays, wrapped brown boots with gold buckles. He wields an ORNATE
-LIVING-WOOD KATANA with gold fittings and a soft-green glowing edge, a
-bamboo-wrapped hilt with a tiny leaf tassel. Confident cool pose, blade resting
+restrained tribal GREEN markings on his forehead and cheeks, and
+a huge fluffy striped cream-and-tan fox tail. Slim agile build. Lock the approved
+clean outfit: a deep forest-green sleeveless vest with one broad muted-gold border
+and only ONE central leaf-knot motif, a brown sash and belt, a short three-panel
+waist wrap with one cream center panel and two green leaf side panels, simple brown
+leather bracers and wrapped brown boots with broad gold accents. No dense embroidery,
+no micro runes and no extra accessories. He wields the approved LIVING-WOOD KATANA:
+a broad pale bone-wood blade, narrow soft-green cutting edge, one simple muted-gold
+spine accent, carved leaf guard, brown bamboo hilt and tiny leaf tassel. Pose with blade resting
 back over one shoulder, looking at the viewer with a cheeky grin. His free hand is
 open and unobstructed with five clearly separated fingers; his weapon hand grips
 the hilt naturally. Full body, clean white background, no text.
 ```
 
-## (B) A-Pose Turnaround — ใช้ prompt นี้ร่วมกับ B1 หรือ B2 ทีละแผ่น
+## (B) T-Pose Turnaround — สร้าง Front / Back / Left / Right แยกคนละไฟล์ 4K
 
-> ลำดับแนะนำ: สร้าง **B1 Front+Back** จาก Key Art ก่อน → อนุมัติ identity/texture → สร้าง **B2 Left+Right** โดยแนบทั้ง Key Art และ B1 เป็น reference
+> ลำดับที่ล็อก: **Front → Back → Left → Right**. ทุกครั้งแนบ Approved Key Art และภาพ master ก่อนหน้าเพื่อรักษา identity
 ```
 [HERO STYLE BLOCK]
 Character turnaround sheet of "Rowan the Wildblade", the SAME young FOX beastfolk
-swordsman: fluffy cream-and-white fox, alert expressive yellow-green eyes, a sharp
-charming face, large fox ears with gold ear-cuffs, intricate glowing tribal green
-knotwork markings on the face, a fluffy striped fox tail; richly detailed heroic
-forest gear with GOLD accents — a fitted green knotwork tunic-vest with gold trim, a
-brown sash and belt with a gold clasp, a short layered leaf-and-cloth waist wrap,
-leather bracers with gold rune inlays, wrapped brown boots with gold buckles.
-Use the approved Rowan Key Art as the authoritative identity reference. Append
-exactly ONE turnaround block: either (B1) FRONT + BACK or (B2) LEFT + RIGHT; never
-request all four views in one image. Exactly the same character, gear, proportions,
-texture patterns and colors across both sheets. Standing in a strict A-POSE: BOTH
-arms straight and lowered diagonally about 35–45 degrees from the shoulders in EVERY
-view. EMPTY OPEN HANDS (no weapon — the sword is a separate prop), angled toward the
-thighs with a clear air gap from the hips, each hand showing
+swordsman: fluffy cream-and-white fox, alert yellow-green eyes, sharp charming face,
+large ears with gold cuffs, restrained green face markings and a huge striped cream-
+and-tan tail. Preserve the approved clean outfit exactly: deep forest-green sleeveless
+vest, one broad muted-gold edge, one central leaf-knot motif, brown sash and belt,
+short three-panel waist wrap (cream center, two green sides), simple brown bracers
+and wrapped boots with broad gold accents. No dense knotwork, no micro-detail and no
+new accessories. Use the approved Rowan Key Art as the authoritative identity master.
+Append exactly ONE single-view block: B-FRONT, B-BACK, B-LEFT or B-RIGHT. Exactly the
+same character, gear, proportions, color boundaries and simplified patterns in every
+file. Standing in a strict T-POSE: BOTH arms fully straight and extended horizontally
+at shoulder height in every view, palms down. EMPTY OPEN HANDS (no weapon — the sword
+is a separate prop), each hand showing
 exactly five separated relaxed fingers including the thumb; legs straight and
-slightly apart, facing forward. Clearly expose all major joint and deformation
+slightly apart. The tail root connects at the center sacrum and the entire tail points
+straight backward horizontally, parallel to the ground; never sweep it beside a leg
+or allow it to touch a hand. Clearly expose all major joint and deformation
 zones for modeling, rigging and skinning. Full body visible, clean white background,
 no weapons, no text.
 ```
 
-## (C) Weapon prop — ดาบ (held, prop แยก)
+## (C) Weapon prop — ดาบ (held prop; สร้าง Front / Back / Side แยกไฟล์ 4K)
 ```
 [HERO STYLE BLOCK]
-Isolated game prop, NO character, NO hands holding it: the ORNATE LIVING-WOOD
-KATANA of Rowan the Wildblade — a slim gently-curved blade whose cutting edge is
-a soft glowing green leaf-edge, the flat of the blade is pale bone-white wood
-with GOLD rune inlays, a bamboo-wrapped hilt in brown and green with a polished
-GOLD carved-leaf guard and a tiny leaf tassel. 3 views in one row, evenly
-spaced: front, side, back. Clean white background, no text.
+Isolated game prop, NO character and NO hands: the approved LIVING-WOOD KATANA of
+Rowan the Wildblade — one broad gently curved pale bone-wood blade, a narrow localized
+soft-green cutting edge, one continuous simple muted-gold spine accent, a clean carved
+leaf guard, brown bamboo-wrapped hilt and one tiny leaf tassel. Broad-brush painterly
+MOBA materials, simple modelable construction, no dense runes or micro engraving.
+Create exactly ONE orthographic prop view per file: FRONT, BACK or thin SIDE profile.
+The entire sword uses the SAME strict vertical centered presentation in every file:
+blade tip points straight up at 12 o'clock, hilt is below the guard, and the tassel
+cord with its single leaf hangs perfectly straight down at 6 o'clock. Front, Back
+and Side must match in scale and component height. No diagonal composition and no
+sideways-swinging tassel. Generous white margin. Pure white background, no body,
+hand, sheath, extra prop, text, label or watermark.
 ```
 
 ## (D) Skills — สกิล + ไอคอน 🦊
@@ -904,15 +947,16 @@ white-to-blue-to-purple gradient circle.
 - [ ] **premium stylized fantasy MOBA** — สัดส่วน heroic 7–7.5 หัว, silhouette อ่านออกจากมุม top-down
 - [ ] hero แต่ละตัวมี dominant palette ของตัวเองได้; ความเป็น Natural มาจาก organic motif/material/pattern และ faction accent เล็กน้อย — **ไม่ต้องเป็นโทนเดียวกันทั้งเผ่า**
 - [ ] **ไม่มีออร่า/particle รอบตัว** (เรืองเฉพาะบนตัว/คมดาบ)
-- [ ] A-pose: anatomy/ข้อต่อชัด แขนลด 35–45° มือไม่ชนสะโพก และมีนิ้วครบข้างละ 5 นิ้ว; held weapon ให้ถอดเป็น prop, แต่ attached weapon ถาวรให้ติดอยู่ใน B1/B2 และไม่ขวางข้อมือ/นิ้ว
+- [ ] T-pose: anatomy/ข้อต่อชัด แขนเหยียดตรงแนวนอนระดับไหล่ ฝ่ามือคว่ำ และมีนิ้วครบข้างละ 5 นิ้ว; held weapon/โล่ให้ถอดเป็น prop, แต่ attached weapon ถาวรให้ติดอยู่กับ body และไม่ขวางข้อมือ/นิ้ว
+- [ ] Beastfolk tail: โคนอยู่กึ่งกลาง sacrum, ชี้ตรงไปด้านหลังและขนานพื้น; Front/Back ต้อง foreshorten, Left/Right เห็นความยาวเต็ม; ห้ามหางแตะมือ
 - [ ] ชุด/เกราะไม่ขวาง shoulder, elbow, wrist, hip, knee, ankle
 - [ ] garment ที่ยาวเกินกลางต้นขา: ถอดจาก body B1/B2 → body ใส่ fitted under-suit/กางเกงขาสั้น → สร้าง garment G1/G2 แยกเป็น equipment
 - [ ] modular garment ใช้ waist/hip scale และ master skeleton เดียวกับ body; เพิ่ม dedicated skirt/cloth bones ใต้เอว
 - [ ] แขนเสื้อยาวที่ย้อยอยู่กับ upper-body outfit ได้ แต่ต้องแยกเป็น secondary-bone/cloth pieces และไม่ merge กับแขน
-- [ ] Turnaround แยก **B1 หน้า+หลัง** และ **B2 ซ้าย+ขวา** — ห้ามรวม 4 มุมในแผ่นเดียว
-- [ ] ตัวละครสูงประมาณ 80–85% ของแต่ละ sheet เพื่อเก็บ texture/pattern detail และมี white space รอบปลายหู/นิ้ว/หาง/เท้า
+- [ ] Turnaround แยก **Front / Back / Left / Right เป็น 4 ไฟล์ 4K** — หนึ่งไฟล์มีตัวละครหนึ่งตัวเท่านั้น
+- [ ] ตัวละครสูงประมาณ 82–88% ของแต่ละ sheet เพื่อเก็บ texture/pattern detail และมี white space รอบปลายหู/นิ้ว/หาง/เท้า
 - [ ] **ทุกมุมแขน/ขาครบ 2 ข้าง** — โดยเฉพาะ back view (AI ชอบตัด/บังแขนหลังกระดอง). ถ้าขาด → re-gen หรือ inpaint แขนที่หายใน Photoshop
-- [ ] B1 และ B2 ต้องใช้ Key Art เดียวกันเป็น reference; ตอนสร้าง B2 ให้แนบ B1 เพิ่มเพื่อคุม identity/texture consistency
+- [ ] ทุกมุมใช้ Approved Key Art เดียวกัน; แนบ Front master ใน Back/Left และแนบ Front+Left ใน Right เพื่อคุม identity/texture consistency
 - [ ] Key art กับ Turnaround = **ตัวละคร/ชุด/สีเดียวกันเป๊ะ**
 - [ ] **Skills**: Skill1/Skill2/Ultimate มีชื่อ+คำอธิบาย ครบทุก hero
 - [ ] **Skill icons**: อ่านออกที่ขนาดเล็ก, Ultimate เด่น/ทองกว่า, เข้าชุดกัน
